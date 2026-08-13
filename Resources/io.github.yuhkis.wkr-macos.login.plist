@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>io.github.yuhkis.wkr-macos.login</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Applications/WKRMacOS.app/Contents/MacOS/WKRMacOS</string>
+        <string>--input-source-id</string>
+        <string>com.apple.inputmethod.Kotoeri.RomajiTyping.Japanese</string>
+        <string>--input-mode-id</string>
+        <string>com.apple.inputmethod.Japanese</string>
+        <string>--mode</string>
+        <string>prefix</string>
+        <!-- Repeat --exclude-app to stop converting while a given application is
+             frontmost. Useful for a remote desktop where the keystrokes belong
+             to another machine. A virtual machine is not automatically a
+             candidate: if WKR's synthetic romaji reaches the guest, the guest's
+             own IME converts it, and no layout has to be installed there. See
+             docs/install.md before excluding one.
+        <string>--exclude-app</string>
+        <string>com.parallels.desktop.console</string>
+        -->
+        <string>--request-permissions</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <false/>
+    <key>LimitLoadToSessionType</key>
+    <string>Aqua</string>
+    <key>ProcessType</key>
+    <string>Interactive</string>
+</dict>
+</plist>

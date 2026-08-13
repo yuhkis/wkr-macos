@@ -1,0 +1,24 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  swift-test:
+    # Pinned rather than macos-latest: Package.swift declares swift-tools-version 6.2,
+    # so an older default toolchain on a moving runner image would fail to parse it.
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+      - name: Show toolchain
+        run: swift --version
+      # WKRCore is pure logic with no AppKit/CoreGraphics import, and the test
+      # target depends only on WKRCore, so it runs headless. `make app` is not
+      # run here: it calls `security find-identity` and `codesign`.
+      - name: Run tests
+        run: swift test
