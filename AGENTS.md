@@ -62,6 +62,7 @@
 - 仕組みの説明は `docs/how-it-works.md`、採否と根拠は `docs/design.md`、配列表と綴りは
   `docs/layout-reference.md` が唯一の持ち主。同じ表を複数の場所に書かない。
 - 実測結果や判断を得たら、個人情報・端末固有情報・raw logを除いて `docs/verification.md` に追記する。過去エントリは書き換えない。
+- 個人情報・端末固有情報・raw logを含む生の実測ログは、追跡対象外の `WORKLOG.md`（ローカル専用、`.gitignore` 済み）に残す。公開できる形に要約してから `docs/verification.md` へ移す。
 - `README.md` は入口として保つ。手順の本文を書き戻さず、`docs/` へリンクする。
 - 配列仕様の解釈を変える場合は、根拠となる上流行とテストケースを記録する。
 
@@ -69,3 +70,13 @@
 
 - ユーザーの明示依頼なしにGitHubリポジトリ作成、push、release、署名証明書変更、ログイン項目登録をしない。
 - コミット前に差分と生成物混入を確認する。破壊的な一括削除・移動・リネームは事前確認する。
+
+### 公開リポジトリ運用
+
+- `origin` は公開リポジトリ [`yuhkis/wkr-macos`](https://github.com/yuhkis/wkr-macos)。追跡ファイルに書いた内容はすべて公開されるものとして扱う。
+- 追跡ファイルに個人の絶対パス（`/Users/...`）、機体名、学内ホスト名、raw logを書かない。手順は `~` 起点か相対パスで書く。
+- `WORKLOG.md` と `docs/archive/` はローカル専用。`.gitignore` 済みで、`git add -f` で追加しない。
+- `git push --force` / `--force-with-lease` / `git push --tags` は、ユーザーの明示依頼なしに実行しない。
+- `main` への直接pushはリポジトリルールで禁止されている。変更はブランチを切ってPull Requestを作り、CI (`swift-test`) の成功を確認してからmergeする。承認者は不要だが、履歴はlinearに保つ。
+- 公開 `main` は orphan コミットとして作り直した履歴で、それ以前の履歴は公開しない。復元・接続を試みない。
+- 端末固有の運用（ローカルの保全先、機体ごとの手順など）は、追跡対象外の `AGENTS.local.md` に置く。存在する場合は作業開始時に併せて読む。
