@@ -87,8 +87,12 @@ make start \
 選んでいる間だけ変換が有効になります。動作状況は次で確認できます。
 
 ```bash
-log stream --predicate 'subsystem == "io.github.yuhkis.wkr-macos"' --info
+/usr/bin/log stream --predicate 'subsystem == "io.github.yuhkis.wkr-macos"' --info
 ```
+
+絶対パスで書いているのは、macOSの既定シェルであるzshに引数を取らない `log` ビルトインがあり、
+`log stream ...` が `zsh:log:1: too many arguments` で失敗するためです。bashとfishでは
+`log` のままでも動きます。
 
 停止はいつでもできます。
 
@@ -271,8 +275,36 @@ prefix モードでの期待値は次のとおりです。
 | 許可済みに見えるのに `listen=false` | 再ビルドや再配備で署名 identity が変わっている。既存エントリを `−` で削除してから追加し直す |
 | 変換されない。ログに `matches-target=false` | 現在の入力ソースが Apple日本語入力「ひらがな」ではない。他社IMEや「英字」では設計どおり素通しします |
 | パスワード欄で変換されない | 仕様です。Secure Event Input 中は全入力を素通しします |
+| パスワード欄ではないのに、しばらくの間まったく変換されない | セッションのどこかで Secure Event Input が有効になっています。パスワードマネージャのロック解除ダイアログが開いたまま、ターミナルの Secure Keyboard Entry が有効、認証ダイアログが背後に残っている、が代表例です。下の「変換が止まったときのログの見方」を参照 |
 | ログに `reason=duplicate-instance` | 既に常駐しています。`make stop` してから起動してください |
 | `reason=not-a-bundle` | `.app` bundle の外から実行しています。`make start` / `make start-installed` を使ってください |
 | ad-hoc署名で毎回再許可が必要 | 安定した署名 identity がない環境の既知の制約です。常用するなら `/Applications` へ配備した bundle を固定して使ってください |
+
+### 変換が止まったときのログの見方
+
+このアプリは変換を止めた理由をログに残します。症状が続いている最中なら `log stream`、
+すでに直ってしまった後なら `log show` で振り返れます。
+
+```bash
+/usr/bin/log show --last 1h --predicate 'subsystem == "io.github.yuhkis.wkr-macos"' --style compact
+```
+
+| ログ | 意味 |
+| --- | --- |
+| `secure-event-input enabled=true` | Secure Event Input が有効。`enabled=false` が出るまで全入力を素通しします |
+| `input-source ... matches-target=false` | 対象外の入力ソースです。他社IMEや「英字」に切り替わっています |
+| `frontmost-application ... excluded=true` | `--exclude-app` で除外したアプリが前面です |
+| `conversion-stopped` / `event-tap-disabled` | fail closed で終了しています。起動し直してください |
+
+いずれも出ていなければ、変換ゲートは開いています。常駐しているかどうかは `pgrep WKRMacOS`
+で確認できます。
+
+`secure-event-input enabled=true` のまま戻らない場合は、パスワードマネージャのロック解除
+ダイアログが開いたままになっていないか、ターミナルの Secure Keyboard Entry が有効になって
+いないかを確認してください。**Secure Event Input はフィールド単位ではなくセッション全体に
+効く**ため、前面が普通のテキスト欄でも止まったままになります。メニューバー表示が未実装で、
+止まっていることが画面から分からない点は [roadmap.md](./roadmap.md) の課題です。
+
+実測例は [verification.md](./verification.md) にあります。
 
 Apple の案内: [Macで入力監視へのアクセスを制御する](https://support.apple.com/guide/mac-help/control-access-to-input-monitoring-on-mac-mchl4cedafb6/mac)
