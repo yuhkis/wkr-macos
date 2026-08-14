@@ -54,6 +54,8 @@ Apple日本語入力へ打ち直します**。Apple日本語入力から見れ�
 - メニューバー表示はまだありません（[ロードマップ](./docs/roadmap.md)）。停止は `make stop` です。
 
 限界の全一覧は [docs/how-it-works.md](./docs/how-it-works.md#8-既知の限界) にあります。
+変換が急に効かなくなったときの切り分けは
+[docs/install.md](./docs/install.md#変換が止まったときのログの見方) にあります。
 
 ## アーキテクチャ
 
