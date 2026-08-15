@@ -8,9 +8,14 @@
 > sits in front of it: a `CGEventTap` intercepts the physical keys, a pure finite-state transducer
 > resolves them into kana, and the app replays the equivalent **standard romaji** as synthetic key
 > events. Kotoeri therefore sees ordinary romaji typing and keeps its pre-edit buffer, Space
-> conversion, and learning intact. Requires a **JIS keyboard**, Apple Japanese Input in Hiragana
-> mode, Input Monitoring and Accessibility permissions. It stores nothing and has no network code.
-> Build from source — see [docs/install.md](./docs/install.md). MIT licensed.
+> conversion, and learning intact. Type an English word in Japanese mode by mistake and Kotoeri's
+> `英数` connect-back hands back the romaji this app synthesised rather than the keys you pressed
+> (`thing` returns as `layunnh`), so tapping `英数` twice in quick succession restores your own
+> letters. Requires a **JIS keyboard**, Apple Japanese Input in Hiragana mode, Input Monitoring and
+> Accessibility permissions. To rewrite that text it holds the current pre-edit's physical keys in
+> memory, bounded and discarded on any context change; nothing is written to disk or logged, and
+> there is no network code. Build from source — see [docs/install.md](./docs/install.md).
+> MIT licensed.
 
 `W` `E` `R` と打つと `わから` になります（`W`=わ行、`E`=か行、`R`=ら行）。
 Google 日本語入力や azooKey ならローマ字テーブルを差し替えれば済みますが、
@@ -30,6 +35,11 @@ Apple日本語入力へ打ち直します**。Apple日本語入力から見れ�
 | `W` `E` `R` | `わかr` |
 | `W` `E` `R` + Enter | `わから` |
 
+日本語入力モードのまま英単語を打ってしまったときは、**`英数` を素早く2回**叩くと打ったとおりの
+英字に戻ります。Apple日本語入力の読み戻しは wkr-macos が送ったローマ字を返すため
+（`thing` のつもりが `layunnh`）、そこを置き換えています。詳細は
+[docs/how-it-works.md](./docs/how-it-works.md#7-英字への打ち直し) にあります。
+
 ## ドキュメント
 
 | | |
@@ -45,6 +55,9 @@ Apple日本語入力へ打ち直します**。Apple日本語入力から見れ�
 
 - 上流 `wkr-layout` のかな全行、小書き、特殊かな、`Y`記号レイヤーを **222件の正規化規則**として実装しています。
 - 常用方式は **prefix-romaji**（ログイン時起動もこれ）。CLI の既定値は最も安全な deferred-romaji です。
+- `英数` を素早く2回叩くと**打った物理キーどおりの英字へ打ち直します**。2026-08-15 に TextEdit と
+  Claude.app で確認済みで、先行するテキストは削りません。Unicode 直接注入を使うため、そのイベントを
+  無視するアプリでは働きません。`--english-fallback off` で無効にできます。
 - **JISキーボード専用**で、Apple日本語入力の「ローマ字入力」「ひらがな」以外では完全に素通しします。
 - かな全行・訓令式綴り・Unicode経路・取り消し枝の代表列は **TextEdit で実機確認済み**です。
   記号レイヤー59件も2026-08-13に実機確認済みです。
@@ -53,7 +66,7 @@ Apple日本語入力へ打ち直します**。Apple日本語入力から見れ�
 - 署名済みの配布バイナリはありません。**ソースからビルドして使います。**
 - メニューバー表示はまだありません（[ロードマップ](./docs/roadmap.md)）。停止は `make stop` です。
 
-限界の全一覧は [docs/how-it-works.md](./docs/how-it-works.md#8-既知の限界) にあります。
+限界の全一覧は [docs/how-it-works.md](./docs/how-it-works.md#9-既知の限界) にあります。
 変換が急に効かなくなったときの切り分けは
 [docs/install.md](./docs/install.md#変換が止まったときのログの見方) にあります。
 
