@@ -7,6 +7,7 @@ enum AppConfigurationError: LocalizedError {
     case missingInputSource
     case missingInputMode
     case optimisticAcknowledgementRequired
+    case invalidEnglishFallback(String)
 
     var errorDescription: String? {
         switch self {
@@ -20,6 +21,11 @@ enum AppConfigurationError: LocalizedError {
             return "--input-mode-id is required; run --print-input-source while Apple Japanese Hiragana is active"
         case .optimisticAcknowledgementRequired:
             return "optimistic mode requires --allow-unverified-optimistic"
+        case let .invalidEnglishFallback(value):
+            let supported = EnglishFallbackTrigger.allCases
+                .map(\.rawValue)
+                .joined(separator: ", ")
+            return "unsupported english fallback trigger: \(value) (supported: \(supported))"
         }
     }
 }
@@ -36,8 +42,19 @@ struct AppConfiguration {
     /// to a guest with its own input method, so rewriting them here produces
     /// garbage in the guest.
     let excludedApplications: Set<String>
+    /// Which key pressed while `英数` is held replaces the connect-back with
+    /// the letters the user actually typed. Set with `--english-fallback` or
+    /// the `EnglishFallbackTrigger` user default; the flag wins.
+    let englishFallbackTrigger: EnglishFallbackTrigger
 
-    static func parse(arguments: [String]) throws -> AppConfiguration {
+    /// User default that holds the trigger between launches. A settings window
+    /// can write the same key once the menu bar item exists.
+    static let englishFallbackDefaultsKey = "EnglishFallbackTrigger"
+
+    static func parse(
+        arguments: [String],
+        defaults: UserDefaults = .standard
+    ) throws -> AppConfiguration {
         var printInputSourceOnly = false
         var inputSourceID: String?
         var inputModeID: String?
@@ -45,6 +62,7 @@ struct AppConfiguration {
         var requestPermissions = false
         var allowOptimistic = false
         var excludedApplications: Set<String> = []
+        var englishFallbackName = defaults.string(forKey: englishFallbackDefaultsKey)
 
         // `--flag=value` is split so it behaves like `--flag value`. Unknown
         // arguments are ignored on purpose: macOS injects its own (`-psn_…`,
@@ -92,6 +110,12 @@ struct AppConfiguration {
                     throw AppConfigurationError.missingValue("--exclude-app")
                 }
                 excludedApplications.insert(tokens[index])
+            case "--english-fallback":
+                index += 1
+                guard index < tokens.count else {
+                    throw AppConfigurationError.missingValue("--english-fallback")
+                }
+                englishFallbackName = tokens[index]
             case "--request-permissions":
                 requestPermissions = true
             case "--allow-unverified-optimistic":
@@ -117,6 +141,16 @@ struct AppConfiguration {
             throw AppConfigurationError.invalidMode(modeName)
         }
 
+        let englishFallbackTrigger: EnglishFallbackTrigger
+        if let englishFallbackName {
+            guard let trigger = EnglishFallbackTrigger(rawValue: englishFallbackName) else {
+                throw AppConfigurationError.invalidEnglishFallback(englishFallbackName)
+            }
+            englishFallbackTrigger = trigger
+        } else {
+            englishFallbackTrigger = .default
+        }
+
         if !printInputSourceOnly, inputSourceID == nil {
             throw AppConfigurationError.missingInputSource
         }
@@ -131,7 +165,8 @@ struct AppConfiguration {
             outputMode: outputMode,
             outputModeName: modeName,
             requestPermissions: requestPermissions,
-            excludedApplications: excludedApplications
+            excludedApplications: excludedApplications,
+            englishFallbackTrigger: englishFallbackTrigger
         )
     }
 }

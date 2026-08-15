@@ -189,23 +189,48 @@ final class EnglishFallbackJournalTests: XCTestCase {
 
     // MARK: - Physical key to character
 
-    func testSingleCharacterKeysCarryTheirCharacter() {
-        XCTAssertEqual(PhysicalKey.t.unshiftedASCIICharacter, "t")
-        XCTAssertEqual(PhysicalKey.g.unshiftedASCIICharacter, "g")
-        XCTAssertEqual(PhysicalKey.semicolon.unshiftedASCIICharacter, ";")
-        XCTAssertEqual(PhysicalKey.digit1.unshiftedASCIICharacter, "1")
+    func testKeysCarryTheirPrintedCharacter() {
+        let cases: [(PhysicalKey, Character)] = [
+            (.t, "t"), (.g, "g"), (.semicolon, ";"), (.digit1, "1"),
+            // JIS shifted positions, which differ from ANSI.
+            (.shiftedDigit2, "\""), (.shiftedDigit6, "&"), (.shiftedDigit7, "'"),
+            (.shiftedDigit8, "("), (.shiftedDigit9, ")"),
+            (.leftBrace, "{"), (.rightBrace, "}"), (.jisUnderscore, "_"),
+            (.shiftedAt, "`"), (.shiftedCaret, "~"),
+        ]
+
+        for (key, expected) in cases {
+            XCTAssertEqual(key.jisCharacter, expected, key.rawValue)
+        }
     }
 
-    func testDescribedKeysAreLeftToTheMacOSLayer() {
-        XCTAssertNil(PhysicalKey.shiftedDigit1.unshiftedASCIICharacter)
-        XCTAssertNil(PhysicalKey.jisYen.unshiftedASCIICharacter)
-        XCTAssertNil(PhysicalKey.leftBrace.unshiftedASCIICharacter)
+    func testEveryPhysicalKeyHasAJISCharacter() {
+        for key in PhysicalKey.allCases {
+            XCTAssertNotEqual(key.jisCharacter, "\u{FFFD}", key.rawValue)
+        }
     }
 
     func testThingReadsBackAsThing() {
         let snapshot = journal(typing: [.t, .h, .i, .n, .g]).snapshot(at: 0)
-        let letters = snapshot.map { String($0.keys.compactMap(\.unshiftedASCIICharacter)) }
+        let letters = snapshot.map { String($0.keys.map(\.jisCharacter)) }
 
         XCTAssertEqual(letters, "thing")
+    }
+
+    // MARK: - Trigger
+
+    func testTriggerNamesRoundTrip() {
+        for trigger in EnglishFallbackTrigger.allCases {
+            XCTAssertEqual(EnglishFallbackTrigger(rawValue: trigger.rawValue), trigger)
+        }
+    }
+
+    func testTheDefaultTriggerIsTheEisuReturnChord() {
+        XCTAssertEqual(EnglishFallbackTrigger.default, .eisuReturn)
+        XCTAssertEqual(EnglishFallbackTrigger.default.rawValue, "eisu+return")
+    }
+
+    func testAnUnknownTriggerNameIsRejected() {
+        XCTAssertNil(EnglishFallbackTrigger(rawValue: "eisu+escape"))
     }
 }

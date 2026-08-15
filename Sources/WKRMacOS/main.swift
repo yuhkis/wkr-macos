@@ -44,6 +44,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let controller = EventTapController(
             mode: configuration.outputMode,
             counters: counters,
+            englishFallbackTrigger: configuration.englishFallbackTrigger,
             requestContextRefresh: { [weak self] in
                 self?.refreshConversionContext()
             },
@@ -89,7 +90,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         refreshConversionContext()
 
         AppLog.logger.notice(
-            "conversion-started output-mode=\(self.configuration.outputModeName, privacy: .public)"
+            "conversion-started output-mode=\(self.configuration.outputModeName, privacy: .public) english-fallback=\(self.configuration.englishFallbackTrigger.rawValue, privacy: .public)"
         )
     }
 
