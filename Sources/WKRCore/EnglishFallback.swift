@@ -45,17 +45,32 @@ extension PhysicalKey {
 
 /// How the user asks for the English fallback.
 ///
-/// The `英数` key is not a modifier, so the chord is read from its own key
-/// state: while it is physically down, the paired key fires the fallback
-/// instead of reaching the application. That also means the last `英数` press
-/// of the connect-back doubles as the chord, which is why the default pairs it
-/// with Return.
+/// The default watches for a burst of `英数` presses and fires once the burst
+/// ends, rather than on a fixed press count. How many presses the connect-back
+/// needs differs by application (two in one, three in another), and firing on a
+/// fixed count would delete text at a moment when the alphabet is not on screen
+/// yet. Waiting for the burst to end lets the user tap `英数` as many times as
+/// that application needs. A single press stays an ordinary mode switch.
+///
+/// The chord variants pair `英数`, held down, with another key. `英数` is not a
+/// modifier, so that state is read from its own key events. They are kept
+/// because they fire without any delay, but holding `英数` while reaching for
+/// Return turned out to be an awkward hand movement.
 public enum EnglishFallbackTrigger: String, Equatable, Sendable, CaseIterable {
     case disabled = "off"
+    case eisuBurst = "eisu+eisu"
     case eisuReturn = "eisu+return"
     case eisuTab = "eisu+tab"
 
-    public static let `default` = EnglishFallbackTrigger.eisuReturn
+    public static let `default` = EnglishFallbackTrigger.eisuBurst
+
+    /// Presses closer together than this continue the same burst, and the
+    /// fallback runs this long after the last one. Short enough that a
+    /// deliberate pair reads as one gesture.
+    public static let burstSettleSeconds = 0.25
+
+    /// A burst shorter than this is an ordinary switch to English.
+    public static let minimumBurstPresses = 2
 }
 
 /// The physical keys typed since the last commit boundary, together with the
