@@ -113,9 +113,13 @@ WKR が未確定スコープの物理キー列を保持しない限り復元で�
 
 設計は [design.md](./design.md) の「8. 英字への打ち直し」にある。
 
-**実装済み**: `WKRCore` の `EnglishFallbackJournal`。履歴、上限、寿命、破棄条件、
-fail closedの判定まで。
+**実装済み**: `WKRCore` の `EnglishFallbackJournal` と、`EventTapController` での記録・発動。
+既定のトリガは `英数` を押しながら Enter。`--english-fallback` とユーザーデフォルト
+`EnglishFallbackTrigger` で変更できる。使い方は [install.md](./install.md)。
 
-**未実装**: macOS側の接続。`英数` で変換ゲートだけを閉じて履歴を残すこと、トリガキー、
-Backspace送出と英字列の注入。トリガキーは、macOSが標準で使わないファンクションキーを既定にし、
-CLIオプションで変更できるようにする。
+**未了**: 実機確認。`T` `H` `I` `N` `G` → `英数` 連打 → `英数`+Enter で `thing` になるか、
+アプリ別に確かめる。Unicode直接注入を使うので、イベントを無視するアプリがあり得る。
+`英数` のオートリピートが読み戻しの段を進めるかも未確認。
+
+**未実装**: 設定ウィンドウ。値の置き場所はユーザーデフォルトに用意済みなので、上の
+「2. メニューバー表示」を作るときに束ねる。

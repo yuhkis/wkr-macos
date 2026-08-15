@@ -1,12 +1,61 @@
 extension PhysicalKey {
-    /// The character this key carries when its `rawValue` already is that
-    /// character, which covers the letters, digits and unshifted punctuation
-    /// the fallback needs. Keys whose `rawValue` is a description rather than a
-    /// character (`Shift+1`, `JIS-Yen`) return `nil`; resolving those belongs to
-    /// the macOS layer, which can ask the current ASCII-capable keyboard layout.
-    public var unshiftedASCIICharacter: Character? {
-        rawValue.count == 1 ? rawValue.first : nil
+    /// The character printed on this key on a JIS keyboard, which is what the
+    /// user was reaching for when the fallback fires.
+    ///
+    /// wkr-macos is JIS only, so this is a fixed table rather than a query
+    /// against the current keyboard layout. There is one right answer, and a
+    /// table has no failure path to handle inside the event tap callback.
+    /// Most keys already carry their character in `rawValue`; the rest are the
+    /// shifted positions, where JIS differs from ANSI (`Shift+2` is `"`, not
+    /// `@`).
+    public var jisCharacter: Character {
+        if rawValue.count == 1, let character = rawValue.first {
+            return character
+        }
+        switch self {
+        case .leftBrace: return "{"
+        case .rightBrace: return "}"
+        case .shiftedDigit1: return "!"
+        case .shiftedDigit2: return "\""
+        case .shiftedDigit3: return "#"
+        case .shiftedDigit4: return "$"
+        case .shiftedDigit5: return "%"
+        case .shiftedDigit6: return "&"
+        case .shiftedDigit7: return "'"
+        case .shiftedDigit8: return "("
+        case .shiftedDigit9: return ")"
+        case .jisUnderscore: return "_"
+        case .shiftedMinus: return "="
+        case .shiftedSemicolon: return "+"
+        case .jisYen: return "\u{00A5}"
+        case .shiftedJisYen: return "|"
+        case .shiftedAt: return "`"
+        case .shiftedCaret: return "~"
+        case .shiftedComma: return "<"
+        case .shiftedPeriod: return ">"
+        default:
+            // Every case is either single-character or listed above. A new key
+            // that reaches here is a bug, but returning a placeholder keeps the
+            // event tap callback total instead of trapping mid-keystroke.
+            // `testEveryPhysicalKeyHasAJISCharacter` fails first.
+            return "\u{FFFD}"
+        }
     }
+}
+
+/// How the user asks for the English fallback.
+///
+/// The `英数` key is not a modifier, so the chord is read from its own key
+/// state: while it is physically down, the paired key fires the fallback
+/// instead of reaching the application. That also means the last `英数` press
+/// of the connect-back doubles as the chord, which is why the default pairs it
+/// with Return.
+public enum EnglishFallbackTrigger: String, Equatable, Sendable, CaseIterable {
+    case disabled = "off"
+    case eisuReturn = "eisu+return"
+    case eisuTab = "eisu+tab"
+
+    public static let `default` = EnglishFallbackTrigger.eisuReturn
 }
 
 /// The physical keys typed since the last commit boundary, together with the

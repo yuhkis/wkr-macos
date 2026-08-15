@@ -21,10 +21,18 @@ final class EventTapController {
     private var contextIsCurrent = false
     private var tapOperational = false
     private var suppressedKeyUps: Set<CGKeyCode> = []
+    private let englishFallbackTrigger: EnglishFallbackTrigger
+    /// Physical keys and streamed romaji length for the current pre-edit, so
+    /// the `英数` connect-back can be replaced with what the user pressed.
+    private var englishFallbackJournal = EnglishFallbackJournal()
+    /// `英数` is an ordinary key rather than a modifier, so the chord is read
+    /// from its own key state.
+    private var eisuIsHeld = false
 
     init?(
         mode: OutputMode,
         counters: EventCounters,
+        englishFallbackTrigger: EnglishFallbackTrigger = .default,
         requestContextRefresh: @escaping ContextRefreshHandler,
         fatalErrorHandler: @escaping FatalErrorHandler
     ) {
@@ -32,8 +40,24 @@ final class EventTapController {
         self.transducer = WKRTransducer(mode: mode)
         self.poster = poster
         self.counters = counters
+        self.englishFallbackTrigger = englishFallbackTrigger
         self.requestContextRefresh = requestContextRefresh
         self.fatalErrorHandler = fatalErrorHandler
+    }
+
+    /// Coarse clock for the journal's lifetime. A wall-clock jump can only
+    /// expire the journal early, which fails closed, and reading it is cheap
+    /// enough for the event tap callback.
+    private static func now() -> Double {
+        CFAbsoluteTimeGetCurrent()
+    }
+
+    private var englishFallbackChordKey: CGKeyCode? {
+        switch englishFallbackTrigger {
+        case .disabled: return nil
+        case .eisuReturn: return CGKeyCode(kVK_Return)
+        case .eisuTab: return CGKeyCode(kVK_Tab)
+        }
     }
 
     var isConverting: Bool {
@@ -90,6 +114,8 @@ final class EventTapController {
 
     func stop() {
         transducer.reset()
+        englishFallbackJournal.clear()
+        eisuIsHeld = false
         tapOperational = false
         contextIsCurrent = false
         permissionsGranted = false
@@ -147,6 +173,12 @@ final class EventTapController {
     }
 
     func reset(_ reason: ResetReason) {
+        if reason != .inputSourceChanged {
+            // `英数` arrives as an input source change and is the key the chord
+            // is built on, so only that reason leaves the journal in place.
+            englishFallbackJournal.clear()
+            eisuIsHeld = false
+        }
         if transducer.reset() {
             counters.reset()
             // Logged at notice level because a discarded pending kana is the
@@ -191,6 +223,9 @@ final class EventTapController {
     }
 
     private func handleKeyUp(event: CGEvent, keyCode: CGKeyCode) -> Unmanaged<CGEvent>? {
+        if keyCode == CGKeyCode(kVK_JIS_Eisu) {
+            eisuIsHeld = false
+        }
         if suppressedKeyUps.remove(keyCode) != nil {
             return nil
         }
@@ -203,6 +238,13 @@ final class EventTapController {
         keyCode: CGKeyCode
     ) -> Unmanaged<CGEvent>? {
         if keyCode == CGKeyCode(kVK_JIS_Kana) || keyCode == CGKeyCode(kVK_JIS_Eisu) {
+            if keyCode == CGKeyCode(kVK_JIS_Eisu) {
+                eisuIsHeld = true
+            } else {
+                // `かな` starts a new pre-edit, so nothing from before it can
+                // still be on screen to replace.
+                englishFallbackJournal.clear()
+            }
             invalidateContext(.inputSourceChanged)
             counters.bypassed()
             DispatchQueue.main.async { [weak self] in
@@ -212,6 +254,22 @@ final class EventTapController {
         }
 
         let isAutorepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
+
+        // Modifiers are checked here so that Command+Return and Shift+Return
+        // keep reaching the application even while `英数` happens to be down.
+        let hasOtherModifiers = !event.flags.intersection(Self.disallowedModifierFlags).isEmpty
+            || event.flags.contains(.maskShift)
+        if eisuIsHeld, !hasOtherModifiers, let chordKey = englishFallbackChordKey,
+           keyCode == chordKey {
+            // Consume the key whether or not the replacement runs. Held under
+            // `英数` this is never an ordinary Return, and letting it through
+            // would send the message in a chat client.
+            let actionCount = isAutorepeat ? 0 : performEnglishFallback(through: proxy)
+            counters.transformed(actions: actionCount)
+            suppressedKeyUps.insert(keyCode)
+            return nil
+        }
+
         if isAutorepeat {
             if suppressedKeyUps.contains(keyCode) {
                 return nil
@@ -248,36 +306,39 @@ final class EventTapController {
             return Unmanaged.passUnretained(event)
         }
 
-        let result: TransitionResult
+        let inputEvent: WKRInputEvent
         let isShifted = event.flags.contains(.maskShift)
         if keyCode == CGKeyCode(kVK_Delete) {
-            result = transducer.process(.backspace)
+            inputEvent = .backspace
         } else if let key = Self.physicalKey(for: keyCode, shifted: isShifted) {
-            result = transducer.process(.physical(key))
+            inputEvent = .physical(key)
         } else if keyCode == CGKeyCode(kVK_Return) || keyCode == CGKeyCode(kVK_ANSI_KeypadEnter) {
             // Shift+Return is a line break in many apps, so it has to flush the
             // pending kana exactly like a plain Return before passing through.
-            result = transducer.process(.boundary(.enter))
+            inputEvent = .boundary(.enter)
         } else if isShifted, Self.punctuationKeyCodes.contains(keyCode) {
             // Shifted punctuation such as `？` on Shift+/ ends a word just like
             // `、` and `。`, so it flushes the pending kana instead of dropping
             // it as an unsupported Shift combination.
-            result = transducer.process(.boundary(.punctuation))
+            inputEvent = .boundary(.punctuation)
         } else if isShifted {
             // Shift+letter switches Apple Japanese Input to the alphabet mode,
             // so it ends the current kana. Flushing keeps `G Shift+O` as
             // `はO`; discarding the pending state left the streamed `h` behind
             // and produced `hO`.
-            result = transducer.process(.boundary(.other))
+            inputEvent = .boundary(.other)
         } else if keyCode == CGKeyCode(kVK_Space) {
-            result = transducer.process(.boundary(.space))
+            inputEvent = .boundary(.space)
         } else if keyCode == CGKeyCode(kVK_Tab) {
-            result = transducer.process(.boundary(.tab))
+            inputEvent = .boundary(.tab)
         } else if Self.punctuationKeyCodes.contains(keyCode) {
-            result = transducer.process(.boundary(.punctuation))
+            inputEvent = .boundary(.punctuation)
         } else {
-            result = transducer.process(.boundary(.other))
+            inputEvent = .boundary(.other)
         }
+
+        let result = transducer.process(inputEvent)
+        englishFallbackJournal.record(inputEvent, result: result, at: Self.now())
 
         AppLog.logger.debug("state=\(result.stateCode.rawValue, privacy: .public)")
         return apply(result, through: proxy, to: event, keyCode: keyCode)
@@ -313,12 +374,50 @@ final class EventTapController {
         }
     }
 
+    /// Replace the romaji Apple Japanese Input connected back with the letters
+    /// the user actually pressed. Returns how many synthetic actions were sent.
+    ///
+    /// The user decides when to run this: they press `英数` until the alphabet
+    /// is on screen, and only then complete the chord. WKR never guesses how
+    /// many presses that took. What it does know is the text now on screen,
+    /// because it streamed exactly those romaji characters itself.
+    private func performEnglishFallback(through proxy: CGEventTapProxy) -> Int {
+        guard permissionsGranted, tapOperational, applicationAllowed, !secureInputEnabled else {
+            englishFallbackJournal.clear()
+            AppLog.logger.notice("english-fallback state=blocked")
+            return 0
+        }
+        guard let snapshot = englishFallbackJournal.snapshot(at: Self.now()) else {
+            AppLog.logger.notice("english-fallback state=unavailable")
+            return 0
+        }
+
+        let actions: [SyntheticAction] = [
+            .backspace(count: snapshot.romajiCharacterCount),
+            .unicode(String(snapshot.keys.map(\.jisCharacter))),
+        ]
+        // Whatever happens next, this pre-edit has been consumed.
+        englishFallbackJournal.clear()
+
+        guard poster.post(actions, through: proxy) else {
+            AppLog.logger.error("synthetic-post-failed kind=english-fallback action=terminate")
+            failClosed(reason: "english-fallback-post")
+            return 0
+        }
+        AppLog.logger.notice(
+            "english-fallback state=replaced keys=\(snapshot.keys.count, privacy: .public)"
+        )
+        return actions.count
+    }
+
     private func failClosed(reason: String) {
         tapOperational = false
         permissionsGranted = false
         contextIsCurrent = false
         inputSourceMatches = false
         transducer.reset()
+        englishFallbackJournal.clear()
+        eisuIsHeld = false
         suppressedKeyUps.removeAll()
         DispatchQueue.main.async { [weak self] in
             self?.fatalErrorHandler(reason)
