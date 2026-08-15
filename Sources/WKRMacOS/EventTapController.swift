@@ -28,6 +28,11 @@ final class EventTapController {
     /// `英数` is an ordinary key rather than a modifier, so the chord is read
     /// from its own key state.
     private var eisuIsHeld = false
+    /// Presses in the current `英数` burst. The connect-back needs a different
+    /// number of them per application, so the fallback waits for the burst to
+    /// end instead of counting to a fixed total.
+    private var eisuBurstPresses = 0
+    private var eisuBurstSettle: DispatchWorkItem?
 
     init?(
         mode: OutputMode,
@@ -54,7 +59,7 @@ final class EventTapController {
 
     private var englishFallbackChordKey: CGKeyCode? {
         switch englishFallbackTrigger {
-        case .disabled: return nil
+        case .disabled, .eisuBurst: return nil
         case .eisuReturn: return CGKeyCode(kVK_Return)
         case .eisuTab: return CGKeyCode(kVK_Tab)
         }
@@ -116,6 +121,7 @@ final class EventTapController {
         transducer.reset()
         englishFallbackJournal.clear()
         eisuIsHeld = false
+        cancelEisuBurst()
         tapOperational = false
         contextIsCurrent = false
         permissionsGranted = false
@@ -178,6 +184,7 @@ final class EventTapController {
             // is built on, so only that reason leaves the journal in place.
             englishFallbackJournal.clear()
             eisuIsHeld = false
+            cancelEisuBurst()
         }
         if transducer.reset() {
             counters.reset()
@@ -237,13 +244,21 @@ final class EventTapController {
         event: CGEvent,
         keyCode: CGKeyCode
     ) -> Unmanaged<CGEvent>? {
+        let isAutorepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
+
         if keyCode == CGKeyCode(kVK_JIS_Kana) || keyCode == CGKeyCode(kVK_JIS_Eisu) {
             if keyCode == CGKeyCode(kVK_JIS_Eisu) {
                 eisuIsHeld = true
+                if !isAutorepeat, englishFallbackTrigger == .eisuBurst {
+                    // Holding the key down is not a burst, so repeats are left
+                    // out of the count.
+                    extendEisuBurst()
+                }
             } else {
                 // `かな` starts a new pre-edit, so nothing from before it can
                 // still be on screen to replace.
                 englishFallbackJournal.clear()
+                cancelEisuBurst()
             }
             invalidateContext(.inputSourceChanged)
             counters.bypassed()
@@ -252,8 +267,6 @@ final class EventTapController {
             }
             return Unmanaged.passUnretained(event)
         }
-
-        let isAutorepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
 
         // Modifiers are checked here so that Command+Return and Shift+Return
         // keep reaching the application even while `英数` happens to be down.
@@ -374,6 +387,38 @@ final class EventTapController {
         }
     }
 
+    /// Count one `英数` press and restart the settle timer. The fallback runs
+    /// when the burst ends, so the user can tap `英数` as many times as the
+    /// application needs to reach the alphabet.
+    private func extendEisuBurst() {
+        eisuBurstPresses += 1
+        eisuBurstSettle?.cancel()
+        let settle = DispatchWorkItem { [weak self] in
+            self?.finishEisuBurst()
+        }
+        eisuBurstSettle = settle
+        // The tap callback already runs on the main run loop, so the burst
+        // state needs no locking.
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + EnglishFallbackTrigger.burstSettleSeconds,
+            execute: settle
+        )
+    }
+
+    private func cancelEisuBurst() {
+        eisuBurstSettle?.cancel()
+        eisuBurstSettle = nil
+        eisuBurstPresses = 0
+    }
+
+    private func finishEisuBurst() {
+        let presses = eisuBurstPresses
+        cancelEisuBurst()
+        // One press is an ordinary switch to English and must not touch text.
+        guard presses >= EnglishFallbackTrigger.minimumBurstPresses else { return }
+        performEnglishFallback(through: nil)
+    }
+
     /// Replace the romaji Apple Japanese Input connected back with the letters
     /// the user actually pressed. Returns how many synthetic actions were sent.
     ///
@@ -381,7 +426,8 @@ final class EventTapController {
     /// is on screen, and only then complete the chord. WKR never guesses how
     /// many presses that took. What it does know is the text now on screen,
     /// because it streamed exactly those romaji characters itself.
-    private func performEnglishFallback(through proxy: CGEventTapProxy) -> Int {
+    @discardableResult
+    private func performEnglishFallback(through proxy: CGEventTapProxy?) -> Int {
         guard permissionsGranted, tapOperational, applicationAllowed, !secureInputEnabled else {
             englishFallbackJournal.clear()
             AppLog.logger.notice("english-fallback state=blocked")
@@ -399,7 +445,8 @@ final class EventTapController {
         // Whatever happens next, this pre-edit has been consumed.
         englishFallbackJournal.clear()
 
-        guard poster.post(actions, through: proxy) else {
+        let posted = proxy.map { poster.post(actions, through: $0) } ?? poster.post(actions)
+        guard posted else {
             AppLog.logger.error("synthetic-post-failed kind=english-fallback action=terminate")
             failClosed(reason: "english-fallback-post")
             return 0
@@ -418,6 +465,7 @@ final class EventTapController {
         transducer.reset()
         englishFallbackJournal.clear()
         eisuIsHeld = false
+        cancelEisuBurst()
         suppressedKeyUps.removeAll()
         DispatchQueue.main.async { [weak self] in
             self?.fatalErrorHandler(reason)

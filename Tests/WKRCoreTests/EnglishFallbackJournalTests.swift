@@ -225,9 +225,19 @@ final class EnglishFallbackJournalTests: XCTestCase {
         }
     }
 
-    func testTheDefaultTriggerIsTheEisuReturnChord() {
-        XCTAssertEqual(EnglishFallbackTrigger.default, .eisuReturn)
-        XCTAssertEqual(EnglishFallbackTrigger.default.rawValue, "eisu+return")
+    func testTheDefaultTriggerIsTheEisuBurst() {
+        // Holding `英数` while reaching for Return proved to be an awkward hand
+        // movement: the key was usually already released by the time Return
+        // was pressed, so the chord never fired.
+        XCTAssertEqual(EnglishFallbackTrigger.default, .eisuBurst)
+        XCTAssertEqual(EnglishFallbackTrigger.default.rawValue, "eisu+eisu")
+    }
+
+    func testABurstNeedsAtLeastTwoPresses() {
+        // One press is an ordinary switch to English and must never replace
+        // text.
+        XCTAssertGreaterThanOrEqual(EnglishFallbackTrigger.minimumBurstPresses, 2)
+        XCTAssertGreaterThan(EnglishFallbackTrigger.burstSettleSeconds, 0)
     }
 
     func testAnUnknownTriggerNameIsRejected() {

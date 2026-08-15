@@ -19,6 +19,20 @@ final class SyntheticEventPoster {
         return true
     }
 
+    /// Post without a tap proxy, for work that finishes on the main run loop
+    /// rather than inside the callback. The English fallback runs here because
+    /// it waits for a burst of `英数` presses to end, which is a timer rather
+    /// than a keystroke. Our own tap sees these events too, and skips them by
+    /// the same marker.
+    @discardableResult
+    func post(_ actions: [SyntheticAction]) -> Bool {
+        guard let events = makeEvents(for: actions) else { return false }
+        for event in events {
+            event.post(tap: .cgSessionEventTap)
+        }
+        return true
+    }
+
     /// Build the complete batch before posting any part of it. This prevents a
     /// malformed action from producing a partial synthetic sequence.
     private func makeEvents(for actions: [SyntheticAction]) -> [CGEvent]? {
