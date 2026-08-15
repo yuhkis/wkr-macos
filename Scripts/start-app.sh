@@ -23,17 +23,42 @@ fi
 attempt_interval=${WKR_START_RETRY_INTERVAL:-5}
 timeout=${WKR_START_TIMEOUT:-300}
 settle=2
+confirm=2
 
 elapsed=0
 announced=0
+first=1
 
 while :; do
     open "$app" --args "$@"
+
+    if [ "$first" -eq 1 ]; then
+        first=0
+        # Ask for the permissions once, on the first attempt only. Requesting
+        # again every few seconds buries System Settings under a fresh prompt
+        # and makes the switch the user is reaching for impossible to click.
+        # Later attempts only need the permission to already be there.
+        count=$#
+        while [ "$count" -gt 0 ]; do
+            argument=$1
+            shift
+            if [ "$argument" != "--request-permissions" ]; then
+                set -- "$@" "$argument"
+            fi
+            count=$((count - 1))
+        done
+    fi
+
     sleep "$settle"
 
     if pgrep -x WKRMacOS >/dev/null 2>&1; then
-        printf 'Started: %s\n' "$app"
-        exit 0
+        # A missing permission makes the app exit on its own, and the process
+        # is still listed while it does. Look again before believing it.
+        sleep "$confirm"
+        if pgrep -x WKRMacOS >/dev/null 2>&1; then
+            printf 'Started: %s\n' "$app"
+            exit 0
+        fi
     fi
 
     if [ "$announced" -eq 0 ]; then
@@ -42,7 +67,9 @@ while :; do
 The app asked for permission and exited, which is its normal fail-closed path.
 
 Grant both of these in System Settings > Privacy & Security, then leave this
-running; it retries on its own and stops as soon as the app stays up.
+running; it retries on its own and stops as soon as the app stays up. The
+permission request is only made on the first attempt, so the panel stays
+usable while you work through it.
 
   - Input Monitoring
   - Accessibility
