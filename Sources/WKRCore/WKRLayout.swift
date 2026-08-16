@@ -242,11 +242,16 @@ private extension WKRLayout {
         .init(rootID: "w-wa", key: .w, rootKana: "わ", rootRomaji: "wa", variants: [
             .init("wh-wa", .h, "わ", "wa"),
             .init("wk-wi", .k, "うぃ", "wi"),
-            // `vu` reaches ゔ (U+3094), not the ヴ (U+30F4) this row declares,
-            // and Apple Japanese Input's romaji table has no hiragana-mode
-            // spelling for the katakana form. This one stays a Unicode
-            // injection; changing the output would be an upstream layout change.
-            .init(text: "wj-vu", .j, "ヴ"),
+            // Was ヴ (U+30F4) as a Unicode injection. Apple Japanese Input has
+            // no hiragana-mode spelling for the katakana form: every `v` rule in
+            // its table produces ゔ (U+3094), because ゔ exists while ヵ and ヶ
+            // have no hiragana form and so are spelled directly. Injecting ヴ
+            // committed it and took it out of the pre-edit, which is why ゔぁ,
+            // ゔぃ, ゔぇ, ゔぉ and the ゔゃ row could not be built at all: there
+            // was nothing left on screen for a small kana to attach to. `vu`
+            // keeps it in the pre-edit, so those eight follow from the existing
+            // small kana rules, and Space still reaches ヴ.
+            .init("wj-vu", .j, "ゔ", "vu"),
             .init("wsemicolon-we", .semicolon, "うぇ", "we"),
             .init("wl-wo", .l, "を", "wo"),
             .init("wu-archaic-wi", .u, "ゐ", "wyi"),
@@ -263,6 +268,10 @@ private extension WKRLayout {
             .init("qu-gya", .u, "ぎゃ", "gya"),
             .init("qi-gyu", .i, "ぎゅ", "gyu"),
             .init("qo-gyo", .o, "ぎょ", "gyo"),
+            // `ヵ` had no key at all while `ヶ` sat on `EY`, and neither can be
+            // built from a base kana because they have no hiragana form. This
+            // row's `Y` slot was free. Added ahead of upstream wkr-layout v1.1.
+            .init("qy-small-ka", .y, "ヵ", "lka"),
         ]),
         .init(rootID: "z-za", key: .z, rootKana: "ざ", rootRomaji: "za", variants: [
             .init("zh-za", .h, "ざ", "za"),
@@ -335,6 +344,10 @@ private extension WKRLayout {
         .init(id: "p-long", input: [.p], kana: "ー", romaji: "-"),
     ]
 
+    // 後置小書きは `K` `T` を持たない。`KT → ぃ` があると `K` の後の `T` がその規則に
+    // 吸われ、`K` `T` `;` が `いぇ` ではなく `ぃえ` になる。`ぃ` は前置形 `TK` で入力する。
+    // 残る7件の後置小書きにも同じ衝突があり、上流での判断は docs/layout-coverage.md にある。
+    //
     // 小書きは `x` ではなく `l` で送る。2026-08-12の実機確認で、Apple日本語入力は
     // 単発の `xya` は受理するが、`xyaxyuxyo` のように連続すると先頭の `x` を確定
     // 文字として切り離し、`xやx湯ょ` になった。`lyalyulyo` は連続でも正しく
@@ -349,7 +362,6 @@ private extension WKRLayout {
         .init(id: "ti-small-yu", input: [.t, .i], kana: "ゅ", romaji: "lyu"),
         .init(id: "to-small-yo", input: [.t, .o], kana: "ょ", romaji: "lyo"),
         .init(id: "ht-small-a", input: [.h, .t], kana: "ぁ", romaji: "la"),
-        .init(id: "kt-small-i", input: [.k, .t], kana: "ぃ", romaji: "li"),
         .init(id: "jt-small-u", input: [.j, .t], kana: "ぅ", romaji: "lu"),
         .init(id: "semicolont-small-e", input: [.semicolon, .t], kana: "ぇ", romaji: "le"),
         .init(id: "lt-small-o", input: [.l, .t], kana: "ぉ", romaji: "lo"),

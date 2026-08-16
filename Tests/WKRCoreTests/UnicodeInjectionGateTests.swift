@@ -65,12 +65,13 @@ final class UnicodeInjectionGateTests: XCTestCase {
     // MARK: - Every Unicode rule, not only the `Y` layer
 
     func testUnicodeRulesOutsideTheSymbolLayerAreGatedToo() {
-        // `T` `,` is `，` and `W` `J` is `ヴ`. Both take the same path.
+        // `T` `,` is `，` and `T` `/` is `／`, the punctuation left on this
+        // path now that `ヴ` reaches the pre-edit as `vu`.
         let comma = post(keys([.w, .e, .r, .t, .comma]))
-        let vu = post(keys([.w, .e, .r, .w, .j]))
+        let slash = post(keys([.w, .e, .r, .t, .slash]))
 
         XCTAssertTrue(comma[4].droppedUnicode)
-        XCTAssertTrue(vu[4].droppedUnicode)
+        XCTAssertTrue(slash[4].droppedUnicode)
     }
 
     // MARK: - What reopens the gate

@@ -200,9 +200,9 @@ final class EnglishFallbackJournalTests: XCTestCase {
     }
 
     func testUnicodeOutputStopsTheJournal() {
-        // `WJ` is `ヴ`, injected as a Unicode string, so it commits on the spot
-        // instead of joining the romaji the connect-back can return.
-        XCTAssertNil(journal(typing: [.w, .j]).snapshot(at: 0))
+        // `T` `,` is `，`, injected as a Unicode string, so it commits on the
+        // spot instead of joining the romaji the connect-back can return.
+        XCTAssertNil(journal(typing: [.t, .comma]).snapshot(at: 0))
     }
 
     func testAnUnexplainedBackspaceStopsTheJournal() {
@@ -264,7 +264,7 @@ final class EnglishFallbackJournalTests: XCTestCase {
     }
 
     func testAnInvalidatedJournalStaysClosedUntilABoundary() {
-        var journal = self.journal(typing: [.w, .j])
+        var journal = self.journal(typing: [.t, .comma])
         let event = WKRInputEvent.physical(.e)
         let engine = WKRTransducer(mode: .prefixRomaji)
         journal.record(event, result: engine.process(event), at: 0)
