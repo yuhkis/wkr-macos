@@ -1,10 +1,10 @@
 public enum WKRLayout {
     public static let sourceRepositoryURL = "https://github.com/yuhkis/wkr-layout"
-    /// Base snapshot. Rules marked "ahead of upstream v1.1" below are agreed
-    /// layout changes that land in wkr-layout with its next release; re-pin this
-    /// revision once that release exists.
-    public static let sourceRevision = "a8c102fa6dab6b7d7fdf9678ec9ce2e646facec8"
-    public static let sourceImportedOn = "2026-08-11"
+    /// Pinned to wkr-layout ver 1.1, which carries every rule this table
+    /// holds. The kana are identical to upstream; only the romaji spellings
+    /// sent to Apple Japanese Input differ (see `docs/layout-reference.md`).
+    public static let sourceRevision = "03cba20a62c6d27bc90e6bc5572f89a13f14108a"
+    public static let sourceImportedOn = "2026-08-16"
 
     /// Entries that cannot be mapped uniquely to a physical JIS key. They are
     /// retained here as an explicit quarantine instead of being guessed into
@@ -270,7 +270,7 @@ private extension WKRLayout {
             .init("qo-gyo", .o, "ぎょ", "gyo"),
             // `ヵ` had no key at all while `ヶ` sat on `EY`, and neither can be
             // built from a base kana because they have no hiragana form. This
-            // row's `Y` slot was free. Added ahead of upstream wkr-layout v1.1.
+            // row's `Y` slot was free. Upstream carries this from ver 1.1.
             .init("qy-small-ka", .y, "ヵ", "lka"),
         ]),
         .init(rootID: "z-za", key: .z, rootKana: "ざ", rootRomaji: "za", variants: [
@@ -445,7 +445,7 @@ private extension WKRLayout {
         .init(id: "y-rightbracket-fullwidth", input: [.y, .rightBracket], text: "］"),
         .init(id: "y-leftbrace-double-angle", input: [.y, .leftBrace], text: "《"),
         .init(id: "y-rightbrace-double-angle", input: [.y, .rightBrace], text: "》"),
-        // Added ahead of upstream wkr-layout v1.1. 【 】 are frequent in Japanese
+        // Upstream carries these from ver 1.1. 【 】 are frequent in Japanese
         // writing but sat on Shift+8 / Shift+9, which costs a layer hold on
         // keyboards without a number row. `I` and `O` were unused in the `Y`
         // layer and roll outward from `Y` (index → middle → ring), matching the
