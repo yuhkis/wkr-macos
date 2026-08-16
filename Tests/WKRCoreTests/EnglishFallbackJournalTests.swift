@@ -30,6 +30,26 @@ final class EnglishFallbackJournalTests: XCTestCase {
         XCTAssertEqual(snapshot?.romajiCharacterCount, 7)
     }
 
+    /// The arrows are romaji now, so a mistyped `Y` `J` stays recoverable. It
+    /// used to inject Unicode, which stopped the journal for the rest of the
+    /// pre-edit and left the connect-back with nothing to replace.
+    func testArrowKeysKeepTheJournalUsable() {
+        let snapshot = journal(typing: [.y, .j]).snapshot(at: 0)
+
+        XCTAssertEqual(snapshot?.keys, [.y, .j])
+        XCTAssertEqual(snapshot?.romajiCharacterCount, 2)  // `z` + `j`
+        XCTAssertEqual(
+            snapshot.map { String($0.keys.map(\.jisCharacter)) },
+            "yj"
+        )
+    }
+
+    /// A symbol still stops it: the character commits on the spot, so there is
+    /// nothing left in the pre-edit for the connect-back to hand back.
+    func testSymbolLayerStillStopsTheJournal() {
+        XCTAssertNil(journal(typing: [.y, .a]).snapshot(at: 0))
+    }
+
     func testRecordedRomajiLengthMatchesWhatTheTransducerStreamed() {
         let cases: [(name: String, keys: [PhysicalKey], expected: Int)] = [
             ("THING", [.t, .h, .i, .n, .g], 7),  // l a  yu  nn  h
