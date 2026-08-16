@@ -10,7 +10,6 @@ final class WKRTransducerTests: XCTestCase {
             ("WER", [.w, .e, .r], ["wa", "ka", "ra"]),
             ("SU", [.s, .u], ["sha"]),
             ("FI", [.f, .i], ["tyu"]),
-            ("HT", [.h, .t], ["la"]),
             ("TH", [.t, .h], ["la"]),
         ]
 
@@ -139,7 +138,7 @@ final class WKRTransducerTests: XCTestCase {
 
     func testFullLayoutSnapshotContainsEveryUniqueNormalizedRule() {
         XCTAssertEqual(WKRLayout.sourceRevision, "a8c102fa6dab6b7d7fdf9678ec9ce2e646facec8")
-        XCTAssertEqual(WKRLayout.rules.count, 222)
+        XCTAssertEqual(WKRLayout.rules.count, 215)
 
         let inputs = WKRLayout.rules.map { rule in
             rule.input.map(\.rawValue).joined(separator: "\u{0}")
@@ -368,9 +367,9 @@ final class WKRTransducerTests: XCTestCase {
         XCTAssertEqual(actions, [.romaji("lka")])
     }
 
-    /// `KT → ぃ` swallowed the `T` of a following prefix small kana, so `K`
-    /// `T` `;` produced `ぃえ` instead of `いぇ`. Dropping it makes `い` a
-    /// terminal key again; `ぃ` is still reachable as the prefix form `TK`.
+    /// `KT → ぃ` was the clearest case: it swallowed the `T` of a following
+    /// prefix small kana, so `K` `T` `;` produced `ぃえ` instead of `いぇ`.
+    /// `ぃ` is still reachable as the prefix form `TK`.
     func testDroppingTheTrailingSmallIUnblocksIe() {
         let engine = WKRTransducer(mode: .deferredRomaji)
         var actions: [SyntheticAction] = []
@@ -384,22 +383,65 @@ final class WKRTransducerTests: XCTestCase {
         XCTAssertNotNil(WKRLayout.rules.first { $0.input == [.t, .k] })
     }
 
-    /// The other seven trailing small kana still swallow the `T`, which is the
-    /// same collision. They stay until the upstream layout decides; the point
-    /// here is that the list is exactly seven, so a change is visible.
-    func testTheRemainingTrailingSmallKanaAreStillSeven() {
+    /// All eight trailing small kana are gone. Each swallowed the `T` of a
+    /// following prefix small kana, so no base kana could be followed by one.
+    func testNoTrailingSmallKanaRemain() {
         // `YT → 〆` is the symbol layer, not a trailing small kana.
         let trailing = WKRLayout.rules.filter {
             $0.input.count == 2 && $0.input[1] == .t && $0.input[0] != .y
         }
 
-        XCTAssertEqual(
-            Set(trailing.map(\.id)),
-            [
-                "ht-small-a", "jt-small-u", "semicolont-small-e", "lt-small-o",
-                "ut-small-ya", "it-small-yu", "ot-small-yo",
-            ]
-        )
+        XCTAssertEqual(trailing.map(\.id), [])
+    }
+
+    /// Every base kana can now be followed by a prefix small kana, which is
+    /// what the trailing forms were blocking.
+    func testEveryBaseVowelAcceptsAFollowingSmallKana() {
+        let bases: [(PhysicalKey, String)] = [
+            (.h, "a"), (.k, "i"), (.j, "u"), (.semicolon, "e"), (.l, "o"),
+            (.u, "ya"), (.i, "yu"), (.o, "yo"),
+        ]
+        let smalls: [(PhysicalKey, String)] = [
+            (.h, "la"), (.k, "li"), (.j, "lu"), (.semicolon, "le"), (.l, "lo"),
+            (.u, "lya"), (.i, "lyu"), (.o, "lyo"),
+        ]
+
+        for (baseKey, baseRomaji) in bases {
+            for (smallKey, smallRomaji) in smalls {
+                let engine = WKRTransducer(mode: .deferredRomaji)
+                var actions: [SyntheticAction] = []
+                for key in [baseKey, .t, smallKey] {
+                    actions.append(contentsOf: engine.process(.physical(key)).actions)
+                }
+                actions.append(contentsOf: engine.process(.boundary(.enter)).actions)
+
+                XCTAssertEqual(
+                    concatenatedRomaji(actions),
+                    baseRomaji + smallRomaji,
+                    "\(baseKey.rawValue)+T+\(smallKey.rawValue)"
+                )
+            }
+        }
+    }
+
+    /// The provisional a rollback takes back is always raw romaji now, so a
+    /// Backspace count and a character count agree everywhere.
+    func testNoRuleTakesBackAComposedKana() {
+        for rule in WKRTransducer.fullRules {
+            let engine = WKRTransducer(mode: .prefixRomaji)
+            var result = TransitionResult(disposition: .passThrough, stateCode: .idle)
+            for key in rule.input {
+                result = engine.process(.physical(key))
+            }
+
+            let units = result.actions.reduce(0) { total, action in
+                if case let .backspace(count) = action { return total + count }
+                return total
+            }
+            if units > 0 {
+                XCTAssertEqual(units, result.deletedRomajiCharacters, rule.id)
+            }
+        }
     }
 
     // MARK: - Turning the `Y` symbol layer off
@@ -539,14 +581,12 @@ final class WKRTransducerTests: XCTestCase {
             ("GJ", [.g, .j], [[.romaji("h")], [.romaji("u")]]),
             ("ZK", [.z, .k], [[.romaji("z")], [.romaji("i")]]),
             ("H", [.h], [[.romaji("a")]]),
-            ("HT", [.h, .t], [[.romaji("a")], [.backspace(count: 1), .romaji("la")]]),
             // や・ゆ・よ must appear on the first keystroke like あ・い・う・え・お,
             // so the whole output is streamed and one kana is taken back when
             // the postfix small-kana branch follows.
             ("U", [.u], [[.romaji("ya")]]),
             ("I", [.i], [[.romaji("yu")]]),
             ("O", [.o], [[.romaji("yo")]]),
-            ("UT", [.u, .t], [[.romaji("ya")], [.backspace(count: 1), .romaji("lya")]]),
             // The X row keeps streaming one letter, because ふぁ / ふぃ / ふゅ /
             // ふぇ / ふぉ all continue it.
             ("X", [.x], [[.romaji("f")]]),
@@ -603,16 +643,15 @@ final class WKRTransducerTests: XCTestCase {
         }
     }
 
-    /// A rollback must delete exactly what is displayed: one Backspace per raw
-    /// romaji letter, or one per kana once the output has composed.
+    /// A rollback deletes what is displayed, which is one Backspace per raw
+    /// romaji letter. Dropping the trailing small kana removed the only rules
+    /// whose provisional had already composed into a kana, so every remaining
+    /// rollback takes back raw letters; the kana case stays covered by the unit
+    /// computation and `testNoRuleTakesBackAComposedKana`.
     func testPrefixModeDeletesDisplayedUnitsNotRawLetters() {
         let cases: [(name: String, keys: [PhysicalKey], expected: [SyntheticAction])] = [
-            // `や` is one composed kana even though it took two letters.
-            ("UT", [.u, .t], [.romaji("ya"), .backspace(count: 1), .romaji("lya")]),
-            ("IT", [.i, .t], [.romaji("yu"), .backspace(count: 1), .romaji("lyu")]),
-            ("OT", [.o, .t], [.romaji("yo"), .backspace(count: 1), .romaji("lyo")]),
-            // `f` is still a raw letter in the pre-edit buffer.
             ("XU", [.x, .u], [.romaji("f"), .backspace(count: 1), .romaji("teli")]),
+            ("EY", [.e, .y], [.romaji("k"), .backspace(count: 1), .romaji("lke")]),
         ]
 
         for testCase in cases {
@@ -669,9 +708,6 @@ final class WKRTransducerTests: XCTestCase {
     /// pay it stay an explicit, reviewed inventory instead of a surprise.
     func testPrefixModeRollbackInventoryIsExactlyTheDeclaredRules() {
         var expectedRollbacks: Set<String> = [
-            // Postfix small kana replace the vowel that was already shown.
-            "ht-small-a", "jt-small-u", "semicolont-small-e",
-            "lt-small-o", "ut-small-ya", "it-small-yu", "ot-small-yo",
             // The X row mixes ふ, て and で, so only ふ keeps the streamed `f`.
             "xy-tyu", "xu-thi", "xi-dhu", "xo-dhi",
             // Outputs that cannot continue the letter their row streamed:

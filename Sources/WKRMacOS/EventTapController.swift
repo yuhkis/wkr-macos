@@ -322,6 +322,23 @@ final class EventTapController {
         }
 
         if !event.flags.intersection(Self.disallowedModifierFlags).isEmpty {
+            // Apple Japanese Input keeps its conversion shortcuts on Control,
+            // and which letter does what depends on the key setting: the
+            // default one puts hiragana on Ctrl+J and katakana on Ctrl+K, the
+            // Windows one on Ctrl+U and Ctrl+I. No public API reports which is
+            // selected, so the list cannot be enumerated. Finish the pending
+            // kana for any Control combination instead and let the original
+            // through, the same way Return and Shift+letter are handled: `W`
+            // `E` `R` then Ctrl+K has to reach ワカラ, not ワカr.
+            //
+            // Command and Option keep failing closed. Those shortcuts can move
+            // the focus, and synthetic romaji would then land somewhere else.
+            if event.flags.contains(.maskControl),
+               event.flags.intersection(Self.focusMovingModifierFlags).isEmpty,
+               transducer.hasPendingInput {
+                AppLog.logger.notice("pending-flushed reason=control-shortcut")
+                return applyBoundaryFlush(through: proxy, to: event, keyCode: keyCode)
+            }
             reset(.modifiedKey)
             counters.bypassed()
             return Unmanaged.passUnretained(event)
@@ -374,6 +391,20 @@ final class EventTapController {
         englishFallbackJournal.record(inputEvent, result: decision.result, at: Self.now())
 
         AppLog.logger.debug("state=\(decision.result.stateCode.rawValue, privacy: .public)")
+        return apply(decision.result, through: proxy, to: event, keyCode: keyCode)
+    }
+
+    /// Complete the kana already half shown, then let the original key reach
+    /// the application. Used where the key is not WKR's to interpret but the
+    /// streamed romaji would otherwise be left behind.
+    private func applyBoundaryFlush(
+        through proxy: CGEventTapProxy,
+        to event: CGEvent,
+        keyCode: CGKeyCode
+    ) -> Unmanaged<CGEvent>? {
+        let inputEvent = WKRInputEvent.boundary(.other)
+        let decision = unicodeInjectionGate.decide(inputEvent, transducer.process(inputEvent))
+        englishFallbackJournal.record(inputEvent, result: decision.result, at: Self.now())
         return apply(decision.result, through: proxy, to: event, keyCode: keyCode)
     }
 
@@ -491,6 +522,12 @@ final class EventTapController {
             self?.fatalErrorHandler(reason)
         }
     }
+
+    /// Modifiers whose shortcuts can move the focus before a synthetic event
+    /// arrives, so a pending kana is discarded rather than flushed.
+    private static let focusMovingModifierFlags: CGEventFlags = [
+        .maskCommand, .maskAlternate, .maskAlphaShift, .maskSecondaryFn,
+    ]
 
     private static let disallowedModifierFlags: CGEventFlags = [
         .maskCommand, .maskControl, .maskAlternate, .maskAlphaShift,

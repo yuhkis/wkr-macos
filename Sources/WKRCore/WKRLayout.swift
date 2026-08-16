@@ -344,9 +344,10 @@ private extension WKRLayout {
         .init(id: "p-long", input: [.p], kana: "ー", romaji: "-"),
     ]
 
-    // 後置小書きは `K` `T` を持たない。`KT → ぃ` があると `K` の後の `T` がその規則に
-    // 吸われ、`K` `T` `;` が `いぇ` ではなく `ぃえ` になる。`ぃ` は前置形 `TK` で入力する。
-    // 残る7件の後置小書きにも同じ衝突があり、上流での判断は docs/layout-coverage.md にある。
+    // 後置小書き（`HT` `KT` `JT` `;T` `LT` `UT` `IT` `OT`）は上流 v1.1 で廃止した。
+    // 母音キーの後の `T` を必ず吸ってしまい、`K` `T` `;` が `いぇ` ではなく `ぃえ` に
+    // なるように、基本かな＋前置小書きの組み合わせを潰していた。先に出した1かなを
+    // 置き換えるちらつきという欠点もあった。小書きは前置形だけで入力する。
     //
     // 小書きは `x` ではなく `l` で送る。2026-08-12の実機確認で、Apple日本語入力は
     // 単発の `xya` は受理するが、`xyaxyuxyo` のように連続すると先頭の `x` を確定
@@ -361,13 +362,6 @@ private extension WKRLayout {
         .init(id: "tu-small-ya", input: [.t, .u], kana: "ゃ", romaji: "lya"),
         .init(id: "ti-small-yu", input: [.t, .i], kana: "ゅ", romaji: "lyu"),
         .init(id: "to-small-yo", input: [.t, .o], kana: "ょ", romaji: "lyo"),
-        .init(id: "ht-small-a", input: [.h, .t], kana: "ぁ", romaji: "la"),
-        .init(id: "jt-small-u", input: [.j, .t], kana: "ぅ", romaji: "lu"),
-        .init(id: "semicolont-small-e", input: [.semicolon, .t], kana: "ぇ", romaji: "le"),
-        .init(id: "lt-small-o", input: [.l, .t], kana: "ぉ", romaji: "lo"),
-        .init(id: "ut-small-ya", input: [.u, .t], kana: "ゃ", romaji: "lya"),
-        .init(id: "it-small-yu", input: [.i, .t], kana: "ゅ", romaji: "lyu"),
-        .init(id: "ot-small-yo", input: [.o, .t], kana: "ょ", romaji: "lyo"),
         .init(id: "tcomma-fullwidth-comma", input: [.t, .comma], text: "，"),
         .init(id: "tperiod-fullwidth-period", input: [.t, .period], text: "．"),
         .init(id: "tslash-fullwidth-slash", input: [.t, .slash], text: "／"),
