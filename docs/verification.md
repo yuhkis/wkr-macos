@@ -547,8 +547,9 @@ Apple Developer Program は不要です。`security find-identity -v -p codesign
 
 ### 未確認事項
 
-- **再ビルド後に許可が残ることの実地確認は未了です。** requirement の比較からは残るはずですが、
-  実際に2回ビルドして確かめていません。
+- 再ビルド後に許可が残ることは**同日中に確認しました。** 自己署名で作り直した bundle を
+  `/Applications` へ入れ替えて起動したところ、1回目の起動で `permissions listen=true post=true`
+  となり、システム設定での操作は不要でした。ad-hoc 署名では毎回必要だった手順です。
 - 自己署名証明書の有効期限が切れた後の挙動は確認していません。作成時に有効期間を延ばして
   います。
 - もう1台の Mac では別の証明書になるため、requirement も別になります。TCC の許可は機体ごとなので
