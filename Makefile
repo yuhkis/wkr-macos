@@ -38,7 +38,7 @@ start:
 	@test -n "$(INPUT_MODE_ID)" || (echo 'INPUT_MODE_ID is required; run make input-source while Apple Japanese Hiragana is active.' >&2; exit 2)
 	@if [ "$(MODE)" = "optimistic" ] && [ "$(ALLOW_OPTIMISTIC)" != "1" ]; then echo 'optimistic mode requires ALLOW_OPTIMISTIC=1 and a disposable untitled document.' >&2; exit 2; fi
 	@$(MAKE) stop
-	./Scripts/start-app.sh "$(APP)" --input-source-id "$(INPUT_SOURCE_ID)" --input-mode-id "$(INPUT_MODE_ID)" --mode "$(MODE)" --request-permissions $(if $(filter optimistic,$(MODE)),--allow-unverified-optimistic,)
+	./Scripts/start-app.sh "$(APP)" --input-source-id "$(INPUT_SOURCE_ID)" --input-mode-id "$(INPUT_MODE_ID)" --mode "$(MODE)" --request-permissions $(if $(filter optimistic,$(MODE)),--allow-unverified-optimistic,) $(if $(SYMBOL_LAYER),--symbol-layer $(SYMBOL_LAYER),)
 
 start-installed:
 	@test -x "$(INSTALLED_EXECUTABLE)" || (echo 'Installed app was not found at $(INSTALLED_APP).' >&2; exit 2)
@@ -46,7 +46,7 @@ start-installed:
 	@test -n "$(INPUT_MODE_ID)" || (echo 'INPUT_MODE_ID is required; run make input-source-installed while Apple Japanese Hiragana is active.' >&2; exit 2)
 	@if [ "$(MODE)" = "optimistic" ] && [ "$(ALLOW_OPTIMISTIC)" != "1" ]; then echo 'optimistic mode requires ALLOW_OPTIMISTIC=1 and a disposable untitled document.' >&2; exit 2; fi
 	@$(MAKE) stop
-	./Scripts/start-app.sh "$(INSTALLED_APP)" --input-source-id "$(INPUT_SOURCE_ID)" --input-mode-id "$(INPUT_MODE_ID)" --mode "$(MODE)" --request-permissions $(if $(filter optimistic,$(MODE)),--allow-unverified-optimistic,)
+	./Scripts/start-app.sh "$(INSTALLED_APP)" --input-source-id "$(INPUT_SOURCE_ID)" --input-mode-id "$(INPUT_MODE_ID)" --mode "$(MODE)" --request-permissions $(if $(filter optimistic,$(MODE)),--allow-unverified-optimistic,) $(if $(SYMBOL_LAYER),--symbol-layer $(SYMBOL_LAYER),)
 
 stop:
 	@pkill -TERM -x WKRMacOS 2>/dev/null || true

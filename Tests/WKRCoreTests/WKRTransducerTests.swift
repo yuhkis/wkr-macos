@@ -330,6 +330,69 @@ final class WKRTransducerTests: XCTestCase {
         }
     }
 
+    // MARK: - Turning the `Y` symbol layer off
+
+    func testDisablingTheSymbolLayerRemovesExactlyThoseRules() {
+        let full = Set(WKRLayout.rules.map(\.id))
+        let reduced = Set(WKRLayout.rulesWithoutSymbolLayer.map(\.id))
+
+        XCTAssertEqual(full.subtracting(reduced).count, 59)
+        XCTAssertTrue(reduced.isSubset(of: full))
+        // Nothing left in the table starts with `Y`.
+        XCTAssertTrue(
+            WKRLayout.rulesWithoutSymbolLayer.allSatisfy { $0.input.first != .y }
+        )
+    }
+
+    func testDisabledSymbolLayerLetsTheYKeyPassThrough() {
+        let engine = WKRTransducer(
+            mode: .prefixRomaji,
+            rules: WKRTransducer.rulesWithoutSymbolLayer
+        )
+        let result = engine.process(.physical(.y))
+
+        XCTAssertEqual(result.actions, [])
+        XCTAssertEqual(result.disposition, .passThrough)
+        XCTAssertFalse(engine.hasPendingInput)
+    }
+
+    func testDisabledSymbolLayerKeepsRulesWhereYIsTheSecondKey() {
+        // `SY → しぇ` and `EY → ヶ` are row variants, not the symbol layer.
+        let cases: [(keys: [PhysicalKey], last: SyntheticAction)] = [
+            ([.s, .y], .romaji("he")),
+            ([.e, .y], .unicode("ヶ")),
+        ]
+
+        for testCase in cases {
+            let engine = WKRTransducer(
+                mode: .prefixRomaji,
+                rules: WKRTransducer.rulesWithoutSymbolLayer
+            )
+            var actions: [SyntheticAction] = []
+            for key in testCase.keys {
+                actions.append(contentsOf: engine.process(.physical(key)).actions)
+            }
+
+            XCTAssertEqual(actions.last, testCase.last, "\(testCase.keys)")
+        }
+    }
+
+    func testDisabledSymbolLayerLeavesOrdinaryKanaUnchanged() {
+        let full = WKRTransducer(mode: .prefixRomaji)
+        let reduced = WKRTransducer(
+            mode: .prefixRomaji,
+            rules: WKRTransducer.rulesWithoutSymbolLayer
+        )
+
+        for key in [PhysicalKey.w, .e, .r, .t, .h, .n, .m, .p] {
+            XCTAssertEqual(
+                full.process(.physical(key)),
+                reduced.process(.physical(key)),
+                key.rawValue
+            )
+        }
+    }
+
     func testRowFallbackComposesIndependentNasalGeminateAndLongMark() {
         let rowKeys: [PhysicalKey] = [
             .e, .s, .f, .d, .g, .v, .r, .w, .q, .z, .c, .b, .a, .x,

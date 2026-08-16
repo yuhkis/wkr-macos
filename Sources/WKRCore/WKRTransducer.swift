@@ -197,6 +197,11 @@ private final class TrieNode {
 
 public final class WKRTransducer {
     public static let fullRules: [NormalizedRule] = WKRLayout.rules
+    /// `fullRules` without the `Y` symbol layer. `Y` then has no rule at all
+    /// and passes through like any unassigned key, which is the interim
+    /// behaviour until the key is given a new use.
+    public static let rulesWithoutSymbolLayer: [NormalizedRule] =
+        WKRLayout.rulesWithoutSymbolLayer
 
     private let root = TrieNode()
     private let mode: OutputMode
