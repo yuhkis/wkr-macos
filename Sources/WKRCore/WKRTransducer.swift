@@ -104,15 +104,27 @@ public struct TransitionResult: Equatable, Sendable {
     public let actions: [SyntheticAction]
     public let disposition: OriginalEventDisposition
     public let stateCode: TransitionStateCode
+    /// How many romaji characters this result's Backspaces take out of Apple
+    /// Japanese Input's raw buffer.
+    ///
+    /// A `.backspace` count is in display units, and one unit is one raw letter
+    /// in some branches and one composed kana in others, so the two numbers
+    /// differ: taking back `や` is one Backspace but two characters. The
+    /// English fallback needs the character figure, because that is what the
+    /// `英数` connect-back puts on screen. `0` means the deletion cannot be
+    /// expressed this way and callers must fail closed.
+    public let deletedRomajiCharacters: Int
 
     public init(
         actions: [SyntheticAction] = [],
         disposition: OriginalEventDisposition,
-        stateCode: TransitionStateCode
+        stateCode: TransitionStateCode,
+        deletedRomajiCharacters: Int = 0
     ) {
         self.actions = actions
         self.disposition = disposition
         self.stateCode = stateCode
+        self.deletedRomajiCharacters = deletedRomajiCharacters
     }
 }
 
@@ -248,7 +260,23 @@ public final class WKRTransducer {
         return hadPendingInput
     }
 
+    /// Romaji characters removed by the Backspaces of the result being built.
+    /// Only `process` reads it, and only right after filling it in.
+    private var deletedRomajiCharacters = 0
+
     public func process(_ event: WKRInputEvent, isEnabled: Bool = true) -> TransitionResult {
+        deletedRomajiCharacters = 0
+        let result = transition(event, isEnabled: isEnabled)
+        guard deletedRomajiCharacters > 0 else { return result }
+        return TransitionResult(
+            actions: result.actions,
+            disposition: result.disposition,
+            stateCode: result.stateCode,
+            deletedRomajiCharacters: deletedRomajiCharacters
+        )
+    }
+
+    private func transition(_ event: WKRInputEvent, isEnabled: Bool) -> TransitionResult {
         guard isEnabled else {
             reset()
             return TransitionResult(disposition: .passThrough, stateCode: .disabledBypass)
@@ -623,6 +651,9 @@ public final class WKRTransducer {
     private func deleteEmittedRomaji(_ actions: inout [SyntheticAction]) -> Bool {
         guard !emittedRomaji.isEmpty else { return false }
         actions.append(.backspace(count: emittedDeletionUnits))
+        // The Backspaces are counted in display units, but what leaves Apple
+        // Japanese Input's raw buffer is every character streamed for them.
+        deletedRomajiCharacters += emittedRomaji.count
         clearEmittedRomaji()
         return true
     }

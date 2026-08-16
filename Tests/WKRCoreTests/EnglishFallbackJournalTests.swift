@@ -50,6 +50,66 @@ final class EnglishFallbackJournalTests: XCTestCase {
         XCTAssertNil(journal(typing: [.y, .a]).snapshot(at: 0))
     }
 
+    /// A rollback branch replaces the letter its row streamed, and the
+    /// connect-back shows the replacement alone. The journal follows that
+    /// instead of giving up, so the keys stay recoverable.
+    func testRollbackBranchesStayRecoverable() {
+        let cases: [(name: String, keys: [PhysicalKey], count: Int, letters: String)] = [
+            // `k` is taken back and `lke` sent, so the screen holds `lke`.
+            ("EY", [.e, .y], 3, "ey"),
+            ("EYWY", [.e, .y, .w, .y], 6, "eywy"),  // `lke` + `lwa`
+            // `や` is one Backspace but two characters, and `lya` replaces both.
+            ("UT", [.u, .t], 3, "ut"),
+            // The X row keeps `f` for ふぁ and rolls it back for てぃ.
+            ("XU", [.x, .u], 4, "xu"),  // `teli`
+        ]
+
+        for testCase in cases {
+            let snapshot = journal(typing: testCase.keys).snapshot(at: 0)
+
+            XCTAssertEqual(snapshot?.keys, testCase.keys, testCase.name)
+            XCTAssertEqual(snapshot?.romajiCharacterCount, testCase.count, testCase.name)
+            XCTAssertEqual(
+                snapshot.map { String($0.keys.map(\.jisCharacter)) },
+                testCase.letters,
+                testCase.name
+            )
+        }
+    }
+
+    /// Whatever the branch, the recorded length must equal the romaji actually
+    /// left on screen: everything streamed, minus everything taken back.
+    func testRecordedLengthMatchesTheRomajiLeftOnScreenForEveryRule() {
+        for rule in WKRTransducer.fullRules {
+            guard case .romaji = rule.action else { continue }
+
+            let engine = WKRTransducer(mode: .prefixRomaji)
+            var journal = EnglishFallbackJournal()
+            var onScreen = ""
+            for key in rule.input {
+                let event = WKRInputEvent.physical(key)
+                let result = engine.process(event)
+                journal.record(event, result: result, at: 0)
+                for action in result.actions {
+                    switch action {
+                    case let .romaji(value):
+                        onScreen += value
+                    case .backspace:
+                        onScreen.removeLast(result.deletedRomajiCharacters)
+                    case .unicode:
+                        break
+                    }
+                }
+            }
+
+            XCTAssertEqual(
+                journal.snapshot(at: 0)?.romajiCharacterCount,
+                onScreen.count,
+                rule.id
+            )
+        }
+    }
+
     func testRecordedRomajiLengthMatchesWhatTheTransducerStreamed() {
         let cases: [(name: String, keys: [PhysicalKey], expected: Int)] = [
             ("THING", [.t, .h, .i, .n, .g], 7),  // l a  yu  nn  h
@@ -140,15 +200,42 @@ final class EnglishFallbackJournalTests: XCTestCase {
     }
 
     func testUnicodeOutputStopsTheJournal() {
-        // `EY` is `ヶ`, which is injected as a Unicode string and commits on the
-        // spot instead of joining the romaji the connect-back can return.
-        XCTAssertNil(journal(typing: [.e, .y]).snapshot(at: 0))
+        // `WJ` is `ヴ`, injected as a Unicode string, so it commits on the spot
+        // instead of joining the romaji the connect-back can return.
+        XCTAssertNil(journal(typing: [.w, .j]).snapshot(at: 0))
     }
 
-    func testRollbackBranchStopsTheJournal() {
-        // `HT` is the trailing small `ぁ`: it deletes the `a` already shown, and
-        // a backspace count is in display units rather than romaji characters.
-        XCTAssertNil(journal(typing: [.h, .t]).snapshot(at: 0))
+    func testAnUnexplainedBackspaceStopsTheJournal() {
+        // Without a character figure from the transducer, a backspace count is
+        // in display units and cannot be reconciled with the romaji on screen.
+        var journal = self.journal(typing: [.e])
+        journal.record(
+            .physical(.k),
+            result: TransitionResult(
+                actions: [.backspace(count: 1), .romaji("ki")],
+                disposition: .suppress,
+                stateCode: .optimisticReplacement
+            ),
+            at: 0
+        )
+
+        XCTAssertNil(journal.snapshot(at: 0))
+    }
+
+    func testABackspaceLongerThanTheRecordStopsTheJournal() {
+        var journal = self.journal(typing: [.e])  // one character, `k`
+        journal.record(
+            .physical(.k),
+            result: TransitionResult(
+                actions: [.backspace(count: 1)],
+                disposition: .suppress,
+                stateCode: .prefixRollback,
+                deletedRomajiCharacters: 5
+            ),
+            at: 0
+        )
+
+        XCTAssertNil(journal.snapshot(at: 0))
     }
 
     func testPassThroughKeyStopsTheJournal() {
@@ -177,7 +264,7 @@ final class EnglishFallbackJournalTests: XCTestCase {
     }
 
     func testAnInvalidatedJournalStaysClosedUntilABoundary() {
-        var journal = self.journal(typing: [.h, .t])
+        var journal = self.journal(typing: [.w, .j])
         let event = WKRInputEvent.physical(.e)
         let engine = WKRTransducer(mode: .prefixRomaji)
         journal.record(event, result: engine.process(event), at: 0)

@@ -187,18 +187,35 @@ public struct EnglishFallbackJournal: Equatable, Sendable {
         }
 
         var streamedCharacters = 0
+        var deletionUnits = 0
         for action in result.actions {
             switch action {
             case let .romaji(value):
                 streamedCharacters += value.count
-            case .unicode, .backspace:
+            case let .backspace(count):
+                deletionUnits += count
+            case .unicode:
                 // A Unicode injection commits on the spot instead of joining
-                // the romaji Apple Japanese Input can connect back, and a
-                // backspace count is in display units. Neither can be
-                // reconciled with the text the connect-back produces.
+                // the romaji Apple Japanese Input can connect back, so it
+                // cannot be reconciled with what the connect-back produces.
                 invalidate()
                 return
             }
+        }
+
+        if deletionUnits > 0 {
+            // A rollback branch such as `EY → ヶ` takes back the letter its row
+            // streamed and sends `lke` instead, and the connect-back shows the
+            // result: `lke`, not `klke`. The count has to follow. Backspaces are
+            // in display units, so only the transducer's character figure can
+            // be subtracted; without one, nothing here is trustworthy.
+            guard result.deletedRomajiCharacters > 0,
+                  result.deletedRomajiCharacters <= romajiCharacterCount
+            else {
+                invalidate()
+                return
+            }
+            romajiCharacterCount -= result.deletedRomajiCharacters
         }
 
         keys.append(key)
