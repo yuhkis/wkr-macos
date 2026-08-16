@@ -137,7 +137,8 @@ final class WKRTransducerTests: XCTestCase {
     }
 
     func testFullLayoutSnapshotContainsEveryUniqueNormalizedRule() {
-        XCTAssertEqual(WKRLayout.sourceRevision, "a8c102fa6dab6b7d7fdf9678ec9ce2e646facec8")
+        // Pinned so an unintended re-pin fails here first. wkr-layout ver 1.1.
+        XCTAssertEqual(WKRLayout.sourceRevision, "03cba20a62c6d27bc90e6bc5572f89a13f14108a")
         XCTAssertEqual(WKRLayout.rules.count, 215)
 
         let inputs = WKRLayout.rules.map { rule in

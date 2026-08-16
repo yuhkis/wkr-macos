@@ -133,16 +133,16 @@ Scripts/
   Google 日本語入力用ローマ字テーブルと azooKey 用カスタム入力テーブル、および配列の説明を持ちます。
 - `wkr-macos` は macOS 実装を担当します。Input Monitoring／Accessibility権限、Swiftビルド、署名、
   常駐動作、アプリ別互換性を扱うため、リリース周期と検証対象が上流と異なります。
-- **かなは1件を除いて上流と同一です。** Apple日本語入力へ送るローマ字の綴りだけが訓令式へ
-  揃えてあります。唯一の例外が `WJ`（上流 `ヴ` → wkr-macos `ゔ`）で、ひらがなモードで
-  カタカナ `ヴ` を出す綴りがことえりに無いためです。あわせて `QY → ヵ` を追加し、
-  `KT → ぃ` を削除しました。いずれも上流 v1.1 への反映待ちです。差分の全一覧は
+- **かなは上流と同一です。** Apple日本語入力へ送るローマ字の綴りだけが訓令式へ
+  揃えてあります。ver 1.1 で `WJ` のかなを `ヴ` から `ゔ` へ変更し（ひらがなモードで
+  カタカナ `ヴ` を出す綴りがことえりに無いため）、`QY → ヵ` を追加し、
+  `KT → ぃ` を削除しました。いずれも上流 ver 1.1 に反映済みです。差分の全一覧は
   [docs/layout-reference.md](./docs/layout-reference.md)、根拠は
   [docs/layout-coverage.md](./docs/layout-coverage.md) にあります。
 
-配列表のスナップショットは `wkr-layout` revision
-[`a8c102fa6dab6b7d7fdf9678ec9ce2e646facec8`](https://github.com/yuhkis/wkr-layout/commit/a8c102fa6dab6b7d7fdf9678ec9ce2e646facec8)
-（2026-08-11 取得）に基づきます。
+配列表のスナップショットは `wkr-layout` [ver 1.1](https://github.com/yuhkis/wkr-layout/releases/tag/v1.1.0)
+revision [`03cba20a62c6`](https://github.com/yuhkis/wkr-layout/commit/03cba20a62c6d27bc90e6bc5572f89a13f14108a)
+（2026-08-16 取得）に基づきます。
 
 ## 開発
 
@@ -163,7 +163,7 @@ make app
 MIT License — 詳細は [LICENSE](./LICENSE) を参照してください。
 
 配列仕様の上流 [yuhkis/wkr-layout](https://github.com/yuhkis/wkr-layout) も MIT License です。
-`Sources/WKRCore/WKRLayout.swift` は同リポジトリ revision `a8c102fa6dab6b7d7fdf9678ec9ce2e646facec8`
+`Sources/WKRCore/WKRLayout.swift` は同リポジトリ revision `03cba20a62c6d27bc90e6bc5572f89a13f14108a`
 の内容を正規化したスナップショットを含みます。
 
 - [Scrapbox「わから配列」](https://scrapbox.io/yuhkis/%E3%82%8F%E3%81%8B%E3%82%89%E9%85%8D%E5%88%97)
