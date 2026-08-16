@@ -46,7 +46,43 @@ env CODESIGN_IDENTITY='Developer ID Application: Your Name (TEAMID)' make app
 
 キーチェーンにある証明書を自動で拾うことはしません。**他人や他事業者に発行された証明書で
 うっかり署名してしまうのを防ぐため**です。ビルドスクリプトが証明書を作成・インストールする
-こともありません。ad-hoc署名でも動作しますが、再ビルドのたびに権限の再許可が要る場合があります。
+こともありません。
+
+### 自己署名の証明書を使うと、再許可が要らなくなります
+
+**ad-hoc署名のままだと、ビルドし直すたびに「入力監視」と「アクセシビリティ」を許可し直す
+ことになります。** TCC がアプリの同一性を何で判断しているかを見ると理由が分かります。
+
+```bash
+codesign -d -r- /Applications/WKRMacOS.app
+```
+
+| 署名 | 表示される designated requirement |
+| --- | --- |
+| ad-hoc | `cdhash H"…"` |
+| 証明書 | `identifier "io.github.yuhkis.wkr-macos" and certificate leaf = H"…"` |
+
+ad-hoc は**バイナリのハッシュ**が条件なので、1行変えれば別のアプリになります。証明書で署名すると
+条件から バイナリ由来の項目が消え、**再ビルドしても同じアプリとして扱われます。**
+
+配布しないのであれば、Apple Developer Program は不要です。自己署名のコード署名証明書で足ります。
+
+1. **キーチェーンアクセス.app** →「証明書アシスタント」→「証明書を作成…」
+2. 名前を決める（例 `wkr-macos-local`）。この文字列を `CODESIGN_IDENTITY` に渡します
+3. Identity Type は「**自己署名ルート**」、証明書のタイプは「**コード署名**」
+4. 「デフォルトを無効化」にチェックし、有効期間を長めにする（既定は365日。切れると作り直しに
+   なり、再許可が1回発生します）
+
+```bash
+env CODESIGN_IDENTITY=wkr-macos-local make app
+```
+
+`security find-identity -v -p codesigning` には `CSSMERR_TP_NOT_TRUSTED` として現れず有効一覧から
+外れますが、**署名にも検証にも支障はありません。** 信頼設定を変える必要はありません。
+
+**切り替えた回だけは再許可が必要です。** 署名方式が変わるためで、それ以降は不要になります。
+他人へ渡せる `.app` を作りたくなったときは、Developer ID 署名と公証が要るので、そのときに
+Apple Developer Program を検討してください。
 
 > フルXcodeが `/Applications/Xcode.app` にある場合、`make` はこのプロジェクトのコマンドだけ
 > `DEVELOPER_DIR` を使います。システム全体の `xcode-select` は変更しません。
