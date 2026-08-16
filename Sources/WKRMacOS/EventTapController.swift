@@ -42,11 +42,17 @@ final class EventTapController {
         mode: OutputMode,
         counters: EventCounters,
         englishFallbackTrigger: EnglishFallbackTrigger = .default,
+        symbolLayerEnabled: Bool = true,
         requestContextRefresh: @escaping ContextRefreshHandler,
         fatalErrorHandler: @escaping FatalErrorHandler
     ) {
         guard let poster = SyntheticEventPoster() else { return nil }
-        self.transducer = WKRTransducer(mode: mode)
+        self.transducer = WKRTransducer(
+            mode: mode,
+            rules: symbolLayerEnabled
+                ? WKRTransducer.fullRules
+                : WKRTransducer.rulesWithoutSymbolLayer
+        )
         self.poster = poster
         self.counters = counters
         self.englishFallbackTrigger = englishFallbackTrigger

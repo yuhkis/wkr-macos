@@ -270,6 +270,54 @@ make stop && make start \
 
 各方式の違いは [how-it-works.md](./how-it-works.md#5-出力方式どのタイミングで何を送るか) にあります。
 
+## 記号（`Y` レイヤー）の制約と無効化
+
+`Y` 記号レイヤー59件と、`EY → ヶ` などの特殊かな・`T` 句読点を合わせた67件は、
+ローマ字ではなく Unicode を直接送っています。この経路には2つの制約があります。
+
+- **その場で確定します。** 未確定文字列にならないので Space で変換し直せず、
+  `英数` 連打の読み戻しも効きません。
+- **未確定文字列があるときは送れません。** Apple日本語入力がイベントを捨てるためで、
+  文の途中で記号を打っても何も起きません（2026-08-16 実測、[verification.md](./verification.md)）。
+
+2つ目については、届かないと分かっている状態では**送らずにログへ残します**。
+
+```
+unicode-injection-skipped reason=pre-edit-open
+```
+
+このとき仮表示の `y` は消えるので、画面は記号を打つ前の状態に戻ります。**記号を入れたい
+場合は、Enter で未確定文字列を確定してから打ち直してください。** Space は変換であって
+確定ではないので、押しても状況は変わりません。
+
+### `Y` レイヤーを無効にする
+
+変換の余地なく確定してしまうのが困る場合、`Y` 記号レイヤー59件を丸ごと外せます。
+
+```bash
+make stop && make start-installed \
+  INPUT_SOURCE_ID=com.apple.inputmethod.Kotoeri.RomajiTyping.Japanese \
+  INPUT_MODE_ID=com.apple.inputmethod.Japanese \
+  MODE=prefix SYMBOL_LAYER=off
+```
+
+ユーザーデフォルトでも指定できます。フラグの方が優先されます。
+
+```bash
+defaults write io.github.yuhkis.wkr-macos SymbolLayer off
+```
+
+ログイン項目で使う場合は `Resources/io.github.yuhkis.wkr-macos.login.plist` に
+`--symbol-layer` `off` を足して `make install-login-agent` し直すか、上のユーザーデフォルトを
+書いてください。実際に使われた値は `conversion-started` の `symbol-layer=` に出ます。
+
+**無効にすると `Y` は素通しします。** 規則を持たない他のキーと同じ扱いで、押すと
+Apple日本語入力へ `y` がそのまま届きます。未確定文字列に入るだけなので Backspace で
+取り消せます。**`Y` キーに別の役割を割り当てるかは未定です**（[roadmap.md](./roadmap.md)）。
+
+外れるのは `Y` から始まる59件だけです。`SY → しぇ`、`FY → ちぇ`、`EY → ヶ` のように
+`Y` が2打鍵目の規則は行の派生なので残ります。
+
 ## 英字への打ち直し
 
 日本語入力モードのまま英単語を打ってしまったとき、`英数` キーの連打による読み戻しは
@@ -358,6 +406,7 @@ prefix モードでの期待値は次のとおりです。
 | `input-source ... matches-target=false` | 対象外の入力ソースです。他社IMEや「英字」に切り替わっています |
 | `frontmost-application ... excluded=true` | `--exclude-app` で除外したアプリが前面です |
 | `conversion-stopped` / `event-tap-disabled` | fail closed で終了しています。起動し直してください |
+| `unicode-injection-skipped reason=pre-edit-open` | 未確定文字列があったため記号を送りませんでした（下記） |
 
 いずれも出ていなければ、変換ゲートは開いています。常駐しているかどうかは `pgrep WKRMacOS`
 で確認できます。

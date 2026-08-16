@@ -13,6 +13,13 @@
         <string>com.apple.inputmethod.Japanese</string>
         <string>--mode</string>
         <string>prefix</string>
+        <!-- Add these two lines to drop the 59 `Y` symbol rules. They inject
+             Unicode, which commits with no chance to convert and cannot be
+             sent at all while a pre-edit is open. `Y` then passes through.
+             See docs/install.md.
+        <string>--symbol-layer</string>
+        <string>off</string>
+        -->
         <!-- Repeat --exclude-app to stop converting while a given application is
              frontmost. Useful for a remote desktop where the keystrokes belong
              to another machine. A virtual machine is not automatically a

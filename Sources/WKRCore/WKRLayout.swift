@@ -17,33 +17,18 @@ public enum WKRLayout {
         "google romantable lines 210, 211: ■' -> ' and ■\" -> \" are ANSI readings of the keys that JIS labels Shift+7 and Shift+2, which the ■& -> ￡ and ■@ -> ▼ rows (azooKey ’ and ”) already occupy",
     ]
 
-    public static let rules: [NormalizedRule] = {
-        var result: [NormalizedRule] = []
+    public static let rules: [NormalizedRule] = makeRules(includingSymbolLayer: true)
 
-        for row in kanaRows {
-            result.append(
-                .init(
-                    id: row.rootID,
-                    input: [row.key],
-                    kana: row.rootKana,
-                    romaji: row.rootRomaji
-                )
-            )
-            result.append(contentsOf: row.variants.map { variant in
-                makeRule(
-                    id: variant.id,
-                    input: [row.key, variant.key],
-                    kana: variant.kana,
-                    delivery: variant.delivery
-                )
-            })
-        }
-
-        result.append(contentsOf: singleRules)
-        result.append(contentsOf: smallKanaRules)
-        result.append(contentsOf: symbolRules)
-        return result
-    }()
+    /// The same table without the 59 `Y` symbol rules.
+    ///
+    /// Every symbol in that layer is a Unicode injection, which commits the
+    /// moment it is decided and cannot join Apple Japanese Input's pre-edit at
+    /// all. Committing without the chance to convert is unwanted often enough
+    /// that turning the layer off is a supported choice; see `docs/design.md`
+    /// section 5.4. Rules where `Y` is the *second* key, such as `SY → しぇ`
+    /// and `EY → ヶ`, are row variants rather than the symbol layer and stay.
+    public static let rulesWithoutSymbolLayer: [NormalizedRule] =
+        makeRules(includingSymbolLayer: false)
 
     /// The `Y` symbol layer has no romaji output at all, so prefix mode would
     /// show nothing until the symbol is chosen. Streaming the key's own letter
@@ -91,6 +76,36 @@ public enum WKRLayout {
 }
 
 private extension WKRLayout {
+    static func makeRules(includingSymbolLayer: Bool) -> [NormalizedRule] {
+        var result: [NormalizedRule] = []
+
+        for row in kanaRows {
+            result.append(
+                .init(
+                    id: row.rootID,
+                    input: [row.key],
+                    kana: row.rootKana,
+                    romaji: row.rootRomaji
+                )
+            )
+            result.append(contentsOf: row.variants.map { variant in
+                makeRule(
+                    id: variant.id,
+                    input: [row.key, variant.key],
+                    kana: variant.kana,
+                    delivery: variant.delivery
+                )
+            })
+        }
+
+        result.append(contentsOf: singleRules)
+        result.append(contentsOf: smallKanaRules)
+        if includingSymbolLayer {
+            result.append(contentsOf: symbolRules)
+        }
+        return result
+    }
+
     enum Delivery {
         case romaji(String)
         case unicode(String)

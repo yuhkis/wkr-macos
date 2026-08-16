@@ -8,6 +8,7 @@ enum AppConfigurationError: LocalizedError {
     case missingInputMode
     case optimisticAcknowledgementRequired
     case invalidEnglishFallback(String)
+    case invalidSymbolLayer(String)
 
     var errorDescription: String? {
         switch self {
@@ -26,6 +27,8 @@ enum AppConfigurationError: LocalizedError {
                 .map(\.rawValue)
                 .joined(separator: ", ")
             return "unsupported english fallback trigger: \(value) (supported: \(supported))"
+        case let .invalidSymbolLayer(value):
+            return "unsupported symbol layer setting: \(value) (supported: on, off)"
         }
     }
 }
@@ -46,10 +49,17 @@ struct AppConfiguration {
     /// the letters the user actually typed. Set with `--english-fallback` or
     /// the `EnglishFallbackTrigger` user default; the flag wins.
     let englishFallbackTrigger: EnglishFallbackTrigger
+    /// Whether the 59 `Y` symbol rules are in the table. They inject Unicode,
+    /// which commits with no chance to convert and cannot be sent at all while
+    /// a pre-edit is open, so turning them off is a supported choice. `Y` then
+    /// passes through. Set with `--symbol-layer` or the `SymbolLayer` user
+    /// default; the flag wins.
+    let symbolLayerEnabled: Bool
 
     /// User default that holds the trigger between launches. A settings window
     /// can write the same key once the menu bar item exists.
     static let englishFallbackDefaultsKey = "EnglishFallbackTrigger"
+    static let symbolLayerDefaultsKey = "SymbolLayer"
 
     static func parse(
         arguments: [String],
@@ -63,6 +73,7 @@ struct AppConfiguration {
         var allowOptimistic = false
         var excludedApplications: Set<String> = []
         var englishFallbackName = defaults.string(forKey: englishFallbackDefaultsKey)
+        var symbolLayerName = defaults.string(forKey: symbolLayerDefaultsKey)
 
         // `--flag=value` is split so it behaves like `--flag value`. Unknown
         // arguments are ignored on purpose: macOS injects its own (`-psn_…`,
@@ -116,6 +127,12 @@ struct AppConfiguration {
                     throw AppConfigurationError.missingValue("--english-fallback")
                 }
                 englishFallbackName = tokens[index]
+            case "--symbol-layer":
+                index += 1
+                guard index < tokens.count else {
+                    throw AppConfigurationError.missingValue("--symbol-layer")
+                }
+                symbolLayerName = tokens[index]
             case "--request-permissions":
                 requestPermissions = true
             case "--allow-unverified-optimistic":
@@ -151,6 +168,16 @@ struct AppConfiguration {
             englishFallbackTrigger = .default
         }
 
+        let symbolLayerEnabled: Bool
+        switch symbolLayerName {
+        case nil, "on":
+            symbolLayerEnabled = true
+        case "off":
+            symbolLayerEnabled = false
+        case let other?:
+            throw AppConfigurationError.invalidSymbolLayer(other)
+        }
+
         if !printInputSourceOnly, inputSourceID == nil {
             throw AppConfigurationError.missingInputSource
         }
@@ -166,7 +193,8 @@ struct AppConfiguration {
             outputModeName: modeName,
             requestPermissions: requestPermissions,
             excludedApplications: excludedApplications,
-            englishFallbackTrigger: englishFallbackTrigger
+            englishFallbackTrigger: englishFallbackTrigger,
+            symbolLayerEnabled: symbolLayerEnabled
         )
     }
 }
