@@ -47,6 +47,7 @@ Apple日本語入力へ打ち直します**。Apple日本語入力から見れ�
 | [docs/how-it-works.md](./docs/how-it-works.md) | **どういう原理で動くのか。** 変換モデル、3つの出力方式、安全ゲート |
 | [docs/install.md](./docs/install.md) | **インストールと使い方。** 必要環境、ビルド、権限、自動起動、アンインストール |
 | [docs/layout-reference.md](./docs/layout-reference.md) | 配列リファレンス。1キー目の表示、訓令式綴り、上流との差分 |
+| [docs/layout-coverage.md](./docs/layout-coverage.md) | かなの網羅状況。ことえりで打てるかなとの突き合わせ、上流への要検討事項 |
 | [docs/design.md](./docs/design.md) | 設計判断の記録。採用／不採用の理由と安全境界 |
 | [docs/verification.md](./docs/verification.md) | 公開可能な検証結果と確認範囲 |
 | [docs/roadmap.md](./docs/roadmap.md) | 未着手・未完了の項目 |

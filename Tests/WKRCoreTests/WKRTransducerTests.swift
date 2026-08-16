@@ -241,7 +241,6 @@ final class WKRTransducerTests: XCTestCase {
 
     func testRepresentativeUnicodeAndSymbolLayerRules() {
         let cases: [([PhysicalKey], SyntheticAction)] = [
-            ([.w, .j], .unicode("ヴ")),
             ([.t, .comma], .unicode("，")),
             ([.y, .a], .unicode("※")),
             ([.y, .shiftedDigit1], .unicode("●")),
@@ -326,6 +325,81 @@ final class WKRTransducerTests: XCTestCase {
             XCTAssertEqual(result.disposition, .passThrough, key.rawValue)
             XCTAssertFalse(engine.hasPendingInput, key.rawValue)
         }
+    }
+
+    // MARK: - Reaching the kana that were out of range
+
+    /// `ヴ` used to be injected, which committed it and took it off the
+    /// pre-edit, so nothing could attach to it. As romaji it stays, and the
+    /// whole ゔ row follows from the small kana rules already in the table.
+    func testTheVuRowIsReachableThroughSmallKana() {
+        let cases: [(name: String, keys: [PhysicalKey], romaji: String)] = [
+            ("WJ", [.w, .j], "vu"),
+            ("WJ TH", [.w, .j, .t, .h], "vula"),      // ゔぁ
+            ("WJ TK", [.w, .j, .t, .k], "vuli"),      // ゔぃ
+            ("WJ T;", [.w, .j, .t, .semicolon], "vule"),  // ゔぇ
+            ("WJ TL", [.w, .j, .t, .l], "vulo"),      // ゔぉ
+            ("WJ TU", [.w, .j, .t, .u], "vulya"),     // ゔゃ
+            ("WJ TI", [.w, .j, .t, .i], "vulyu"),     // ゔゅ
+            ("WJ TO", [.w, .j, .t, .o], "vulyo"),     // ゔょ
+        ]
+
+        for testCase in cases {
+            let engine = WKRTransducer(mode: .deferredRomaji)
+            var actions: [SyntheticAction] = []
+            for key in testCase.keys {
+                actions.append(contentsOf: engine.process(.physical(key)).actions)
+            }
+            actions.append(contentsOf: engine.process(.boundary(.enter)).actions)
+
+            XCTAssertEqual(concatenatedRomaji(actions), testCase.romaji, testCase.name)
+        }
+    }
+
+    /// `ヵ` has no hiragana form, so no base kana plus a small kana can build
+    /// it. It needed a key of its own, and the が row's `Y` slot was free.
+    func testSmallKaHasItsOwnKey() {
+        let engine = WKRTransducer(mode: .deferredRomaji)
+        var actions: [SyntheticAction] = []
+        for key in [PhysicalKey.q, .y] {
+            actions.append(contentsOf: engine.process(.physical(key)).actions)
+        }
+
+        XCTAssertEqual(actions, [.romaji("lka")])
+    }
+
+    /// `KT → ぃ` swallowed the `T` of a following prefix small kana, so `K`
+    /// `T` `;` produced `ぃえ` instead of `いぇ`. Dropping it makes `い` a
+    /// terminal key again; `ぃ` is still reachable as the prefix form `TK`.
+    func testDroppingTheTrailingSmallIUnblocksIe() {
+        let engine = WKRTransducer(mode: .deferredRomaji)
+        var actions: [SyntheticAction] = []
+        for key in [PhysicalKey.k, .t, .semicolon] {
+            actions.append(contentsOf: engine.process(.physical(key)).actions)
+        }
+        actions.append(contentsOf: engine.process(.boundary(.enter)).actions)
+
+        XCTAssertEqual(concatenatedRomaji(actions), "ile")  // い + ぇ
+        XCTAssertNil(WKRLayout.rules.first { $0.input == [.k, .t] })
+        XCTAssertNotNil(WKRLayout.rules.first { $0.input == [.t, .k] })
+    }
+
+    /// The other seven trailing small kana still swallow the `T`, which is the
+    /// same collision. They stay until the upstream layout decides; the point
+    /// here is that the list is exactly seven, so a change is visible.
+    func testTheRemainingTrailingSmallKanaAreStillSeven() {
+        // `YT → 〆` is the symbol layer, not a trailing small kana.
+        let trailing = WKRLayout.rules.filter {
+            $0.input.count == 2 && $0.input[1] == .t && $0.input[0] != .y
+        }
+
+        XCTAssertEqual(
+            Set(trailing.map(\.id)),
+            [
+                "ht-small-a", "jt-small-u", "semicolont-small-e", "lt-small-o",
+                "ut-small-ya", "it-small-yu", "ot-small-yo",
+            ]
+        )
     }
 
     // MARK: - Turning the `Y` symbol layer off
@@ -596,7 +670,7 @@ final class WKRTransducerTests: XCTestCase {
     func testPrefixModeRollbackInventoryIsExactlyTheDeclaredRules() {
         var expectedRollbacks: Set<String> = [
             // Postfix small kana replace the vowel that was already shown.
-            "ht-small-a", "kt-small-i", "jt-small-u", "semicolont-small-e",
+            "ht-small-a", "jt-small-u", "semicolont-small-e",
             "lt-small-o", "ut-small-ya", "it-small-yu", "ot-small-yo",
             // The X row mixes ふ, て and で, so only ふ keeps the streamed `f`.
             "xy-tyu", "xu-thi", "xi-dhu", "xo-dhi",
@@ -604,7 +678,7 @@ final class WKRTransducerTests: XCTestCase {
             // `ヴ` and the full-width punctuation are Unicode, while `ヶ` and
             // `ゎ` are romaji that starts with `l` rather than the row letter.
             // `ゐ` and `ゑ` continue `w`, so they cost nothing.
-            "ey-small-ke", "wj-vu", "wy-small-wa",
+            "ey-small-ke", "wj-vu", "wy-small-wa", "qy-small-ka",
             "tcomma-fullwidth-comma", "tperiod-fullwidth-period", "tslash-fullwidth-slash",
         ]
         // The `Y` symbol layer streams `z` and every symbol has to take it
@@ -673,7 +747,8 @@ final class WKRTransducerTests: XCTestCase {
             ("Y1", [.y, .digit1], [.romaji("z"), .backspace(count: 1), .unicode("○")]),
             ("XH", [.x, .h], [.romaji("f"), .romaji("a")]),
             ("XU", [.x, .u], [.romaji("f"), .backspace(count: 1), .romaji("teli")]),
-            ("WJ", [.w, .j], [.romaji("w"), .backspace(count: 1), .unicode("ヴ")]),
+            ("WJ", [.w, .j], [.romaji("w"), .backspace(count: 1), .romaji("vu")]),
+            ("QY", [.q, .y], [.romaji("g"), .backspace(count: 1), .romaji("lka")]),
         ]
 
         for testCase in cases {
