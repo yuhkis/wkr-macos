@@ -143,6 +143,14 @@ make start-installed \
 `make start-installed` も許可されるまで自動で再試行するので、コマンドを実行したまま許可すれば
 そのまま起動します。
 
+> **配備後は `build/WKRMacOS.app` を起動しないでください。**
+> 両者は Bundle ID が同じで ad-hoc 署名だけが違うため、`build/` 側に許可を与えると
+> **`/Applications` 側の許可が外れます。** 2026-08-16 にこれで変換が止まりました
+> （[verification.md](./verification.md)）。ログイン項目は `KeepAlive` が false なので
+> 自動では復帰せず、`conversion-not-started reason=permissions` を残して終了します。
+> 手を入れたビルドを実機で試すときは、`Scripts/install-app.sh` で `/Applications` へ
+> 入れ替えてから `make start-installed` を使ってください。許可の付け替えが1回で済みます。
+
 ## 5. ログイン時に自動起動する
 
 `/Applications/WKRMacOS.app` を、ログイン時に prefix モードで1回だけ起動する LaunchAgent を入れます。
