@@ -19,23 +19,27 @@ public enum WKRLayout {
 
     public static let rules: [NormalizedRule] = makeRules(includingSymbolLayer: true)
 
-    /// The same table without the 59 `Y` symbol rules.
+    /// The same table without the 55 `Y` symbol rules.
     ///
-    /// Every symbol in that layer is a Unicode injection, which commits the
+    /// Every rule in that layer is a Unicode injection, which commits the
     /// moment it is decided and cannot join Apple Japanese Input's pre-edit at
     /// all. Committing without the chance to convert is unwanted often enough
     /// that turning the layer off is a supported choice; see `docs/design.md`
-    /// section 5.4. Rules where `Y` is the *second* key, such as `SY → しぇ`
-    /// and `EY → ヶ`, are row variants rather than the symbol layer and stay.
+    /// section 5.4.
+    ///
+    /// Two groups stay. `arrowRules` are romaji, so none of that applies to
+    /// them and `Y` keeps working as their prefix. Rules where `Y` is the
+    /// *second* key, such as `SY → しぇ` and `EY → ヶ`, are row variants rather
+    /// than the symbol layer.
     public static let rulesWithoutSymbolLayer: [NormalizedRule] =
         makeRules(includingSymbolLayer: false)
 
-    /// The `Y` symbol layer has no romaji output at all, so prefix mode would
-    /// show nothing until the symbol is chosen. Streaming the key's own letter
-    /// keeps the feedback inside Apple Japanese Input's uncommitted buffer,
-    /// where one Backspace removes it again. A committed placeholder such as
-    /// `■` would instead modify the document before the symbol is known.
-    public static let symbolLayerProvisionalRomaji: [PhysicalKey: String] = [.y: "y"]
+    /// Prefix mode used to have nothing to show for `Y`, because every rule
+    /// under it injected Unicode, and an explicit placeholder letter filled the
+    /// gap. The arrows now carry romaji, so the shared prefix of the subtree is
+    /// `z` and the ordinary rule computes the provisional like any other root.
+    /// Keeping the override would only pin a letter the table already supplies.
+    public static let symbolLayerProvisionalRomaji: [PhysicalKey: String] = [:]
 
     /// JIS bracket keys already produce these characters through Apple Japanese
     /// Input, and going through the IME keeps them in the pre-edit buffer where
@@ -100,6 +104,7 @@ private extension WKRLayout {
 
         result.append(contentsOf: singleRules)
         result.append(contentsOf: smallKanaRules)
+        result.append(contentsOf: arrowRules)
         if includingSymbolLayer {
             result.append(contentsOf: symbolRules)
         }
@@ -164,7 +169,11 @@ private extension WKRLayout {
             .init("eu-kya", .u, "きゃ", "kya"),
             .init("ei-kyu", .i, "きゅ", "kyu"),
             .init("eo-kyo", .o, "きょ", "kyo"),
-            .init(text: "ey-small-ke", .y, "ヶ"),
+            // `lke` was measured against Apple Japanese Input's own romaji
+            // table on 2026-08-16: the rule exists and produces U+30F6, the
+            // character this row declares. Romaji keeps it inside the pre-edit,
+            // where the symbol layer's Unicode injection cannot go.
+            .init("ey-small-ke", .y, "ヶ", "lke"),
         ]),
         .init(rootID: "s-sa", key: .s, rootKana: "さ", rootRomaji: "sa", variants: [
             .init("sh-sa", .h, "さ", "sa"),
@@ -233,13 +242,17 @@ private extension WKRLayout {
         .init(rootID: "w-wa", key: .w, rootKana: "わ", rootRomaji: "wa", variants: [
             .init("wh-wa", .h, "わ", "wa"),
             .init("wk-wi", .k, "うぃ", "wi"),
+            // `vu` reaches ゔ (U+3094), not the ヴ (U+30F4) this row declares,
+            // and Apple Japanese Input's romaji table has no hiragana-mode
+            // spelling for the katakana form. This one stays a Unicode
+            // injection; changing the output would be an upstream layout change.
             .init(text: "wj-vu", .j, "ヴ"),
             .init("wsemicolon-we", .semicolon, "うぇ", "we"),
             .init("wl-wo", .l, "を", "wo"),
-            .init(text: "wu-archaic-wi", .u, "ゐ"),
-            .init(text: "wi-archaic-we", .i, "ゑ"),
+            .init("wu-archaic-wi", .u, "ゐ", "wyi"),
+            .init("wi-archaic-we", .i, "ゑ", "wye"),
             .init("wo-who", .o, "うぉ", "who"),
-            .init(text: "wy-small-wa", .y, "ゎ"),
+            .init("wy-small-wa", .y, "ゎ", "lwa"),
         ]),
         .init(rootID: "q-ga", key: .q, rootKana: "が", rootRomaji: "ga", variants: [
             .init("qh-ga", .h, "が", "ga"),
@@ -348,6 +361,23 @@ private extension WKRLayout {
         .init(id: "tslash-fullwidth-slash", input: [.t, .slash], text: "／"),
     ]
 
+    /// The four arrows, which Apple Japanese Input's own romaji table already
+    /// carries (`RomajiRule_Default.txt`, verified 2026-08-16: they are the
+    /// only four rules in it whose output is not kana).
+    ///
+    /// They sit apart from `symbolRules` because romaji makes them ordinary:
+    /// they join the pre-edit, convert with Space, come back from the `英数`
+    /// connect-back, and work in the middle of a sentence. None of that is true
+    /// of the symbol layer, so turning that layer off leaves these in place.
+    /// They also give the `Y` node a shared romaji prefix of `z`, which is what
+    /// prefix mode now streams for it.
+    static let arrowRules: [NormalizedRule] = [
+        .init(id: "yh-left", input: [.y, .h], kana: "←", romaji: "zh"),
+        .init(id: "yj-down", input: [.y, .j], kana: "↓", romaji: "zj"),
+        .init(id: "yk-up", input: [.y, .k], kana: "↑", romaji: "zk"),
+        .init(id: "yl-right", input: [.y, .l], kana: "→", romaji: "zl"),
+    ]
+
     static let symbolRules: [NormalizedRule] = [
         .init(id: "y1-open-circle", input: [.y, .digit1], text: "○"),
         .init(id: "y-shift1-filled-circle", input: [.y, .shiftedDigit1], text: "●"),
@@ -377,10 +407,6 @@ private extension WKRLayout {
         .init(id: "y-tilde-diaeresis", input: [.y, .shiftedCaret], text: "¨"),
         .init(id: "yq-dakuten", input: [.y, .q], text: "゛"),
         .init(id: "yp-wave-dash", input: [.y, .p], text: "～"),
-        .init(id: "yj-down", input: [.y, .j], text: "↓"),
-        .init(id: "yh-left", input: [.y, .h], text: "←"),
-        .init(id: "yk-up", input: [.y, .k], text: "↑"),
-        .init(id: "yl-right", input: [.y, .l], text: "→"),
         .init(id: "y-colon-handakuten", input: [.y, .colon], text: "゜"),
         .init(id: "yn-prime", input: [.y, .n], text: "′"),
         .init(id: "ym-double-prime", input: [.y, .m], text: "″"),

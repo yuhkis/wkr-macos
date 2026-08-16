@@ -241,11 +241,9 @@ final class WKRTransducerTests: XCTestCase {
 
     func testRepresentativeUnicodeAndSymbolLayerRules() {
         let cases: [([PhysicalKey], SyntheticAction)] = [
-            ([.e, .y], .unicode("ヶ")),
             ([.w, .j], .unicode("ヴ")),
-            ([.w, .u], .unicode("ゐ")),
             ([.t, .comma], .unicode("，")),
-            ([.y, .j], .unicode("↓")),
+            ([.y, .a], .unicode("※")),
             ([.y, .shiftedDigit1], .unicode("●")),
             ([.y, .c], .unicode("〇")),
         ]
@@ -292,7 +290,7 @@ final class WKRTransducerTests: XCTestCase {
             }
             XCTAssertEqual(
                 prefixActions,
-                [.romaji("y"), .backspace(count: 1), .unicode(expected)],
+                [.romaji("z"), .backspace(count: 1), .unicode(expected)],
                 name
             )
         }
@@ -336,31 +334,58 @@ final class WKRTransducerTests: XCTestCase {
         let full = Set(WKRLayout.rules.map(\.id))
         let reduced = Set(WKRLayout.rulesWithoutSymbolLayer.map(\.id))
 
-        XCTAssertEqual(full.subtracting(reduced).count, 59)
+        XCTAssertEqual(full.subtracting(reduced).count, 55)
         XCTAssertTrue(reduced.isSubset(of: full))
-        // Nothing left in the table starts with `Y`.
+        // Everything removed injects Unicode, and nothing that does is left.
         XCTAssertTrue(
-            WKRLayout.rulesWithoutSymbolLayer.allSatisfy { $0.input.first != .y }
+            WKRLayout.rules
+                .filter { !reduced.contains($0.id) }
+                .allSatisfy { rule in
+                    guard case .unicode = rule.action else { return false }
+                    return rule.input.first == .y
+                }
+        )
+        XCTAssertFalse(
+            WKRLayout.rulesWithoutSymbolLayer.contains { rule in
+                guard case .unicode = rule.action else { return false }
+                return rule.input.first == .y
+            }
         )
     }
 
-    func testDisabledSymbolLayerLetsTheYKeyPassThrough() {
+    func testDisabledSymbolLayerKeepsTheArrowsOnTheYKey() {
+        // The arrows are romaji, so none of the reasons for turning the layer
+        // off apply to them and `Y` stays their prefix.
         let engine = WKRTransducer(
             mode: .prefixRomaji,
             rules: WKRTransducer.rulesWithoutSymbolLayer
         )
-        let result = engine.process(.physical(.y))
 
-        XCTAssertEqual(result.actions, [])
-        XCTAssertEqual(result.disposition, .passThrough)
+        XCTAssertEqual(engine.process(.physical(.y)).actions, [.romaji("z")])
+        XCTAssertTrue(engine.hasPendingInput)
+        XCTAssertEqual(engine.process(.physical(.j)).actions, [.romaji("j")])
         XCTAssertFalse(engine.hasPendingInput)
+    }
+
+    func testDisabledSymbolLayerDropsTheSymbolsUnderY() {
+        let engine = WKRTransducer(
+            mode: .prefixRomaji,
+            rules: WKRTransducer.rulesWithoutSymbolLayer
+        )
+        _ = engine.process(.physical(.y))
+
+        // `Y` `A` was ※. With the layer off there is no such rule, so `A`
+        // is reprocessed at the root as ぱ and the streamed `z` stays put.
+        let result = engine.process(.physical(.a))
+
+        XCTAssertEqual(result.actions, [.romaji("p")])
     }
 
     func testDisabledSymbolLayerKeepsRulesWhereYIsTheSecondKey() {
         // `SY → しぇ` and `EY → ヶ` are row variants, not the symbol layer.
         let cases: [(keys: [PhysicalKey], last: SyntheticAction)] = [
             ([.s, .y], .romaji("he")),
-            ([.e, .y], .unicode("ヶ")),
+            ([.e, .y], .romaji("lke")),
         ]
 
         for testCase in cases {
@@ -561,8 +586,9 @@ final class WKRTransducerTests: XCTestCase {
             )
         }
 
+        // `Y` streams `z`, the prefix its four arrow rules share.
         let symbolLayer = WKRTransducer(mode: .prefixRomaji)
-        XCTAssertEqual(symbolLayer.process(.physical(.y)).actions, [.romaji("y")])
+        XCTAssertEqual(symbolLayer.process(.physical(.y)).actions, [.romaji("z")])
     }
 
     /// Rollbacks are the price of always showing a letter, so the rules that
@@ -574,14 +600,24 @@ final class WKRTransducerTests: XCTestCase {
             "lt-small-o", "ut-small-ya", "it-small-yu", "ot-small-yo",
             // The X row mixes ふ, て and で, so only ふ keeps the streamed `f`.
             "xy-tyu", "xu-thi", "xi-dhu", "xo-dhi",
-            // Unicode outputs have no romaji to continue.
-            "ey-small-ke", "wj-vu", "wu-archaic-wi", "wi-archaic-we", "wy-small-wa",
+            // Outputs that cannot continue the letter their row streamed:
+            // `ヴ` and the full-width punctuation are Unicode, while `ヶ` and
+            // `ゎ` are romaji that starts with `l` rather than the row letter.
+            // `ゐ` and `ゑ` continue `w`, so they cost nothing.
+            "ey-small-ke", "wj-vu", "wy-small-wa",
             "tcomma-fullwidth-comma", "tperiod-fullwidth-period", "tslash-fullwidth-slash",
         ]
-        // The whole `Y` layer streams a placeholder letter that every symbol
-        // has to take back before injecting the character.
+        // The `Y` symbol layer streams `z` and every symbol has to take it
+        // back before injecting the character. The four arrows continue `z`
+        // into their own romaji instead, so they are not in this set.
         expectedRollbacks.formUnion(
-            WKRTransducer.fullRules.filter { $0.input.first == .y }.map(\.id)
+            WKRTransducer.fullRules
+                .filter { rule in
+                    guard rule.input.first == .y else { return false }
+                    guard case .unicode = rule.action else { return false }
+                    return true
+                }
+                .map(\.id)
         )
 
         var actualRollbacks: Set<String> = []
@@ -630,9 +666,11 @@ final class WKRTransducerTests: XCTestCase {
 
     func testPrefixModeRepresentativeRollbacks() {
         let cases: [(name: String, keys: [PhysicalKey], expected: [SyntheticAction])] = [
-            ("EY", [.e, .y], [.romaji("k"), .backspace(count: 1), .unicode("ヶ")]),
+            ("EY", [.e, .y], [.romaji("k"), .backspace(count: 1), .romaji("lke")]),
+            ("YJ", [.y, .j], [.romaji("z"), .romaji("j")]),
+            ("WI", [.w, .i], [.romaji("w"), .romaji("ye")]),
             ("T,", [.t, .comma], [.romaji("l"), .backspace(count: 1), .unicode("，")]),
-            ("Y1", [.y, .digit1], [.romaji("y"), .backspace(count: 1), .unicode("○")]),
+            ("Y1", [.y, .digit1], [.romaji("z"), .backspace(count: 1), .unicode("○")]),
             ("XH", [.x, .h], [.romaji("f"), .romaji("a")]),
             ("XU", [.x, .u], [.romaji("f"), .backspace(count: 1), .romaji("teli")]),
             ("WJ", [.w, .j], [.romaji("w"), .backspace(count: 1), .unicode("ヴ")]),
@@ -673,7 +711,7 @@ final class WKRTransducerTests: XCTestCase {
         XCTAssertFalse(engine.hasPendingInput)
 
         let pendingWithoutOutput = WKRTransducer(mode: .prefixRomaji)
-        XCTAssertEqual(pendingWithoutOutput.process(.physical(.y)).actions, [.romaji("y")])
+        XCTAssertEqual(pendingWithoutOutput.process(.physical(.y)).actions, [.romaji("z")])
         let symbolCancel = pendingWithoutOutput.process(.backspace)
         XCTAssertEqual(symbolCancel.actions, [.backspace(count: 1)])
         XCTAssertEqual(symbolCancel.disposition, .suppress)

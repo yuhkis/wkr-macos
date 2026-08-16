@@ -28,15 +28,15 @@ final class UnicodeInjectionGateTests: XCTestCase {
     // MARK: - The case the gate exists for
 
     func testSymbolIsInjectedWhenNothingIsPending() {
-        // `Y` `J` at the start of an empty pre-edit: the provisional `y` is the
-        // only thing on screen, and the same batch deletes it, so the
-        // injection lands. This is what was measured working on 2026-08-16.
-        let decisions = post(keys([.y, .j]))
+        // `Y` `A` is ※ at the start of an empty pre-edit: the provisional
+        // `z` is the only thing on screen, and the same batch deletes it, so
+        // the injection lands. Measured working on 2026-08-16.
+        let decisions = post(keys([.y, .a]))
 
         XCTAssertFalse(decisions[1].droppedUnicode)
         XCTAssertEqual(
             decisions[1].result.actions,
-            [.backspace(count: 1), .unicode("↓")]
+            [.backspace(count: 1), .unicode("※")]
         )
     }
 
@@ -44,19 +44,19 @@ final class UnicodeInjectionGateTests: XCTestCase {
         // `W` `E` `R` leaves `わから` uncommitted, and Apple Japanese Input
         // discards the injection in that state. Sending it anyway loses the
         // keystroke with nothing on screen to show for it.
-        let decisions = post(keys([.w, .e, .r, .y, .j]))
+        let decisions = post(keys([.w, .e, .r, .y, .a]))
 
         XCTAssertTrue(decisions[4].droppedUnicode)
-        // The provisional `y` is still removed, so the sequence leaves the
+        // The provisional `z` is still removed, so the sequence leaves the
         // pre-edit exactly as it was rather than a stray letter in it.
         XCTAssertEqual(decisions[4].result.actions, [.backspace(count: 1)])
     }
 
     func testTheDroppedInjectionKeepsTheRestOfTheResultIntact() {
-        let decisions = post(keys([.w, .e, .r, .y, .j]))
+        let decisions = post(keys([.w, .e, .r, .y, .a]))
         let original = WKRTransducer(mode: .prefixRomaji)
         for event in keys([.w, .e, .r, .y]) { _ = original.process(event) }
-        let ungated = original.process(.physical(.j))
+        let ungated = original.process(.physical(.a))
 
         XCTAssertEqual(decisions[4].result.disposition, ungated.disposition)
         XCTAssertEqual(decisions[4].result.stateCode, ungated.stateCode)
@@ -65,19 +65,19 @@ final class UnicodeInjectionGateTests: XCTestCase {
     // MARK: - Every Unicode rule, not only the `Y` layer
 
     func testUnicodeRulesOutsideTheSymbolLayerAreGatedToo() {
-        // `T` `,` is `，`, and `E` `Y` is `ヶ`. Both take the same path.
+        // `T` `,` is `，` and `W` `J` is `ヴ`. Both take the same path.
         let comma = post(keys([.w, .e, .r, .t, .comma]))
-        let smallKe = post(keys([.w, .e, .r, .e, .y]))
+        let vu = post(keys([.w, .e, .r, .w, .j]))
 
         XCTAssertTrue(comma[4].droppedUnicode)
-        XCTAssertTrue(smallKe[4].droppedUnicode)
+        XCTAssertTrue(vu[4].droppedUnicode)
     }
 
     // MARK: - What reopens the gate
 
     func testReturnCommitsSoTheNextSymbolIsInjected() {
         let decisions = post(
-            keys([.w, .e, .r]) + [.boundary(.enter)] + keys([.y, .j])
+            keys([.w, .e, .r]) + [.boundary(.enter)] + keys([.y, .a])
         )
 
         XCTAssertFalse(decisions.last!.droppedUnicode)
@@ -88,7 +88,7 @@ final class UnicodeInjectionGateTests: XCTestCase {
         // Space converts without committing, so the pre-edit is still there.
         // Treating it as a commit would send an injection that cannot arrive.
         let decisions = post(
-            keys([.w, .e, .r]) + [.boundary(.space)] + keys([.y, .j])
+            keys([.w, .e, .r]) + [.boundary(.space)] + keys([.y, .a])
         )
 
         XCTAssertTrue(decisions.last!.droppedUnicode)
@@ -98,7 +98,7 @@ final class UnicodeInjectionGateTests: XCTestCase {
         // Whether punctuation commits the pre-edit is unmeasured, and guessing
         // that it does costs a lost keystroke.
         let decisions = post(
-            keys([.w, .e, .r]) + [.boundary(.punctuation)] + keys([.y, .j])
+            keys([.w, .e, .r]) + [.boundary(.punctuation)] + keys([.y, .a])
         )
 
         XCTAssertTrue(decisions.last!.droppedUnicode)
@@ -106,13 +106,13 @@ final class UnicodeInjectionGateTests: XCTestCase {
 
     func testAnInjectedSymbolLeavesThePreEditEmptyForTheNextOne() {
         // The injection commits on the spot, so two symbols in a row both work.
-        let decisions = post(keys([.y, .j, .y, .k]))
+        let decisions = post(keys([.y, .a, .y, .c]))
 
         XCTAssertFalse(decisions[1].droppedUnicode)
         XCTAssertFalse(decisions[3].droppedUnicode)
         XCTAssertEqual(
             decisions[3].result.actions,
-            [.backspace(count: 1), .unicode("↑")]
+            [.backspace(count: 1), .unicode("〇")]
         )
     }
 
@@ -128,7 +128,7 @@ final class UnicodeInjectionGateTests: XCTestCase {
         engine.reset()
 
         XCTAssertTrue(gate.preEditIsEmpty)
-        let decisions = keys([.y, .j]).map { gate.decide($0, engine.process($0)) }
+        let decisions = keys([.y, .a]).map { gate.decide($0, engine.process($0)) }
         XCTAssertFalse(decisions[1].droppedUnicode)
     }
 
