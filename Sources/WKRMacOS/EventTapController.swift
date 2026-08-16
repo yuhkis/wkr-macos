@@ -25,6 +25,10 @@ final class EventTapController {
     /// Physical keys and streamed romaji length for the current pre-edit, so
     /// the `英数` connect-back can be replaced with what the user pressed.
     private var englishFallbackJournal = EnglishFallbackJournal()
+    /// Stops a Unicode injection that a pre-edit would swallow. The English
+    /// fallback does not go through this: its own Backspace removes the whole
+    /// pre-edit first, which is why that injection arrives.
+    private var unicodeInjectionGate = UnicodeInjectionGate()
     /// `英数` is an ordinary key rather than a modifier, so the chord is read
     /// from its own key state.
     private var eisuIsHeld = false
@@ -120,6 +124,7 @@ final class EventTapController {
     func stop() {
         transducer.reset()
         englishFallbackJournal.clear()
+        unicodeInjectionGate.clear()
         eisuIsHeld = false
         cancelEisuBurst()
         tapOperational = false
@@ -179,6 +184,9 @@ final class EventTapController {
     }
 
     func reset(_ reason: ResetReason) {
+        // Every reason either ends the pre-edit or means WKR can no longer
+        // account for it, including `英数` and `かな`, which commit it.
+        unicodeInjectionGate.clear()
         if reason != .inputSourceChanged {
             // `英数` arrives as an input source change and is the key the chord
             // is built on, so only that reason leaves the journal in place.
@@ -350,11 +358,17 @@ final class EventTapController {
             inputEvent = .boundary(.other)
         }
 
-        let result = transducer.process(inputEvent)
-        englishFallbackJournal.record(inputEvent, result: result, at: Self.now())
+        let decision = unicodeInjectionGate.decide(inputEvent, transducer.process(inputEvent))
+        if decision.droppedUnicode {
+            // Notice level because the user pressed two keys and gets nothing.
+            // Without this line there is no way to tell it apart from a symbol
+            // that was injected and then swallowed by the application.
+            AppLog.logger.notice("unicode-injection-skipped reason=pre-edit-open")
+        }
+        englishFallbackJournal.record(inputEvent, result: decision.result, at: Self.now())
 
-        AppLog.logger.debug("state=\(result.stateCode.rawValue, privacy: .public)")
-        return apply(result, through: proxy, to: event, keyCode: keyCode)
+        AppLog.logger.debug("state=\(decision.result.stateCode.rawValue, privacy: .public)")
+        return apply(decision.result, through: proxy, to: event, keyCode: keyCode)
     }
 
     private func apply(
