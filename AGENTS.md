@@ -78,6 +78,7 @@
 - 追跡ファイルに個人の絶対パス（`/Users/...`）、機体名、学内ホスト名、raw logを書かない。手順は `~` 起点か相対パスで書く。
 - `WORKLOG.md` と `docs/archive/` はローカル専用。`.gitignore` 済みで、`git add -f` で追加しない。
 - `git push --force` / `--force-with-lease` / `git push --tags` は、ユーザーの明示依頼なしに実行しない。
-- `main` への直接pushはリポジトリルールで禁止されている。変更はブランチを切ってPull Requestを作り、CI (`swift-test`) の成功を確認してからmergeする。承認者は不要だが、履歴はlinearに保つ。
+- `main` への直接pushはリポジトリルールで禁止されている。変更はブランチを切ってPull Requestを作り、CI (`swift-test`) の成功を確認してからmergeする。承認者は不要。
+- **mergeはmerge commitで行う（`gh pr merge --merge`）。** GitHubのrebase mergeとsquash mergeはコミットを作り直すため、手元で付けたSSH署名が失われる。merge commitだけが元のコミットをSHAごと残すので、**自分の鍵で署名したことを`main`の履歴で示せる**。2026-08-16に実測し、rebase mergeでは`verified=false reason=unsigned`になることを確認した。この方針のため`required_linear_history`はrulesetから外してある。履歴の線形性より署名の追跡性を優先する判断である。
 - 公開 `main` は orphan コミットとして作り直した履歴で、それ以前の履歴は公開しない。復元・接続を試みない。
 - 端末固有の運用（ローカルの保全先、機体ごとの手順など）は、追跡対象外の `AGENTS.local.md` に置く。存在する場合は作業開始時に併せて読む。
