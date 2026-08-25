@@ -626,6 +626,72 @@ final class WKRTransducerTests: XCTestCase {
         }
     }
 
+    func testPrefixModeRomanTransliterationDoesNotCompletePendingKana() {
+        let engine = WKRTransducer(mode: .prefixRomaji)
+        var actions: [SyntheticAction] = []
+        for key in [PhysicalKey.w, .e, .r] {
+            actions.append(contentsOf: engine.process(.physical(key)).actions)
+        }
+
+        let transliteration = engine.process(.romanTransliteration)
+
+        XCTAssertEqual(concatenatedRomaji(actions), "wakar")
+        XCTAssertEqual(transliteration.actions, [])
+        XCTAssertEqual(transliteration.disposition, .passThrough)
+        XCTAssertEqual(transliteration.stateCode, .romanTransliteration)
+        XCTAssertFalse(engine.hasPendingInput)
+    }
+
+    func testDeferredModeRomanTransliterationStreamsOnlyTheProvisionalRomaji() {
+        let engine = WKRTransducer(mode: .deferredRomaji)
+        var actions: [SyntheticAction] = []
+        for key in [PhysicalKey.w, .e, .r] {
+            actions.append(contentsOf: engine.process(.physical(key)).actions)
+        }
+
+        let transliteration = engine.process(.romanTransliteration)
+        actions.append(contentsOf: transliteration.actions)
+
+        XCTAssertEqual(concatenatedRomaji(actions), "wakar")
+        XCTAssertEqual(transliteration.actions, [.romaji("r")])
+        XCTAssertEqual(transliteration.disposition, .repostAfterSynthetic)
+        XCTAssertEqual(transliteration.stateCode, .romanTransliteration)
+        XCTAssertFalse(engine.hasPendingInput)
+    }
+
+    func testOptimisticModeRomanTransliterationRestoresOnlyTheProvisionalRomaji() {
+        let engine = WKRTransducer(
+            mode: .optimisticRomaji(.fullLayoutExperimental)
+        )
+        XCTAssertEqual(engine.process(.physical(.e)).actions, [.romaji("ka")])
+
+        let transliteration = engine.process(.romanTransliteration)
+
+        XCTAssertEqual(
+            transliteration.actions,
+            [.backspace(count: 1), .romaji("k")]
+        )
+        XCTAssertEqual(transliteration.deletedRomajiCharacters, 2)
+        XCTAssertEqual(transliteration.disposition, .repostAfterSynthetic)
+        XCTAssertEqual(transliteration.stateCode, .romanTransliteration)
+        XCTAssertFalse(engine.hasPendingInput)
+    }
+
+    func testOptimisticModeRomanTransliterationExposesAProvisionalOnlyPrefix() {
+        let engine = WKRTransducer(
+            mode: .optimisticRomaji(.fullLayoutExperimental)
+        )
+        XCTAssertEqual(engine.process(.physical(.t)).actions, [])
+
+        let transliteration = engine.process(.romanTransliteration)
+
+        XCTAssertEqual(transliteration.actions, [.romaji("l")])
+        XCTAssertEqual(transliteration.deletedRomajiCharacters, 0)
+        XCTAssertEqual(transliteration.disposition, .repostAfterSynthetic)
+        XCTAssertEqual(transliteration.stateCode, .romanTransliteration)
+        XCTAssertFalse(engine.hasPendingInput)
+    }
+
     /// Every romaji rule must reach its declared romaji. Without a rollback the
     /// streamed pieces concatenate to it; with one, everything before the
     /// deletion is discarded and the full romaji is re-sent.

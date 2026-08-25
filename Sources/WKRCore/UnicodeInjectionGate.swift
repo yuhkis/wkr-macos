@@ -39,10 +39,12 @@ public struct UnicodeInjectionGate: Equatable, Sendable {
     ) -> Decision {
         // Backspaces in this batch remove what WKR streamed for the sequence
         // being completed, so they are gone before the injection is posted.
-        let removedHere = result.actions.reduce(0) { partial, action in
-            guard case let .backspace(count) = action else { return partial }
-            return partial + count
-        }
+        let removedHere = result.deletedRomajiCharacters > 0
+            ? result.deletedRomajiCharacters
+            : result.actions.reduce(0) { partial, action in
+                guard case let .backspace(count) = action else { return partial }
+                return partial + count
+            }
         let carriesUnicode = result.actions.contains { action in
             guard case .unicode = action else { return false }
             return true
@@ -73,12 +75,15 @@ public struct UnicodeInjectionGate: Equatable, Sendable {
     }
 
     private mutating func record(_ event: WKRInputEvent, _ result: TransitionResult) {
+        var exactDeletedRomaji = result.deletedRomajiCharacters
         for action in result.actions {
             switch action {
             case let .romaji(value):
                 streamedRomajiCharacters += value.count
             case let .backspace(count):
-                streamedRomajiCharacters = max(0, streamedRomajiCharacters - count)
+                let removed = exactDeletedRomaji > 0 ? exactDeletedRomaji : count
+                streamedRomajiCharacters = max(0, streamedRomajiCharacters - removed)
+                exactDeletedRomaji = 0
             case .unicode:
                 // It arrived, which means the pre-edit was empty, and it
                 // commits on the spot without opening a new one.
@@ -94,7 +99,7 @@ public struct UnicodeInjectionGate: Equatable, Sendable {
             // pre-edit is gone when it is not costs a lost keystroke; keeping
             // the count costs a symbol the user can retype after committing.
             streamedRomajiCharacters = 0
-        case .boundary, .backspace, .physical, .reset:
+        case .boundary, .romanTransliteration, .backspace, .physical, .reset:
             break
         }
     }

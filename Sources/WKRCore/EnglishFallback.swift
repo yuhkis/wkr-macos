@@ -145,10 +145,11 @@ public struct EnglishFallbackJournal: Equatable, Sendable {
         switch event {
         case let .physical(key):
             record(key, result: result, at: now)
-        case .boundary, .backspace:
+        case .boundary, .romanTransliteration, .backspace:
             // Space, Return, Tab and punctuation end the pre-edit WKR was
-            // counting, and Backspace changes it by an amount measured in
-            // display units rather than romaji characters.
+            // counting. Roman transliteration changes what connect-back would
+            // return, and Backspace changes it by an amount measured in display
+            // units rather than romaji characters.
             clear()
         case let .reset(reason):
             // `英数` reaches the controller as an input source change, and that

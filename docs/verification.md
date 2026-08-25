@@ -554,3 +554,48 @@ Apple Developer Program は不要です。`security find-identity -v -p codesign
   います。
 - もう1台の Mac では別の証明書になるため、requirement も別になります。TCC の許可は機体ごとなので
   実害はないはずですが、確認していません。
+
+## 2026-08-23 — ローマ字変換では保留母音を補わない
+
+今回報告された割当てでの `Ctrl+J` / `Ctrl+K` のかな変換と、`Ctrl+L` / `Ctrl+;` の
+ローマ字変換を別の境界として実装しました。ほかのキー設定の既知ショートカットは、別操作を
+誤分類しないよう和集合にはせず、従来のかな完成側を保っています。実機確認は未了です。
+自動テストで確認した範囲は次のとおりです。
+
+| モード | ローマ字変換へ渡す状態 | 判定 |
+| --- | --- | --- |
+| prefix-romaji | 表示済みの `wakar`（追加送出なし） | `a` を補わない |
+| deferred-romaji | `waka` の後に仮ローマ字 `r` だけを送る | `a` を補わない |
+| optimistic-romaji | 仮かなを削除し、同じ仮ローマ字（例: `E` の `k`）へ戻す | `a` を補わない |
+
+ローマ字変換後も未確定文字列が残るものとして保守的に扱い、Unicode注入ゲートの文字数は維持し、
+英字への打ち直し用journalだけを破棄します。`make test` は95件すべて成功しました。
+
+### 未確認事項
+
+- 配備済みアプリ、Apple日本語入力「ローマ字入力」「ひらがな」、TextEditでの
+  `Ctrl+J` / `Ctrl+K` / `Ctrl+L` / `Ctrl+;` の実測は未了です。
+- ほかのキー設定とF9 / F10のローマ字変換は、今回の修正対象外です。
+
+## 2026-08-24 — ローマ字変換ショートカットの配備・TextEdit実機確認
+
+自己署名証明書でrelease appを再ビルドして `/Applications/WKRMacOS.app` へ配備し、
+login agentをprefixモードで起動しました。配備後もdesignated requirementは変わらず、
+`codesign --verify --deep --strict` は成功しました。起動ログで
+`permissions listen=true post=true`、Apple日本語入力「ひらがな」・ローマ字入力との一致、
+`conversion-started output-mode=prefix` を確認しました。`make test` は95件すべて成功しています。
+
+Apple日本語入力「ひらがな」・ローマ字入力、TextEditの破棄可能な新規文書で、物理キーボードから
+次の結果を確認しました。
+
+| 入力 | 実測 | 判定 |
+| --- | --- | --- |
+| `W` `E` `R` → Ctrl+J | `わから` | OK: かな完成 |
+| `W` `E` `R` → Ctrl+K | `ワカラ` | OK: かな完成 |
+| `W` `E` `R` → Ctrl+L | `ｗａｋａｒ` | OK: 末尾の `a` を補わない |
+| `W` `E` `R` → Ctrl+; | `wakar` | OK: 末尾の `a` を補わない |
+
+### 未確認事項
+
+- deferred / optimisticモード、およびNotes / Safariでの同じControlショートカットの実測。
+- ほかのキー設定とF9 / F10のローマ字変換。

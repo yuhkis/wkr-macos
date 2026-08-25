@@ -301,6 +301,17 @@ final class EventTapController {
             if suppressedKeyUps.contains(keyCode) {
                 return nil
             }
+            if isConverting,
+               event.flags.contains(.maskControl),
+               event.flags.intersection(Self.focusMovingModifierFlags).isEmpty {
+                // The first Control shortcut has already reconciled WKR's
+                // pending state and cleared the fallback journal. Repeats must
+                // keep the conservative Unicode-gate count: a generic reset
+                // would claim the IME pre-edit is empty while it can remain
+                // marked after kana/roman transliteration.
+                counters.bypassed()
+                return Unmanaged.passUnretained(event)
+            }
             reset(.modifiedKey)
             counters.bypassed()
             return Unmanaged.passUnretained(event)
@@ -322,22 +333,41 @@ final class EventTapController {
         }
 
         if !event.flags.intersection(Self.disallowedModifierFlags).isEmpty {
-            // Apple Japanese Input keeps its conversion shortcuts on Control,
-            // and which letter does what depends on the key setting: the
-            // default one puts hiragana on Ctrl+J and katakana on Ctrl+K, the
-            // Windows one on Ctrl+U and Ctrl+I. No public API reports which is
-            // selected, so the list cannot be enumerated. Finish the pending
-            // kana for any Control combination instead and let the original
-            // through, the same way Return and Shift+letter are handled: `W`
-            // `E` `R` then Ctrl+K has to reach ワカラ, not ワカr.
+            // Apple Japanese Input keeps its conversion shortcuts on Control.
+            // Kana conversion needs a pending kana completed: `W` `E` `R` then
+            // Ctrl+K has to reach ワカラ, not ワカr. Roman transliteration is
+            // different: Ctrl+L / Ctrl+; must see the streamed `r` itself, not
+            // an invented trailing `a`.
             //
             // Command and Option keep failing closed. Those shortcuts can move
             // the focus, and synthetic romaji would then land somewhere else.
             if event.flags.contains(.maskControl),
-               event.flags.intersection(Self.focusMovingModifierFlags).isEmpty,
-               transducer.hasPendingInput {
-                AppLog.logger.notice("pending-flushed reason=control-shortcut")
-                return applyBoundaryFlush(through: proxy, to: event, keyCode: keyCode)
+               event.flags.intersection(Self.focusMovingModifierFlags).isEmpty {
+                let key = Self.physicalKey(for: keyCode, shifted: false)
+                switch ControlShortcutPolicy.pendingAction(
+                    for: key,
+                    isShifted: event.flags.contains(.maskShift)
+                ) {
+                case .completeKana:
+                    if transducer.hasPendingInput {
+                        AppLog.logger.notice("pending-flushed reason=control-shortcut")
+                    }
+                    // Even with no transducer prefix left, Apple Japanese
+                    // Input can still have the completed kana as marked text.
+                    // Treating the shortcut as a boundary keeps the Unicode
+                    // gate conservatively closed instead of clearing it via a
+                    // generic modified-key reset.
+                    return applyBoundaryFlush(through: proxy, to: event, keyCode: keyCode)
+                case .transliterateRoman:
+                    if transducer.hasPendingInput {
+                        AppLog.logger.notice("pending-released reason=roman-transliteration")
+                    }
+                    return applyRomanTransliteration(
+                        through: proxy,
+                        to: event,
+                        keyCode: keyCode
+                    )
+                }
             }
             reset(.modifiedKey)
             counters.bypassed()
@@ -403,6 +433,19 @@ final class EventTapController {
         keyCode: CGKeyCode
     ) -> Unmanaged<CGEvent>? {
         let inputEvent = WKRInputEvent.boundary(.other)
+        let decision = unicodeInjectionGate.decide(inputEvent, transducer.process(inputEvent))
+        englishFallbackJournal.record(inputEvent, result: decision.result, at: Self.now())
+        return apply(decision.result, through: proxy, to: event, keyCode: keyCode)
+    }
+
+    /// Let a roman-transliteration shortcut operate on exactly the provisional
+    /// romaji already visible, without completing the pending kana.
+    private func applyRomanTransliteration(
+        through proxy: CGEventTapProxy,
+        to event: CGEvent,
+        keyCode: CGKeyCode
+    ) -> Unmanaged<CGEvent>? {
+        let inputEvent = WKRInputEvent.romanTransliteration
         let decision = unicodeInjectionGate.decide(inputEvent, transducer.process(inputEvent))
         englishFallbackJournal.record(inputEvent, result: decision.result, at: Self.now())
         return apply(decision.result, through: proxy, to: event, keyCode: keyCode)
