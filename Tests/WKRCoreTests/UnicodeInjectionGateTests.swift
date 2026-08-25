@@ -105,6 +105,83 @@ final class UnicodeInjectionGateTests: XCTestCase {
         XCTAssertTrue(decisions.last!.droppedUnicode)
     }
 
+    func testKanaTransliterationBoundaryDoesNotReopenTheGateAfterATerminalRule() {
+        // `E K` has completed its transducer rule, but the kana is still
+        // marked text in Apple Japanese Input. Ctrl+J/K follows this `.other`
+        // boundary path even though the transducer has no pending prefix.
+        let decisions = post(
+            keys([.e, .k]) + [.boundary(.other)] + keys([.y, .a])
+        )
+
+        XCTAssertTrue(decisions.last!.droppedUnicode)
+    }
+
+    func testRomanTransliterationKeepsThePreEditClosedToUnicode() {
+        let engine = WKRTransducer(mode: .prefixRomaji)
+        var gate = UnicodeInjectionGate()
+        for event in keys([.w, .e, .r]) {
+            _ = gate.decide(event, engine.process(event))
+        }
+
+        let event = WKRInputEvent.romanTransliteration
+        let transliteration = gate.decide(event, engine.process(event))
+
+        XCTAssertEqual(transliteration.result.actions, [])
+        XCTAssertFalse(gate.preEditIsEmpty)
+
+        let symbol = keys([.y, .a]).map { gate.decide($0, engine.process($0)) }
+        XCTAssertTrue(symbol.last!.droppedUnicode)
+    }
+
+    func testDeferredRomanTransliterationKeepsThePreEditClosedToUnicode() {
+        let engine = WKRTransducer(mode: .deferredRomaji)
+        var gate = UnicodeInjectionGate()
+        for event in keys([.w, .e, .r]) {
+            _ = gate.decide(event, engine.process(event))
+        }
+
+        let event = WKRInputEvent.romanTransliteration
+        let transliteration = gate.decide(event, engine.process(event))
+
+        XCTAssertEqual(transliteration.result.actions, [.romaji("r")])
+        XCTAssertFalse(gate.preEditIsEmpty)
+    }
+
+    func testOptimisticRomanTransliterationKeepsTheRestoredPrefixInThePreEdit() {
+        let engine = WKRTransducer(
+            mode: .optimisticRomaji(.fullLayoutExperimental)
+        )
+        var gate = UnicodeInjectionGate()
+        let physical = WKRInputEvent.physical(.e)
+        _ = gate.decide(physical, engine.process(physical))
+
+        let event = WKRInputEvent.romanTransliteration
+        let transliteration = gate.decide(event, engine.process(event))
+
+        XCTAssertEqual(
+            transliteration.result.actions,
+            [.backspace(count: 1), .romaji("k")]
+        )
+        XCTAssertFalse(gate.preEditIsEmpty)
+    }
+
+    func testRomanTransliterationKeepsTheGateClosedWithoutTransducerPendingInput() {
+        let engine = WKRTransducer(mode: .prefixRomaji)
+        var gate = UnicodeInjectionGate()
+        for event in keys([.e, .k]) {
+            _ = gate.decide(event, engine.process(event))
+        }
+        XCTAssertFalse(engine.hasPendingInput)
+        XCTAssertFalse(gate.preEditIsEmpty)
+
+        let event = WKRInputEvent.romanTransliteration
+        _ = gate.decide(event, engine.process(event))
+
+        XCTAssertFalse(gate.preEditIsEmpty)
+        let symbol = keys([.y, .a]).map { gate.decide($0, engine.process($0)) }
+        XCTAssertTrue(symbol.last!.droppedUnicode)
+    }
+
     func testAnInjectedSymbolLeavesThePreEditEmptyForTheNextOne() {
         // The injection commits on the spot, so two symbols in a row both work.
         let decisions = post(keys([.y, .a, .y, .c]))

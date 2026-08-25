@@ -63,6 +63,11 @@ public enum ResetReason: Equatable, Sendable {
 public enum WKRInputEvent: Equatable, Sendable {
     case physical(PhysicalKey)
     case boundary(BoundaryKey)
+    /// Apple Japanese Input is about to transliterate the existing pre-edit to
+    /// roman text. Drop WKR's pending continuation without completing the kana;
+    /// in deferred mode, first expose only the same provisional romaji that
+    /// prefix mode has already streamed.
+    case romanTransliteration
     case backspace
     case reset(ResetReason)
 }
@@ -89,6 +94,7 @@ public enum TransitionStateCode: String, Equatable, Sendable {
     case pendingPrefix
     case emittedTerminal
     case flushedBoundary
+    case romanTransliteration
     case canceledPending
     case reset
     case passthrough
@@ -293,6 +299,8 @@ public final class WKRTransducer {
                 return processBoundaryPrefix()
             }
             return processBoundary()
+        case .romanTransliteration:
+            return processRomanTransliteration()
         case .backspace:
             if case .prefixRomaji = mode {
                 return processBackspacePrefix()
@@ -679,6 +687,53 @@ public final class WKRTransducer {
             actions: actions,
             disposition: .repostAfterSynthetic,
             stateCode: rolledBack ? .prefixRollback : .flushedBoundary
+        )
+    }
+
+    /// Leave the IME's already visible romaji unfinished so its roman
+    /// transliteration shortcut sees exactly what was typed so far. Completing
+    /// the node here would append the implicit vowel (`r` -> `ra`) and make
+    /// Ctrl+L produce full-width `ra` instead of the displayed `r`.
+    private func processRomanTransliteration() -> TransitionResult {
+        guard let node = currentNode else {
+            return TransitionResult(disposition: .passThrough, stateCode: .idle)
+        }
+
+        var actions: [SyntheticAction] = []
+        switch mode {
+        case .deferredRomaji:
+            guard let provisional = node.provisionalRomaji else { break }
+            // Deferred mode has not shown the pending key yet. Stream only the
+            // provisional that prefix mode would already have displayed; never
+            // append the remainder that completes the kana.
+            actions.append(.romaji(provisional))
+        case let .optimisticRomaji(profile):
+            guard let provisional = node.provisionalRomaji else { break }
+            guard let output = optimisticProvisional else {
+                // Prefix-only nodes such as `T` and `Y` have not emitted a
+                // kana yet, so there is nothing to take back. Expose the same
+                // provisional romaji that prefix/deferred modes use.
+                actions.append(.romaji(provisional))
+                break
+            }
+            guard let count = profile.backspaceCount(for: output.id) else { break }
+            // Optimistic mode has already composed the complete kana. Put it
+            // back into the same raw provisional state prefix mode exposes so
+            // roman transliteration does not inherit the implicit vowel.
+            actions.append(.backspace(count: count))
+            if case let .romaji(value) = output.action {
+                deletedRomajiCharacters += value.count
+            }
+            actions.append(.romaji(provisional))
+        case .prefixRomaji:
+            break
+        }
+        reset()
+
+        return TransitionResult(
+            actions: actions,
+            disposition: actions.isEmpty ? .passThrough : .repostAfterSynthetic,
+            stateCode: .romanTransliteration
         )
     }
 

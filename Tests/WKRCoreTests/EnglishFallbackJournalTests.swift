@@ -187,6 +187,20 @@ final class EnglishFallbackJournalTests: XCTestCase {
         }
     }
 
+    func testRomanTransliterationClearsTheJournal() {
+        var journal = self.journal(typing: [.e, .k])
+        journal.record(
+            .romanTransliteration,
+            result: TransitionResult(
+                disposition: .passThrough,
+                stateCode: .romanTransliteration
+            ),
+            at: 0
+        )
+
+        XCTAssertNil(journal.snapshot(at: 0))
+    }
+
     func testBackspaceClearsTheJournal() {
         var journal = self.journal(typing: [.e, .k])
         journal.record(
