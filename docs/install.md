@@ -446,8 +446,9 @@ defaults write io.github.yuhkis.wkr-macos KeyFrequencyRetentionDays 180
 make start INPUT_SOURCE_ID=… INPUT_MODE_ID=… MODE=prefix KEY_FREQUENCY=on
 ```
 
-コマンドラインなら `--key-frequency on` です。ユーザーデフォルトで既定にもできます
-（フラグを付けた場合はフラグが勝ちます）。
+コマンドラインなら `--key-frequency on` です。毎回指定せず既定にしたい場合はユーザーデフォルトに
+書きます。`KEY_FREQUENCY=` を付けなければ `make start` はフラグを渡さないので、この値が効きます
+（付けた場合はフラグが勝ちます）。
 
 ```bash
 defaults write io.github.yuhkis.wkr-macos KeyFrequencyLog on
@@ -510,7 +511,8 @@ defaults write io.github.yuhkis.wkr-macos VialKeymapPath ~/path/to/your-keymap.v
 | --- | --- |
 | 同じキーコードを複数の位置に割り当てた場合の区別 | 例えば Enter を複数のキーに割り当てると、どのキーで打っても同じキーコードが届きます。**合算値を各キーに表示し、共有であることを図上で示します。** 頭数で割ると、存在しない精度を作ってしまうので割りません |
 | レイヤーキーの hold | ファームウェア内で完結し、macOS へは届きません。数えられるのは tap 側の動作だけです |
-| ロータリーエンコーダ、メディアキー、ファンクションキー | system-defined イベントとして届くため、keyDown を見ている event tap には来ません |
+| ロータリーエンコーダ、メディアキー | system-defined イベントとして届くため、keyDown を見ている event tap には来ません |
+| ファンクションキー（既定の設定では） | 輝度・音量などのシステムキーとして届くため見えません。「F1、F2 などのキーを標準のファンクションキーとして使用」が有効なときだけ、通常のキーとして数えられます |
 | キーボードが送るマウスイベント | マウスイベントとして届きます |
 
 図では、これらを「押されていない」ではなく「数えられない」として破線と注記で描き分けます。

@@ -97,11 +97,14 @@ public enum VialKeymapError: Error, Equatable, LocalizedError {
 /// Layer 0 of a Vial `.vil` export, decoded into cap labels and countable
 /// identities.
 ///
-/// Only layer 0 is read. The tally the picture is filled from holds macOS
+/// Only layer 0 is *drawn*. The tally the picture is filled from holds macOS
 /// virtual key codes and nothing else, so it cannot say which firmware layer was
-/// active when a code arrived — macOS sees the tap action and never the layer.
-/// Decoding the higher layers would produce labels that no number can honestly
-/// be attached to.
+/// active when a code arrived — macOS sees the tap action and never the layer,
+/// and labelling the higher layers would produce caps that no number can
+/// honestly be attached to.
+///
+/// Every layer is still *read*, for `firmwareShiftSides` alone: a Shift wrap
+/// contaminates the modifier count from whatever layer it sits on.
 public struct VialKeymap: Equatable, Sendable {
     /// Layer 0 only, in the file's own row/column order.
     public let baseLayer: [[VialKeyAssignment]]
