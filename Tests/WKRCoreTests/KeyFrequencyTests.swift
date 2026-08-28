@@ -105,11 +105,43 @@ final class KeyFrequencyTests: XCTestCase {
         XCTAssertEqual(tally.recordedDays, window)
     }
 
+    /// Nothing is dropped by default. A measurement someone chose to collect
+    /// must not disappear on its own, and the oldest days are exactly the ones
+    /// a layout comparison needs.
+    func testDefaultRetentionKeepsEveryDay() {
+        var tally = KeyFrequencyTally()
+        let today = KeyFrequencyDay(rawValue: "2026-08-29")
+        let ancient = KeyFrequencyDay(rawValue: "2019-01-01")
+        tally.record(a, on: ancient)
+        tally.record(a, on: today)
+
+        tally.prune(today: today)
+        XCTAssertEqual(tally.recordedDays, [ancient, today])
+        XCTAssertNil(KeyFrequencyTally.defaultRetainedDays)
+    }
+
+    /// A window still works for anyone who asks for one — it is just not
+    /// imposed.
+    func testAnExplicitWindowStillDropsOlderDays() {
+        var tally = KeyFrequencyTally()
+        let today = KeyFrequencyDay(rawValue: "2026-08-29")
+        tally.record(a, on: KeyFrequencyDay(rawValue: "2026-08-01"))
+        tally.record(a, on: today)
+
+        tally.prune(retainedDays: 7, today: today)
+        XCTAssertEqual(tally.recordedDays, [today])
+    }
+
     func testPruneWithNoRetentionClearsEverything() {
         var tally = KeyFrequencyTally()
         tally.record(a, on: day1)
         tally.prune(retainedDays: 0, today: day1)
         XCTAssertTrue(tally.isEmpty)
+        // `nil` is the opposite instruction and must not be confused with zero.
+        var kept = KeyFrequencyTally()
+        kept.record(a, on: day1)
+        kept.prune(retainedDays: nil, today: day2)
+        XCTAssertFalse(kept.isEmpty)
     }
 
     /// The cap exists so a stuck or hostile event source cannot grow the map

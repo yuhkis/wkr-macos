@@ -425,8 +425,18 @@ Command / Control / Option を含むショートカットと、押しっぱな�
 構造的に数えられなくなるためで、モード切替は打った内容を含みません）。
 
 保存先は `~/Library/Application Support/io.github.yuhkis.wkr-macos/key-frequency.json`
-（ディレクトリ 0700、ファイル 0600）です。ネットワークへは出ません。180日より古い分は
-書き出しのたびに自動で捨てられます。
+（ディレクトリ 0700、ファイル 0600）です。ネットワークへは出ません。
+
+**古い分が自動で消えることはありません。** 配列を変えた前後を比べるには古いデータほど要る
+ためで、実測で1日3KB弱・10年で数十MB程度と容量も問題になりません。上限を設けたい場合だけ
+指定します。
+
+```bash
+defaults write io.github.yuhkis.wkr-macos KeyFrequencyRetentionDays 180
+```
+
+コマンドラインなら `--key-frequency-retention 180`（`all` で無制限に戻します）。指定すると
+書き出しのたびに窓の外が捨てられます。全部消すのは `make key-frequency-reset` です。
 
 根拠と AGENTS.md との関係は [design.md](./design.md) の9節にあります。
 

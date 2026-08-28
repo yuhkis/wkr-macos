@@ -10,6 +10,7 @@ enum AppConfigurationError: LocalizedError {
     case invalidEnglishFallback(String)
     case invalidSymbolLayer(String)
     case invalidKeyFrequency(String)
+    case invalidKeyFrequencyRetention(String)
 
     var errorDescription: String? {
         switch self {
@@ -32,6 +33,8 @@ enum AppConfigurationError: LocalizedError {
             return "unsupported symbol layer setting: \(value) (supported: on, off)"
         case let .invalidKeyFrequency(value):
             return "unsupported key frequency setting: \(value) (supported: on, off)"
+        case let .invalidKeyFrequencyRetention(value):
+            return "unsupported key frequency retention: \(value) (supported: all, or a positive number of days)"
         }
     }
 }
@@ -75,6 +78,13 @@ struct AppConfiguration {
     /// `docs/design.md` section 9. Set with `--key-frequency` or the
     /// `KeyFrequencyLog` user default; the flag wins.
     let keyFrequencyEnabled: Bool
+    /// How many days of counts to keep, or `nil` to keep every day.
+    ///
+    /// Nothing is dropped unless this is set: the counts are the point of
+    /// turning the feature on, and the oldest of them are what answer whether a
+    /// layout change moved the load. Set with `--key-frequency-retention` or the
+    /// `KeyFrequencyRetentionDays` user default; the flag wins.
+    let keyFrequencyRetainedDays: Int?
     /// Where the counts live. `nil` means the standard location under
     /// Application Support.
     let keyFrequencyStorePath: String?
@@ -93,6 +103,7 @@ struct AppConfiguration {
     static let englishFallbackDefaultsKey = "EnglishFallbackTrigger"
     static let symbolLayerDefaultsKey = "SymbolLayer"
     static let keyFrequencyDefaultsKey = "KeyFrequencyLog"
+    static let keyFrequencyRetentionDefaultsKey = "KeyFrequencyRetentionDays"
     static let vialKeymapPathDefaultsKey = "VialKeymapPath"
 
     static func parse(
@@ -109,6 +120,7 @@ struct AppConfiguration {
         var englishFallbackName = defaults.string(forKey: englishFallbackDefaultsKey)
         var symbolLayerName = defaults.string(forKey: symbolLayerDefaultsKey)
         var keyFrequencyName = defaults.string(forKey: keyFrequencyDefaultsKey)
+        var keyFrequencyRetentionName = defaults.string(forKey: keyFrequencyRetentionDefaultsKey)
         var keyFrequencyStorePath: String?
         var keyFrequencyReportPath: String?
         var openReport = false
@@ -146,6 +158,12 @@ struct AppConfiguration {
                     throw AppConfigurationError.missingValue("--key-frequency")
                 }
                 keyFrequencyName = tokens[index]
+            case "--key-frequency-retention":
+                index += 1
+                guard index < tokens.count else {
+                    throw AppConfigurationError.missingValue("--key-frequency-retention")
+                }
+                keyFrequencyRetentionName = tokens[index]
             case "--key-frequency-store":
                 index += 1
                 guard index < tokens.count else {
@@ -257,6 +275,21 @@ struct AppConfiguration {
             throw AppConfigurationError.invalidKeyFrequency(other)
         }
 
+        let keyFrequencyRetainedDays: Int?
+        switch keyFrequencyRetentionName {
+        case nil, "all":
+            keyFrequencyRetainedDays = nil
+        case let other?:
+            // Zero and negatives are rejected rather than read as "keep
+            // nothing": a tally that throws itself away at every write is never
+            // what someone meant to ask for, and `--key-frequency-reset` is the
+            // command for clearing counts.
+            guard let days = Int(other), days > 0 else {
+                throw AppConfigurationError.invalidKeyFrequencyRetention(other)
+            }
+            keyFrequencyRetainedDays = days
+        }
+
         if action == .run, inputSourceID == nil {
             throw AppConfigurationError.missingInputSource
         }
@@ -275,6 +308,7 @@ struct AppConfiguration {
             englishFallbackTrigger: englishFallbackTrigger,
             symbolLayerEnabled: symbolLayerEnabled,
             keyFrequencyEnabled: keyFrequencyEnabled,
+            keyFrequencyRetainedDays: keyFrequencyRetainedDays,
             keyFrequencyStorePath: keyFrequencyStorePath,
             keyFrequencyReportPath: keyFrequencyReportPath,
             openReport: openReport,
