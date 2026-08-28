@@ -140,6 +140,35 @@ final class VialKeymapTests: XCTestCase {
         XCTAssertNil(decode("LSFT(KC_1)").exclusion)
     }
 
+    /// `RSFT(…)` is the escape hatch from the firmware-held-Shift ambiguity:
+    /// it must produce the same shifted identity as `LSFT(…)` while macOS
+    /// reports its modifier edge under the right-hand key code.
+    func testRightShiftWrapperMatchesTheLeftOneExceptForItsSide() {
+        let right = decode("RSFT(KC_ENTER)")
+        XCTAssertEqual(right.identity, KeyIdentity(keyCode: 0x24, isShifted: true))
+        XCTAssertNil(right.exclusion)
+        XCTAssertEqual(right.legend.secondary, "RSft")
+        XCTAssertEqual(right.identity, decode("LSFT(KC_ENTER)").identity)
+    }
+
+    /// The side is what lets a keymap separate firmware-held Shift from the
+    /// physical Shift key, so it has to be read correctly from every wrap form
+    /// — and from nothing else.
+    func testFirmwareShiftSideIsReadFromEveryWrapForm() {
+        XCTAssertEqual(decode("LSFT(KC_ENTER)").firmwareShiftSide, .left)
+        XCTAssertEqual(decode("RSFT(KC_ENTER)").firmwareShiftSide, .right)
+        // QK_MODS hex: shift-left over KC_ENTER is 0x0228; the right-hand bit
+        // (0x10 in the mods byte) moves it to 0x1228.
+        XCTAssertEqual(decode("0x228").firmwareShiftSide, .left)
+        XCTAssertEqual(decode("0x1228").firmwareShiftSide, .right)
+        // A mod-tap taps unshifted, a plain key has no wrap, and a shortcut
+        // carries no identity: none of them names a side.
+        XCTAssertNil(decode("LSFT_T(KC_ENTER)").firmwareShiftSide)
+        XCTAssertNil(decode("KC_A").firmwareShiftSide)
+        XCTAssertNil(decode("C_S(KC_UP)").firmwareShiftSide)
+        XCTAssertNil(decode("0xc16").firmwareShiftSide)
+    }
+
     func testRawHexInTheBasicRangeMatchesTheNamedKeycode() {
         // 0x28 is KC_ENTER in the HID/QMK basic range.
         XCTAssertEqual(decode("0x28").identity, decode("KC_ENTER").identity)

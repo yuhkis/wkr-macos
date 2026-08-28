@@ -546,6 +546,17 @@ extension KeyFrequencyReportRenderer {
     return '0x' + (text.length < 2 ? '0' + text : text);
   }
 
+  // Names for key codes a board may record without drawing. A split keyboard
+  // routes modifiers through tap-holds and wraps, so the plain modifier codes
+  // (a wrap's right Shift above all) can be counted while no cap claims them,
+  // and a ranking row reading 0x3C tells the reader nothing. Only well-known
+  // fixed codes belong here; anything else stays honest hex.
+  var FALLBACK_NAMES = {
+    0x38: 'LShift', 0x3C: 'RShift', 0x3B: 'LCtrl', 0x3E: 'RCtrl',
+    0x3A: 'LOpt', 0x3D: 'ROpt', 0x37: 'LCmd', 0x36: 'RCmd',
+    0x39: 'CapsLock', 0x3F: 'Fn', 0x35: 'Esc', 0x66: '英数', 0x68: 'かな'
+  };
+
   function num(value) { return value.toLocaleString('ja-JP'); }
 
   function share(count, total) {
@@ -910,7 +921,9 @@ extension KeyFrequencyReportRenderer {
 
       tr.appendChild(cell(String(index + 1), 'rank'));
       tr.appendChild(cell(
-        label !== null ? label : hex(code) + (shifted ? ' + Shift' : '') + '（この図に無いキー）',
+        label !== null
+          ? label
+          : (FALLBACK_NAMES[code] || hex(code)) + (shifted ? ' + Shift' : '') + '（この図に無いキー）',
         label !== null ? '' : 'absent'
       ));
       tr.appendChild(cell(num(row.count), 'num'));

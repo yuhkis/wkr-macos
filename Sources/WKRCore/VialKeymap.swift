@@ -29,6 +29,31 @@ public struct VialKeyAssignment: Equatable, Sendable {
         self.exclusion = exclusion
     }
 
+    /// Which Shift the firmware itself holds down when this key is tapped, or
+    /// `nil` for a key the user shifts by hand.
+    ///
+    /// Only the wrap forms produce a shifted identity from a bare tap —
+    /// `LSFT(…)`, `RSFT(…)` and their QK_MODS hex encodings; every other
+    /// shift-carrying token either taps unshifted (`LSFT_T`) or is a shortcut
+    /// with no identity at all. The side matters because macOS reports left and
+    /// right Shift as different key codes in flags-changed events, which is the
+    /// one honest way to tell a firmware-held Shift apart from a finger on the
+    /// physical Shift key: put the wraps on the side the physical key is not.
+    public var firmwareShiftSide: FirmwareShiftSide? {
+        guard identity?.isShifted == true else { return nil }
+        let token = raw.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        if token.hasPrefix("RSFT(") { return .right }
+        if token.hasPrefix("LSFT(") { return .left }
+        if token.hasPrefix("0X"),
+           let value = UInt32(token.dropFirst(2), radix: 16),
+           (0x0100...0x1FFF).contains(value) {
+            return (value >> 8) & 0x10 != 0 ? .right : .left
+        }
+        // A shifted identity always comes from one of the forms above; QMK's
+        // default side for a bare shift wrap is the left hand.
+        return .left
+    }
+
     /// True where the matrix has no key at that position (`-1`) or the firmware
     /// sends nothing from it (`KC_NO`).
     ///
@@ -43,6 +68,13 @@ public struct VialKeyAssignment: Equatable, Sendable {
         // real key.
         return token == "-1" || token == "KC_NO" || token == "0X0"
     }
+}
+
+/// The hand whose Shift a wrap key presses. See
+/// `VialKeyAssignment.firmwareShiftSide`.
+public enum FirmwareShiftSide: Equatable, Sendable {
+    case left
+    case right
 }
 
 public enum VialKeymapError: Error, Equatable, LocalizedError {
