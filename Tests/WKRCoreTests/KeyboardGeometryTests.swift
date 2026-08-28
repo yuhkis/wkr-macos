@@ -337,6 +337,37 @@ final class KeyboardGeometryTests: XCTestCase {
         XCTAssertFalse(KeyboardGeometry.cornix.caveats.contains { $0.contains("ラップ") })
     }
 
+    /// The counts the note explains come from every layer the user types on,
+    /// so a symbol layer full of `LSFT(…)` keys must keep the left note alive
+    /// even when layer 0 has been scrubbed clean of wraps. This is exactly the
+    /// keymap that motivated the rule: layer 0 moved to `RSFT(…)` while the
+    /// number layer stayed left-wrapped, and a layer-0-only scan dropped the
+    /// warning at the moment it became subtle.
+    func testShiftWrapNoteSurvivesWrapsHiddenOnHigherLayers() throws {
+        let vil = #"""
+        {"version": 1, "layout": [
+          [["KC_TAB", "KC_Q", "KC_W", "KC_E", "KC_R", "KC_T", -1],
+           ["KC_LCTRL", "KC_A", "KC_S", "KC_D", "KC_F", "KC_G", -1],
+           ["KC_LSHIFT", "KC_Z", "KC_X", "KC_C", "KC_V", "KC_B", "KC_MUTE"],
+           ["KC_NO", "KC_NO", "KC_NO", "KC_LGUI", "KC_SPACE", "KC_LANG2", -1],
+           ["KC_Y", "KC_U", "KC_I", "KC_O", "KC_P", "KC_BSPACE", -1],
+           ["KC_H", "KC_J", "KC_K", "KC_L", "KC_SCOLON", "KC_QUOTE", "KC_MUTE"],
+           ["KC_N", "KC_M", "KC_COMMA", "KC_DOT", "KC_SLASH", "KC_ESCAPE", -1],
+           ["KC_NO", "KC_NO", "KC_NO", "KC_RALT", "RSFT(KC_ENTER)", "KC_ENTER", -1]],
+          [["KC_NO", "LSFT(KC_1)", "LSFT(KC_2)", "KC_NO", "KC_NO", "KC_NO", -1]]
+        ]}
+        """#
+        let keymap = try VialKeymap.parse(data: Data(vil.utf8))
+        XCTAssertEqual(keymap.firmwareShiftSides, [.left, .right])
+
+        let geometry = KeyboardGeometry.cornix(keymap: keymap)
+        XCTAssertTrue(
+            geometry.caveats.contains { $0.contains("LSft ラップ") },
+            "the layer-1 wraps still press left Shift and the note must say so"
+        )
+        XCTAssertTrue(geometry.caveats.contains { $0.contains("RSft ラップ") })
+    }
+
     func testCornixHasBothEncodersAndNeitherIsCounted() {
         let encoders = KeyboardGeometry.cornix.caps.filter { $0.exclusion == .encoder }
         XCTAssertEqual(encoders.count, 2)
