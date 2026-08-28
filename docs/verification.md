@@ -710,3 +710,44 @@ Cornix では 15.8% でした。
   QMK のキーコード符号化規則からの導出で、実機で押して確かめたものではありません。Vial 自身が
   この種のキーに名前を持たず16進で表示していることとは整合します。どちらにせよ Command を
   含むものは集計対象外です。
+
+## 2026-08-28 — 打鍵頻度ログの実機トライアル
+
+PR #14（`5cf4c23`）を自己署名証明書で release ビルドして `/Applications` へ配備し、
+`--key-frequency on` を付けた prefix モードで起動しました。designated requirement は
+配備前後で一致し、**Input Monitoring / Accessibility の再許可なし**で
+`permissions listen=true post=true` になりました（2026-08-16 の自己署名運用の再確認）。
+
+打鍵は実機の Corne 系分割キーボードから物理キーで行いました。TextEdit（Apple日本語入力
+「ひらがな」）での通常入力、矢印キー、Shift 付き記号、Command 単押し、Safari の
+`LocalInputTest.html` パスワード欄への入力、の順です。
+
+### 確認できたこと
+
+| 項目 | 実測 |
+| --- | --- |
+| 120秒タイマーの flush | `key-frequency flush=ok days=1` が2回、**ちょうど120秒間隔**で記録された |
+| 保存先のパーミッション | ディレクトリ 0700、`key-frequency.json` 0600 |
+| 保存形式 | `schemaVersion` と暦日バケットのみ。エントリは keyCode / isShifted / count の3フィールドだけで、順序・時刻・文字列は無い。38識別子・計669打鍵 |
+| 矢印キーの計数 | ← ↑ ↓ → すべてに数字が付いた。**`kCGEventFlagMaskSecondaryFn` を除外集合から外した修正（design.md 9.7.1）の実測確認** |
+| flags-changed 経由の修飾キー計数 | LShift / LCtrl / LCmd に数字が付いた。**Command は「2〜3回タップ」という手順に対し実測 3 で、押下エッジ検出が正確** |
+| `LSFT(KC_ENTER)` と素の Return の区別 | Shift+Return と Return が別の識別子として集計された |
+| `英数` / `かな` | どちらも計数された。入力ソース一致だけを外した記録ゲートが機能 |
+| パスワード欄 | 入力中 `secure-event-input enabled=true` が記録され、その間の打鍵は集計に現れなかった |
+| ログの内容 | outcome のみ（`flush=ok days=1`）。キーコード・内訳はログに出ていない |
+| レポート生成 | 実データと `--vil` から自己完結HTMLが生成され、3配列とも表示を確認 |
+
+### 観測点の性質として確認できたこと
+
+LShift の計数の大半は、`LSFT(KC_ENTER)` キーを打つたびにファームウェアが押す Shift に
+由来していました（Shift+Return の計数とほぼ符合）。macOS から見れば実際に Shift が
+押されているので正しい計数ですが、**「指が Shift キーを叩いた回数」とは一致しません。**
+ヒートマップの修飾キー注記（押しっぱなしにするものは指別集計に入れない）の実例です。
+
+### 未確認のまま残っていること
+
+- **終了時 flush（`applicationWillTerminate` 経路）。** 次に `make stop` する機会に、停止直前の
+  打鍵がファイルへ入ることを確認する。
+- **日をまたぐセッションでのバケット切り替え。** このまま常駐を続ければ翌日確認できる。
+- 2台目のMacへの配備は未実施。
+
