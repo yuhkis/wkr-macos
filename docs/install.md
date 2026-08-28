@@ -443,8 +443,12 @@ make start INPUT_SOURCE_ID=… INPUT_MODE_ID=… MODE=prefix KEY_FREQUENCY=on
 defaults write io.github.yuhkis.wkr-macos KeyFrequencyLog on
 ```
 
-ログイン時起動でも有効にするには、`Resources/io.github.yuhkis.wkr-macos.login.plist` の
-`--key-frequency` の2行をコメントから出してから `make install-login-agent` を実行します。
+**ログイン時起動で常用するなら、ユーザーデフォルトを使うのが簡単です。** login agent は
+`--key-frequency` を渡さないので、上の `defaults write` がそのまま効きます。plist を書き換える
+必要はなく、**設定が機体ごとに分かれる**利点もあります（2台のMacで別々にできます）。
+
+plist 側の `--key-frequency` の2行をコメントから出す方法もあります。こちらは追跡ファイルを
+変更するので、リポジトリを共有している場合は既定がオンに変わる点に注意してください。
 
 集計はメモリ上に貯め、120秒ごとと終了時にだけ書き出します。event tap のコールバック内では
 辞書を1つ加算するだけです。

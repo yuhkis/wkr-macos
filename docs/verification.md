@@ -782,8 +782,24 @@ summary transformed=0 bypassed=0 resets=0 synthetic-actions=0
 **影響は集計だけではありません。** event tap の解放と保留かなの破棄も同じ経路にあり、
 これまで `make stop` では飛ばされていました。
 
-### 未確認事項
+### 保留打鍵ありでの終了時 flush と日またぎ（2026-08-29 追加実測）
 
-- 保留中の打鍵がある状態での終了時 flush は未実測です（今回の試行は打鍵ゼロでした）。
-  通常の使用中に `make stop` すれば確認できます。
+通常の使用中に停止したところ、SIGTERM 修正の効果を保留打鍵がある状態で確認できました。
+
+```
+termination-signal received=SIGTERM action=terminate
+key-frequency flush=ok days=2
+summary transformed=47 bypassed=57 resets=0 synthetic-actions=48
+```
+
+**`summary` が 47 打鍵の変換を報告している状態で `flush=ok` が出ています。** 修正前は
+この打鍵ぶんが失われていました。同じ行の `days=2` で、**日をまたいだバケットの切り替え**も
+確認できています（記録時に暦日を決める実装のとおり、8/28 と 8/29 が別バケットになりました）。
+
+### ログイン時起動での有効化
+
+login agent は `--key-frequency` を渡さないため、ユーザーデフォルト
+（`defaults write io.github.yuhkis.wkr-macos KeyFrequencyLog on`）がそのまま効きます。
+`launchctl kickstart` で起動し直し、ログイン時と同じ経路（フラグなし）で
+`conversion-started … key-frequency=on` を確認しました。plist は変更していません。
 
