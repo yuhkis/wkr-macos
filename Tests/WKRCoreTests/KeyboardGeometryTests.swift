@@ -302,6 +302,41 @@ final class KeyboardGeometryTests: XCTestCase {
         XCTAssertEqual(shiftedOnly.count, 1)
     }
 
+    /// The picture must say which Shift reading applies to the keymap it is
+    /// actually drawing: a left wrap poisons the left count, a right wrap is a
+    /// usage counter, and a keymap with neither needs no note at all.
+    func testCornixShiftWrapCaveatsFollowTheKeymap() throws {
+        func cornix(replacingThumbWith token: String) throws -> KeyboardGeometry {
+            let vil = #"""
+            {"version": 1, "layout": [[
+              ["KC_TAB", "KC_Q", "KC_W", "KC_E", "KC_R", "KC_T", -1],
+              ["KC_LCTRL", "KC_A", "KC_S", "KC_D", "KC_F", "KC_G", -1],
+              ["KC_LSHIFT", "KC_Z", "KC_X", "KC_C", "KC_V", "KC_B", "KC_MUTE"],
+              ["KC_NO", "KC_NO", "KC_NO", "KC_LGUI", "KC_SPACE", "KC_LANG2", -1],
+              ["KC_Y", "KC_U", "KC_I", "KC_O", "KC_P", "KC_BSPACE", -1],
+              ["KC_H", "KC_J", "KC_K", "KC_L", "KC_SCOLON", "KC_QUOTE", "KC_MUTE"],
+              ["KC_N", "KC_M", "KC_COMMA", "KC_DOT", "KC_SLASH", "KC_ESCAPE", -1],
+              ["KC_NO", "KC_NO", "KC_NO", "KC_RALT", "THUMB", "KC_ENTER", -1]
+            ]]}
+            """#.replacingOccurrences(of: "THUMB", with: token)
+            return KeyboardGeometry.cornix(keymap: try VialKeymap.parse(data: Data(vil.utf8)))
+        }
+
+        let leftWrapped = try cornix(replacingThumbWith: "LSFT(KC_ENTER)")
+        XCTAssertTrue(leftWrapped.caveats.contains { $0.contains("LSft ラップ") })
+        XCTAssertFalse(leftWrapped.caveats.contains { $0.contains("RSft ラップ") })
+
+        let rightWrapped = try cornix(replacingThumbWith: "RSFT(KC_ENTER)")
+        XCTAssertTrue(rightWrapped.caveats.contains { $0.contains("RSft ラップ") })
+        XCTAssertFalse(rightWrapped.caveats.contains { $0.contains("LSft ラップ") })
+
+        let unwrapped = try cornix(replacingThumbWith: "KC_ENTER")
+        XCTAssertFalse(unwrapped.caveats.contains { $0.contains("ラップ") })
+
+        // The generic built-in carries no wraps, so it must carry no note.
+        XCTAssertFalse(KeyboardGeometry.cornix.caveats.contains { $0.contains("ラップ") })
+    }
+
     func testCornixHasBothEncodersAndNeitherIsCounted() {
         let encoders = KeyboardGeometry.cornix.caps.filter { $0.exclusion == .encoder }
         XCTAssertEqual(encoders.count, 2)

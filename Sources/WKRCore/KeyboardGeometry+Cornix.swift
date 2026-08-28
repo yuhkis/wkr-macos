@@ -259,8 +259,39 @@ private struct CornixLayout {
             widthUnits: CornixMetrics.widthUnits,
             heightUnits: CornixMetrics.heightUnits,
             caps: caps,
-            caveats: CornixMetrics.caveats
+            caveats: CornixMetrics.caveats + shiftWrapCaveats()
         )
+    }
+
+    /// Notes that only apply when this particular keymap wraps Shift into a
+    /// tap, written per side because the two sides mean opposite things.
+    ///
+    /// A wrap presses the side's Shift exactly the way a finger does, and no
+    /// bit in the event tells the two apart, so the side's modifier count stops
+    /// meaning "the physical Shift key was struck". The way out is physical:
+    /// keep the wraps on the hand whose Shift key the board does not have, and
+    /// the two counts separate at the key-code level. These lines exist so the
+    /// picture says which reading applies to the keymap actually drawn, rather
+    /// than making every reader carry the rule in their head.
+    private func shiftWrapCaveats() -> [String] {
+        let assignments = leftMain.flatMap { $0 } + leftRow3 + leftThumbs
+            + rightMain.flatMap { $0 } + rightRow3 + rightThumbs
+        let sides = Set(assignments.compactMap(\.firmwareShiftSide))
+        var caveats: [String] = []
+        if sides.contains(.left) {
+            caveats.append(
+                "タップ自体が左Shiftを押すキー（LSft ラップ）があります。左Shiftの計数にはその分が"
+                    + "含まれ、物理的に左Shiftキーを叩いた回数とは一致しません。ラップを RSft に"
+                    + "変えると、キーコードの段階で分離できます。"
+            )
+        }
+        if sides.contains(.right) {
+            caveats.append(
+                "タップ自体が右Shiftを押すキー（RSft ラップ）があります。右Shiftの計数は"
+                    + "そのラップを打った回数の目安になります。"
+            )
+        }
+        return caveats
     }
 }
 

@@ -501,6 +501,16 @@ defaults write io.github.yuhkis.wkr-macos VialKeymapPath ~/path/to/your-keymap.v
 
 図では、これらを「押されていない」ではなく「数えられない」として破線と注記で描き分けます。
 
+### Shiftラップと物理Shiftキーを分けて数える
+
+`LSFT(KC_ENTER)` のような**ラップキーはタップのたびにファームウェアがShiftを押す**ため、
+その側のShiftの計数には物理Shiftキーを叩いていない分が混ざります。イベント列は人が押した
+場合と同一で、ソフトウェア側では分離できません。
+
+macOSは左右のShiftを別のキーコードで数えるので、**ラップを物理Shiftキーと反対の手に
+置き換える**と分離できます（例: 物理Shiftが左なら `RSFT(KC_ENTER)` にする）。変換には
+影響しません。レポートはキーマップにラップを見つけると、その側のShiftの読み方を注記します。
+
 ### 集計を消す
 
 ```bash
