@@ -44,6 +44,10 @@ private struct CornixLayout {
     /// Right thumb cluster, outer to inner, mirroring `leftThumbs`.
     var rightThumbs: [VialKeyAssignment]
     var rightEncoder: VialKeyAssignment
+    /// Shift-wrap sides from every layer of the source keymap, not just the
+    /// drawn one. Empty for the built-in default, whose single layer the
+    /// layer-0 scan in `shiftWrapCaveats()` already covers.
+    var keymapShiftWrapSides: Set<FirmwareShiftSide> = []
 
     /// The generic default this project defines: the QMK crkbd default layer
     /// with 英数 and かな placed beside Space and Enter, because this app
@@ -87,6 +91,7 @@ private struct CornixLayout {
     /// would take the whole report down over one key they do not have.
     func applying(_ keymap: VialKeymap) -> CornixLayout {
         var layout = self
+        layout.keymapShiftWrapSides = keymap.firmwareShiftSides
         let rows = keymap.baseLayer
 
         func entry(_ row: Int, _ index: Int) -> VialKeyAssignment? {
@@ -274,21 +279,28 @@ private struct CornixLayout {
     /// picture says which reading applies to the keymap actually drawn, rather
     /// than making every reader carry the rule in their head.
     private func shiftWrapCaveats() -> [String] {
+        // The layer-0 scan stays even though a parsed keymap already carries
+        // its own all-layer set: the built-in default has no keymap behind it,
+        // and a hand-built layout must not lose its note by bypassing parse().
         let assignments = leftMain.flatMap { $0 } + leftRow3 + leftThumbs
             + rightMain.flatMap { $0 } + rightRow3 + rightThumbs
         let sides = Set(assignments.compactMap(\.firmwareShiftSide))
+            .union(keymapShiftWrapSides)
         var caveats: [String] = []
         if sides.contains(.left) {
+            // Phrased conditionally on purpose: the scanner sees that the
+            // keys exist, not whether the user reaches them, and a stale
+            // layer's wraps must not turn this into a false accusation.
             caveats.append(
-                "タップ自体が左Shiftを押すキー（LSft ラップ）があります。左Shiftの計数にはその分が"
-                    + "含まれ、物理的に左Shiftキーを叩いた回数とは一致しません。ラップを RSft に"
-                    + "変えると、キーコードの段階で分離できます。"
+                "いずれかのレイヤーに、タップ自体が左Shiftを押すキー（LSft ラップ）があります。"
+                    + "そのキーを打った分だけ、左Shiftの計数は物理的に左Shiftキーを叩いた回数"
+                    + "から乖離します。ラップを RSft に変えると、キーコードの段階で分離できます。"
             )
         }
         if sides.contains(.right) {
             caveats.append(
-                "タップ自体が右Shiftを押すキー（RSft ラップ）があります。右Shiftの計数は"
-                    + "そのラップを打った回数の目安になります。"
+                "いずれかのレイヤーに、タップ自体が右Shiftを押すキー（RSft ラップ）があります。"
+                    + "右Shiftの計数はそのラップを打った回数の目安になります。"
             )
         }
         return caveats

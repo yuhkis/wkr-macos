@@ -105,9 +105,22 @@ public enum VialKeymapError: Error, Equatable, LocalizedError {
 public struct VialKeymap: Equatable, Sendable {
     /// Layer 0 only, in the file's own row/column order.
     public let baseLayer: [[VialKeyAssignment]]
+    /// Sides whose Shift some key on ANY layer holds down when tapped.
+    ///
+    /// The picture only draws layer 0, but the counts it explains come from
+    /// every layer the user actually typed on: a symbol layer full of
+    /// `LSFT(…)` keys presses left Shift on each use, whether or not layer 0
+    /// carries a single wrap. A Shift-reading note derived from layer 0 alone
+    /// would therefore vanish exactly when the keymap moves its wraps out of
+    /// sight, which is the opposite of what the note is for.
+    public let firmwareShiftSides: Set<FirmwareShiftSide>
 
-    public init(baseLayer: [[VialKeyAssignment]]) {
+    public init(
+        baseLayer: [[VialKeyAssignment]],
+        firmwareShiftSides: Set<FirmwareShiftSide> = []
+    ) {
         self.baseLayer = baseLayer
+        self.firmwareShiftSides = firmwareShiftSides
     }
 
     public static func parse(data: Data) throws -> VialKeymap {
@@ -125,6 +138,22 @@ public struct VialKeymap: Equatable, Sendable {
         guard let rows = base as? [Any] else { throw VialKeymapError.missingLayout }
         guard !rows.isEmpty else { throw VialKeymapError.emptyLayout }
 
+        // Every layer is decoded for the Shift-side scan even though only
+        // layer 0 is kept for drawing. The decoder is total, so a foreign or
+        // half-edited layer cannot make this throw.
+        var sides: Set<FirmwareShiftSide> = []
+        for layer in layers {
+            guard let layerRows = layer as? [Any] else { continue }
+            for row in layerRows {
+                guard let entries = row as? [Any] else { continue }
+                for entry in entries {
+                    if let side = VialTokenDecoder.assignment(forEntry: entry).firmwareShiftSide {
+                        sides.insert(side)
+                    }
+                }
+            }
+        }
+
         return VialKeymap(
             baseLayer: rows.map { row in
                 // A row that is not an array is the only shape this can meet that
@@ -132,7 +161,8 @@ public struct VialKeymap: Equatable, Sendable {
                 // rather than aborting a file whose other rows are readable.
                 guard let entries = row as? [Any] else { return [] }
                 return entries.map(VialTokenDecoder.assignment(forEntry:))
-            }
+            },
+            firmwareShiftSides: sides
         )
     }
 
