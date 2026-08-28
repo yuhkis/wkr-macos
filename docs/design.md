@@ -693,6 +693,19 @@ Corneの物理配置は固定だが、どのキーコードがどの位置から
 Vial自身がこの種のキーに名前を持たず16進で表示していることとは整合する。Command を含むキーは、
 どちらにせよ集計対象外である。
 
+### 9.9.1 SIGTERM では終了処理が走っていなかった
+
+`make stop` は SIGTERM を送るが、**AppKit は SIGTERM にハンドラを入れない。** 既定動作は
+プロセスの即時終了で、`applicationWillTerminate` は呼ばれない。この機能が来るまで誰も
+依存していなかったが、打鍵頻度は最大120秒ぶんをメモリに持つので、そのまま捨てられる。
+
+2026-08-28に実測した。`make stop` のあと、最終の `key-frequency flush=ok` も
+`summary` 行も出ず、集計ファイルの mtime は直前の定期 flush のままだった。
+
+`signal(SIGTERM, SIG_IGN)` で既定動作を外し、`DispatchSource` で同じシグナルを main queue で
+受けて `NSApplication.terminate` を呼ぶ。以後は他の終了経路とまったく同じ後始末を通る。
+**影響は集計だけではない。** event tap の解放も保留かなの破棄も同様に飛ばされていた。
+
 ### 9.10 実装の状況
 
 実装済み・ユニットテスト済み。2026-08-28に実機トライアルを行い、タイマー flush、

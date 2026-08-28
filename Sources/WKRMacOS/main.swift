@@ -11,6 +11,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var inputSourceMonitor: InputSourceMonitor?
     private var safetyTimer: Timer?
     private var applicationObserver: NSObjectProtocol?
+    /// Held for the process's lifetime: a cancelled or deallocated signal
+    /// source stops delivering, and the whole point of this one is to still be
+    /// there at the very end.
+    private var terminationSignalSource: DispatchSourceSignal?
     private var lastPermissionState: EventPermissionState?
     private var lastSecureInputState: Bool?
     private var lastInputSourceSnapshot: InputSourceSnapshot?
@@ -97,11 +101,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         safetyTimer = timer
         RunLoop.main.add(timer, forMode: .common)
+        installTerminationSignalHandler()
         refreshConversionContext()
 
         AppLog.logger.notice(
             "conversion-started output-mode=\(self.configuration.outputModeName, privacy: .public) english-fallback=\(self.configuration.englishFallbackTrigger.rawValue, privacy: .public) symbol-layer=\(self.configuration.symbolLayerEnabled ? "on" : "off", privacy: .public) key-frequency=\(self.configuration.keyFrequencyEnabled ? "on" : "off", privacy: .public)"
         )
+    }
+
+    /// Route SIGTERM through `NSApplication.terminate` so the app shuts down the
+    /// way every other exit path does.
+    ///
+    /// `make stop` sends SIGTERM, and AppKit installs no handler for it: the
+    /// default disposition kills the process outright, so
+    /// `applicationWillTerminate` never runs. Nothing depended on that until the
+    /// key frequency tally arrived, which holds up to two minutes of counts in
+    /// memory between flushes — 2026-08-28 a `make stop` was measured dropping
+    /// the counts typed since the previous flush, with no final
+    /// `key-frequency flush=ok` and no `summary` line in the log to show for it.
+    ///
+    /// `signal(SIGTERM, SIG_IGN)` disarms the default kill; the dispatch source
+    /// then observes the same signal and hands it to the main queue, where
+    /// `terminate` runs the ordinary teardown. Everything else the app does on
+    /// the way out — dropping the event tap, discarding pending kana — was
+    /// already being skipped too, so this is not only about the tally.
+    private func installTerminationSignalHandler() {
+        precondition(Thread.isMainThread)
+        signal(SIGTERM, SIG_IGN)
+        let source = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
+        source.setEventHandler {
+            AppLog.logger.notice("termination-signal received=SIGTERM action=terminate")
+            NSApplication.shared.terminate(nil)
+        }
+        source.resume()
+        terminationSignalSource = source
     }
 
     func applicationWillTerminate(_ notification: Notification) {

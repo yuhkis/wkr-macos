@@ -751,3 +751,39 @@ LShift の計数の大半は、`LSFT(KC_ENTER)` キーを打つたびにファ�
 - **日をまたぐセッションでのバケット切り替え。** このまま常駐を続ければ翌日確認できる。
 - 2台目のMacへの配備は未実施。
 
+## 2026-08-28 — SIGTERM で終了処理が走っていなかった（修正済み）
+
+打鍵頻度の配備後に `make stop` を実測し、**`applicationWillTerminate` が呼ばれていない**
+ことを確認しました。AppKit は SIGTERM にハンドラを入れず、既定動作はプロセスの即時終了です。
+
+### 実測（修正前）
+
+| 期待 | 実測 |
+| --- | --- |
+| 終了時の `key-frequency flush=ok` | 出ない |
+| `summary transformed=… bypassed=…` | 出ない |
+| 集計ファイルの更新 | mtime は直前の定期 flush のまま、合計も変わらず |
+
+直前の定期 flush から停止までに打った分は失われていました。打鍵頻度は最大120秒ぶんを
+メモリに持つため、この経路が塞がっていると `make stop` のたびにその範囲が消えます。
+
+### 修正と実測（修正後）
+
+`signal(SIGTERM, SIG_IGN)` で既定動作を外し、`DispatchSource` で受けて
+`NSApplication.terminate` を呼ぶようにしました。同じ手順で再実測し、次の順で記録されました。
+
+```
+termination-signal received=SIGTERM action=terminate
+summary transformed=0 bypassed=0 resets=0 synthetic-actions=0
+```
+
+`applicationWillTerminate` が走っています（この試行は打鍵ゼロのため flush は早期リターン）。
+
+**影響は集計だけではありません。** event tap の解放と保留かなの破棄も同じ経路にあり、
+これまで `make stop` では飛ばされていました。
+
+### 未確認事項
+
+- 保留中の打鍵がある状態での終了時 flush は未実測です（今回の試行は打鍵ゼロでした）。
+  通常の使用中に `make stop` すれば確認できます。
+
