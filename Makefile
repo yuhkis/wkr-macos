@@ -4,7 +4,13 @@ INSTALLED_APP ?= /Applications/WKRMacOS.app
 INSTALLED_EXECUTABLE := $(INSTALLED_APP)/Contents/MacOS/WKRMacOS
 MODE ?= deferred
 # Per-key press counts. Off unless asked for; see docs/design.md section 9.
-KEY_FREQUENCY ?= off
+#
+# Deliberately unset rather than `?= off`: the flag is only passed when this is
+# given a value, so leaving it alone lets the KeyFrequencyLog user default
+# decide. Passing `--key-frequency off` unconditionally made that default
+# unreachable from `make start`, which is the very command docs/install.md tells
+# people to use after setting it.
+KEY_FREQUENCY ?=
 
 # A Mac may have Command Line Tools selected globally even though the
 # full Xcode app is installed. Keep the system-wide xcode-select untouched and
@@ -40,7 +46,7 @@ start:
 	@test -n "$(INPUT_MODE_ID)" || (echo 'INPUT_MODE_ID is required; run make input-source while Apple Japanese Hiragana is active.' >&2; exit 2)
 	@if [ "$(MODE)" = "optimistic" ] && [ "$(ALLOW_OPTIMISTIC)" != "1" ]; then echo 'optimistic mode requires ALLOW_OPTIMISTIC=1 and a disposable untitled document.' >&2; exit 2; fi
 	@$(MAKE) stop
-	./Scripts/start-app.sh "$(APP)" --input-source-id "$(INPUT_SOURCE_ID)" --input-mode-id "$(INPUT_MODE_ID)" --mode "$(MODE)" --key-frequency "$(KEY_FREQUENCY)" --request-permissions $(if $(filter optimistic,$(MODE)),--allow-unverified-optimistic,) $(if $(SYMBOL_LAYER),--symbol-layer $(SYMBOL_LAYER),)
+	./Scripts/start-app.sh "$(APP)" --input-source-id "$(INPUT_SOURCE_ID)" --input-mode-id "$(INPUT_MODE_ID)" --mode "$(MODE)" $(if $(KEY_FREQUENCY),--key-frequency $(KEY_FREQUENCY),) --request-permissions $(if $(filter optimistic,$(MODE)),--allow-unverified-optimistic,) $(if $(SYMBOL_LAYER),--symbol-layer $(SYMBOL_LAYER),)
 
 start-installed:
 	@test -x "$(INSTALLED_EXECUTABLE)" || (echo 'Installed app was not found at $(INSTALLED_APP).' >&2; exit 2)
@@ -48,7 +54,7 @@ start-installed:
 	@test -n "$(INPUT_MODE_ID)" || (echo 'INPUT_MODE_ID is required; run make input-source-installed while Apple Japanese Hiragana is active.' >&2; exit 2)
 	@if [ "$(MODE)" = "optimistic" ] && [ "$(ALLOW_OPTIMISTIC)" != "1" ]; then echo 'optimistic mode requires ALLOW_OPTIMISTIC=1 and a disposable untitled document.' >&2; exit 2; fi
 	@$(MAKE) stop
-	./Scripts/start-app.sh "$(INSTALLED_APP)" --input-source-id "$(INPUT_SOURCE_ID)" --input-mode-id "$(INPUT_MODE_ID)" --mode "$(MODE)" --key-frequency "$(KEY_FREQUENCY)" --request-permissions $(if $(filter optimistic,$(MODE)),--allow-unverified-optimistic,) $(if $(SYMBOL_LAYER),--symbol-layer $(SYMBOL_LAYER),)
+	./Scripts/start-app.sh "$(INSTALLED_APP)" --input-source-id "$(INPUT_SOURCE_ID)" --input-mode-id "$(INPUT_MODE_ID)" --mode "$(MODE)" $(if $(KEY_FREQUENCY),--key-frequency $(KEY_FREQUENCY),) --request-permissions $(if $(filter optimistic,$(MODE)),--allow-unverified-optimistic,) $(if $(SYMBOL_LAYER),--symbol-layer $(SYMBOL_LAYER),)
 
 stop:
 	@pkill -TERM -x WKRMacOS 2>/dev/null || true
