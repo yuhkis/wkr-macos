@@ -91,6 +91,10 @@ final class KeyFrequencyRecorder {
     ]
 
     private let storeURL: URL
+    /// How many days of counts to keep, or `nil` to keep every day. Applied at
+    /// each write, so lowering it takes effect on the next flush rather than
+    /// needing a separate command.
+    private let retainedDays: Int?
 
     /// Every member below is touched from the event tap callback and from the
     /// main run loop. Both are the main thread in this app — the tap is added to
@@ -118,10 +122,15 @@ final class KeyFrequencyRecorder {
     /// its input. It is also `nil` when the store location cannot be resolved:
     /// a recorder that can never write would accumulate counts that only ever
     /// get thrown away.
-    init?(enabled: Bool, storeURL: URL? = nil) {
+    init?(
+        enabled: Bool,
+        storeURL: URL? = nil,
+        retainedDays: Int? = KeyFrequencyTally.defaultRetainedDays
+    ) {
         guard enabled else { return nil }
         guard let url = storeURL ?? Self.defaultStoreURL() else { return nil }
         self.storeURL = url
+        self.retainedDays = retainedDays
     }
 
     /// `~/Library/Application Support/io.github.yuhkis.wkr-macos/key-frequency.json`.
@@ -324,10 +333,7 @@ final class KeyFrequencyRecorder {
 
         var merged = existing
         merged.merge(tally)
-        merged.prune(
-            retainedDays: KeyFrequencyTally.defaultRetainedDays,
-            today: currentDay()
-        )
+        merged.prune(retainedDays: retainedDays, today: currentDay())
 
         let encoder = JSONEncoder()
         // Readable and byte-stable: a user who wants to know exactly what this

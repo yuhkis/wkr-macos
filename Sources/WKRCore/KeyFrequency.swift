@@ -109,10 +109,22 @@ public struct KeyFrequencyStore: Equatable, Sendable, Codable {
 /// is written, because `AGENTS.md` forbids file I/O inside the event tap
 /// callback and this is what the callback touches.
 public struct KeyFrequencyTally: Equatable, Sendable {
-    /// Roughly half a year. Long enough to compare a layout change against the
-    /// weeks before it, short enough that the file does not become an
-    /// open-ended record of someone's typing life.
-    public static let defaultRetainedDays = 180
+    /// Nothing is dropped unless the user asks for a window.
+    ///
+    /// This started as a 180-day cap on the reasoning that a tally should not
+    /// become an open-ended record. That was the wrong trade. The feature is
+    /// opt-in, so anyone it runs for has already decided they want the data;
+    /// the file holds no text, no order and no time finer than a day, which is
+    /// where the privacy of this format actually comes from; and a day of
+    /// counts measures about 3 KB, so a decade of them is a few tens of
+    /// megabytes. Against that, silently deleting a measurement someone chose
+    /// to collect is itself a harm — and the one question this tally is best
+    /// placed to answer, whether a layout change moved the load, is the
+    /// question that needs the oldest data.
+    ///
+    /// A window is still available for anyone who wants one; it is just not
+    /// imposed. `nil` means keep everything.
+    public static let defaultRetainedDays: Int? = nil
 
     /// A single day cannot hold more distinct keys than a keyboard has, so this
     /// is far above any honest value. It exists so that a stuck or malicious
@@ -177,12 +189,16 @@ public struct KeyFrequencyTally: Equatable, Sendable {
         }
     }
 
-    /// Drop everything outside the retention window. Called before every write
-    /// so the file ages out on its own without the user having to remember.
+    /// Drop everything outside the retention window, if there is one.
+    ///
+    /// Called before every write, so a window the user has set ages the file out
+    /// without them having to remember. `nil` keeps every day, which is the
+    /// default: see `defaultRetainedDays`.
     public mutating func prune(
-        retainedDays: Int = defaultRetainedDays,
+        retainedDays: Int? = defaultRetainedDays,
         today: KeyFrequencyDay
     ) {
+        guard let retainedDays else { return }
         guard retainedDays > 0 else {
             days.removeAll()
             return

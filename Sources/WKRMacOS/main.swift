@@ -48,7 +48,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let recorder = KeyFrequencyRecorder(
             enabled: configuration.keyFrequencyEnabled,
-            storeURL: KeyFrequencyReportCommand.storeURL(for: configuration)
+            storeURL: KeyFrequencyReportCommand.storeURL(for: configuration),
+            retainedDays: configuration.keyFrequencyRetainedDays
         )
         frequencyRecorder = recorder
         recorder?.startFlushing()
