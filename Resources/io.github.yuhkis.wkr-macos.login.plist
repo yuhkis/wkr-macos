@@ -29,6 +29,15 @@
         <string>--exclude-app</string>
         <string>com.parallels.desktop.console</string>
         -->
+        <!-- Add these two lines to keep per-key press counts, so
+             `WKRMacOS --key-frequency-report` can draw a heatmap. Counts are
+             totals per calendar day and nothing else: no order, no timing, no
+             text. They stay in
+             ~/Library/Application Support/io.github.yuhkis.wkr-macos/ and are
+             never sent anywhere. Off by default. See docs/install.md.
+        <string>--key-frequency</string>
+        <string>on</string>
+        -->
         <string>--request-permissions</string>
     </array>
     <key>RunAtLoad</key>

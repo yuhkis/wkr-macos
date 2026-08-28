@@ -14,7 +14,9 @@
 > letters. Requires a **JIS keyboard**, Apple Japanese Input in Hiragana mode, Input Monitoring and
 > Accessibility permissions. To rewrite that text it holds the current pre-edit's physical keys in
 > memory, bounded and discarded on any context change; nothing is written to disk or logged, and
-> there is no network code. Build from source — see [docs/install.md](./docs/install.md).
+> there is no network code. An opt-in, off-by-default key-frequency tally records per-key totals per
+> calendar day — no order, no sub-day timing, no text — and renders them as a heatmap over a JIS, US
+> or Corne-style split keyboard. Build from source — see [docs/install.md](./docs/install.md).
 > MIT licensed.
 
 `W` `E` `R` と打つと `わから` になります（`W`=わ行、`E`=か行、`R`=ら行）。
@@ -57,6 +59,8 @@ Apple日本語入力へ打ち直します**。Apple日本語入力から見れ�
 - 上流 `wkr-layout` のかな全行、小書き、特殊かな、`Y`記号レイヤーを **215件の正規化規則**として実装しています。
   **Apple日本語入力のローマ字入力で打てるかな206種はすべて入力できます**（[docs/layout-coverage.md](./docs/layout-coverage.md)）。
 - 常用方式は **prefix-romaji**（ログイン時起動もこれ）。CLI の既定値は最も安全な deferred-romaji です。
+- **打鍵頻度のヒートマップ**を出せます（既定オフ）。`--key-frequency on` で数え、
+  `--key-frequency-report` で JIS・US・Cornix の3配列に描き分けた HTML を1枚書き出します。
 - `英数` を素早く2回叩くと**打った物理キーどおりの英字へ打ち直します**。2026-08-15 に TextEdit と
   Claude.app で確認済みで、先行するテキストは削りません。Unicode 直接注入を使うため、そのイベントを
   無視するアプリでは働きません。`--english-fallback off` で無効にできます。
@@ -104,6 +108,10 @@ Apple日本語入力の変換エンジンだけを公開APIで借りることは
 - **入力文字列、クリップボード、変換候補を、ログ・ファイル・ネットワークへ一切出しません。**
   ネットワーク機能を持ちません。ログに出るのは権限状態、モード、入力ソースID、状態コード、
   エラー種別、集計件数だけです。
+- 打鍵頻度の記録（既定オフ）を明示的に有効にしたときだけ、キーごとの**累計回数**を暦日単位で
+  ローカルに保存します。**打鍵の順序も、暦日より細かい時刻も、入力文字列も保存しません。**
+  順序を落とした度数分布から入力文字列は復元できません。Secure Event Input・権限欠如・
+  除外アプリ・対象外の入力ソースでは1回も数えません。
 - 対象外の入力ソース、英数、セキュア入力、パスワード欄、修飾キー付きショートカットでは変換しません。
 - 仮想マシンやリモートデスクトップは `--exclude-app` で除外できます（キー入力がゲスト側の
   入力メソッドへ転送されるため）。詳細は [docs/install.md](./docs/install.md) を参照してください。

@@ -17,6 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var lastInputSourceMatched: Bool?
     private var lastApplicationAllowed: Bool?
     private var isTerminatingFailClosed = false
+    private var frequencyRecorder: KeyFrequencyRecorder?
 
     init(configuration: AppConfiguration) {
         self.configuration = configuration
@@ -41,11 +42,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        let recorder = KeyFrequencyRecorder(
+            enabled: configuration.keyFrequencyEnabled,
+            storeURL: KeyFrequencyReportCommand.storeURL(for: configuration)
+        )
+        frequencyRecorder = recorder
+        recorder?.startFlushing()
+
         guard let controller = EventTapController(
             mode: configuration.outputMode,
             counters: counters,
             englishFallbackTrigger: configuration.englishFallbackTrigger,
             symbolLayerEnabled: configuration.symbolLayerEnabled,
+            frequencyRecorder: recorder,
             requestContextRefresh: { [weak self] in
                 self?.refreshConversionContext()
             },
@@ -91,7 +100,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         refreshConversionContext()
 
         AppLog.logger.notice(
-            "conversion-started output-mode=\(self.configuration.outputModeName, privacy: .public) english-fallback=\(self.configuration.englishFallbackTrigger.rawValue, privacy: .public) symbol-layer=\(self.configuration.symbolLayerEnabled ? "on" : "off", privacy: .public)"
+            "conversion-started output-mode=\(self.configuration.outputModeName, privacy: .public) english-fallback=\(self.configuration.englishFallbackTrigger.rawValue, privacy: .public) symbol-layer=\(self.configuration.symbolLayerEnabled ? "on" : "off", privacy: .public) key-frequency=\(self.configuration.keyFrequencyEnabled ? "on" : "off", privacy: .public)"
         )
     }
 
@@ -102,6 +111,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         eventTapController?.reset(.explicitStop)
         eventTapController?.stop()
+        // Written after the tap is down, so the last flush cannot race a
+        // keystroke still being counted.
+        frequencyRecorder?.flushAndStop()
         counters.logSummary()
     }
 
@@ -204,7 +216,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 do {
     let configuration = try AppConfiguration.parse(arguments: CommandLine.arguments)
-    if configuration.printInputSourceOnly {
+    switch configuration.action {
+    case .printInputSource:
         guard let snapshot = InputSourceSnapshot.current() else {
             fputs("input-source-unavailable\n", stderr)
             exit(EXIT_FAILURE)
@@ -213,6 +226,12 @@ do {
         print("mode-id=\(snapshot.modeID ?? "none")")
         print("localized-name=\(snapshot.localizedName ?? "none")")
         exit(EXIT_SUCCESS)
+    case .keyFrequencyReport:
+        exit(KeyFrequencyReportCommand.runReport(configuration))
+    case .keyFrequencyReset:
+        exit(KeyFrequencyReportCommand.runReset(configuration))
+    case .run:
+        break
     }
 
     let application = NSApplication.shared
