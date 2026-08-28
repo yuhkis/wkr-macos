@@ -9,6 +9,7 @@ enum AppConfigurationError: LocalizedError {
     case optimisticAcknowledgementRequired
     case invalidEnglishFallback(String)
     case invalidSymbolLayer(String)
+    case invalidKeyFrequency(String)
 
     var errorDescription: String? {
         switch self {
@@ -29,12 +30,25 @@ enum AppConfigurationError: LocalizedError {
             return "unsupported english fallback trigger: \(value) (supported: \(supported))"
         case let .invalidSymbolLayer(value):
             return "unsupported symbol layer setting: \(value) (supported: on, off)"
+        case let .invalidKeyFrequency(value):
+            return "unsupported key frequency setting: \(value) (supported: on, off)"
         }
     }
 }
 
+/// What this launch is for.
+///
+/// Everything except `run` finishes without creating an event tap, so none of
+/// them need an input source and none of them ask for permissions.
+enum LaunchAction: Equatable {
+    case run
+    case printInputSource
+    case keyFrequencyReport
+    case keyFrequencyReset
+}
+
 struct AppConfiguration {
-    let printInputSourceOnly: Bool
+    let action: LaunchAction
     let inputSourceID: String?
     let inputModeID: String?
     let outputMode: OutputMode
@@ -55,17 +69,37 @@ struct AppConfiguration {
     /// passes through. Set with `--symbol-layer` or the `SymbolLayer` user
     /// default; the flag wins.
     let symbolLayerEnabled: Bool
+    /// Whether per-key press counts are kept. Off unless asked for: this is the
+    /// only feature that writes anything derived from keystrokes to disk, so it
+    /// is opt-in rather than opt-out. What it may and may not hold is in
+    /// `docs/design.md` section 9. Set with `--key-frequency` or the
+    /// `KeyFrequencyLog` user default; the flag wins.
+    let keyFrequencyEnabled: Bool
+    /// Where the counts live. `nil` means the standard location under
+    /// Application Support.
+    let keyFrequencyStorePath: String?
+    /// Where `--key-frequency-report` writes its HTML. `nil` means next to the
+    /// store.
+    let keyFrequencyReportPath: String?
+    /// Open the report in the default browser once it is written.
+    let openReport: Bool
+    /// A Vial `.vil` export used to label the Cornix picture with the keymap
+    /// actually flashed to the keyboard. Without it the built-in default is
+    /// drawn. Set with `--vil` or the `VialKeymapPath` user default.
+    let vialKeymapPath: String?
 
     /// User default that holds the trigger between launches. A settings window
     /// can write the same key once the menu bar item exists.
     static let englishFallbackDefaultsKey = "EnglishFallbackTrigger"
     static let symbolLayerDefaultsKey = "SymbolLayer"
+    static let keyFrequencyDefaultsKey = "KeyFrequencyLog"
+    static let vialKeymapPathDefaultsKey = "VialKeymapPath"
 
     static func parse(
         arguments: [String],
         defaults: UserDefaults = .standard
     ) throws -> AppConfiguration {
-        var printInputSourceOnly = false
+        var action = LaunchAction.run
         var inputSourceID: String?
         var inputModeID: String?
         var modeName = "deferred"
@@ -74,6 +108,11 @@ struct AppConfiguration {
         var excludedApplications: Set<String> = []
         var englishFallbackName = defaults.string(forKey: englishFallbackDefaultsKey)
         var symbolLayerName = defaults.string(forKey: symbolLayerDefaultsKey)
+        var keyFrequencyName = defaults.string(forKey: keyFrequencyDefaultsKey)
+        var keyFrequencyStorePath: String?
+        var keyFrequencyReportPath: String?
+        var openReport = false
+        var vialKeymapPath = defaults.string(forKey: vialKeymapPathDefaultsKey)
 
         // `--flag=value` is split so it behaves like `--flag value`. Unknown
         // arguments are ignored on purpose: macOS injects its own (`-psn_…`,
@@ -96,7 +135,37 @@ struct AppConfiguration {
         while index < tokens.count {
             switch tokens[index] {
             case "--print-input-source":
-                printInputSourceOnly = true
+                action = .printInputSource
+            case "--key-frequency-report":
+                action = .keyFrequencyReport
+            case "--key-frequency-reset":
+                action = .keyFrequencyReset
+            case "--key-frequency":
+                index += 1
+                guard index < tokens.count else {
+                    throw AppConfigurationError.missingValue("--key-frequency")
+                }
+                keyFrequencyName = tokens[index]
+            case "--key-frequency-store":
+                index += 1
+                guard index < tokens.count else {
+                    throw AppConfigurationError.missingValue("--key-frequency-store")
+                }
+                keyFrequencyStorePath = tokens[index]
+            case "--key-frequency-report-output", "--output":
+                index += 1
+                guard index < tokens.count else {
+                    throw AppConfigurationError.missingValue("--key-frequency-report-output")
+                }
+                keyFrequencyReportPath = tokens[index]
+            case "--vil":
+                index += 1
+                guard index < tokens.count else {
+                    throw AppConfigurationError.missingValue("--vil")
+                }
+                vialKeymapPath = tokens[index]
+            case "--open":
+                openReport = true
             case "--input-source-id":
                 index += 1
                 guard index < tokens.count else {
@@ -178,15 +247,25 @@ struct AppConfiguration {
             throw AppConfigurationError.invalidSymbolLayer(other)
         }
 
-        if !printInputSourceOnly, inputSourceID == nil {
+        let keyFrequencyEnabled: Bool
+        switch keyFrequencyName {
+        case nil, "off":
+            keyFrequencyEnabled = false
+        case "on":
+            keyFrequencyEnabled = true
+        case let other?:
+            throw AppConfigurationError.invalidKeyFrequency(other)
+        }
+
+        if action == .run, inputSourceID == nil {
             throw AppConfigurationError.missingInputSource
         }
-        if !printInputSourceOnly, inputModeID == nil {
+        if action == .run, inputModeID == nil {
             throw AppConfigurationError.missingInputMode
         }
 
         return AppConfiguration(
-            printInputSourceOnly: printInputSourceOnly,
+            action: action,
             inputSourceID: inputSourceID,
             inputModeID: inputModeID,
             outputMode: outputMode,
@@ -194,7 +273,12 @@ struct AppConfiguration {
             requestPermissions: requestPermissions,
             excludedApplications: excludedApplications,
             englishFallbackTrigger: englishFallbackTrigger,
-            symbolLayerEnabled: symbolLayerEnabled
+            symbolLayerEnabled: symbolLayerEnabled,
+            keyFrequencyEnabled: keyFrequencyEnabled,
+            keyFrequencyStorePath: keyFrequencyStorePath,
+            keyFrequencyReportPath: keyFrequencyReportPath,
+            openReport: openReport,
+            vialKeymapPath: vialKeymapPath
         )
     }
 }

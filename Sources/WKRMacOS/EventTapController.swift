@@ -10,6 +10,11 @@ final class EventTapController {
     private let transducer: WKRTransducer
     private let poster: SyntheticEventPoster
     private let counters: EventCounters
+    /// Per-key press counts, or `nil` when frequency logging is off. When it is
+    /// off nothing here changes at all: the event mask, the callback path and
+    /// the work done per keystroke stay exactly what they were before the
+    /// feature existed.
+    private let frequencyRecorder: KeyFrequencyRecorder?
     private let requestContextRefresh: ContextRefreshHandler
     private let fatalErrorHandler: FatalErrorHandler
     private var eventTap: CFMachPort?
@@ -43,6 +48,7 @@ final class EventTapController {
         counters: EventCounters,
         englishFallbackTrigger: EnglishFallbackTrigger = .default,
         symbolLayerEnabled: Bool = true,
+        frequencyRecorder: KeyFrequencyRecorder? = nil,
         requestContextRefresh: @escaping ContextRefreshHandler,
         fatalErrorHandler: @escaping FatalErrorHandler
     ) {
@@ -55,6 +61,7 @@ final class EventTapController {
         )
         self.poster = poster
         self.counters = counters
+        self.frequencyRecorder = frequencyRecorder
         self.englishFallbackTrigger = englishFallbackTrigger
         self.requestContextRefresh = requestContextRefresh
         self.fatalErrorHandler = fatalErrorHandler
@@ -85,14 +92,40 @@ final class EventTapController {
             && eventTap != nil
     }
 
+    /// `isConverting` without the input source test.
+    ///
+    /// `かな` and `英数` are the two keys that change the input source, so one
+    /// of them is always pressed while the source does not yet match. Gating
+    /// their count on the source would make `かな` structurally uncountable and
+    /// leave a hole in the picture at the one key this layout leans on hardest.
+    /// Widening the gate for exactly these two is safe because a mode switch
+    /// carries nothing about what was typed: every other safety condition, and
+    /// in particular Secure Event Input, still has to hold.
+    private var isRecordingSafe: Bool {
+        permissionsGranted
+            && contextIsCurrent
+            && applicationAllowed
+            && !secureInputEnabled
+            && tapOperational
+            && eventTap != nil
+    }
+
     func start(permissionsGranted: Bool) -> Bool {
         guard permissionsGranted else { return false }
         self.permissionsGranted = true
 
-        let types: [CGEventType] = [
+        var types: [CGEventType] = [
             .keyDown, .keyUp,
             .leftMouseDown, .rightMouseDown, .otherMouseDown,
         ]
+        if frequencyRecorder != nil {
+            // Modifiers are not key events, so a heatmap cannot show Shift,
+            // Control or a Corne's thumb-mounted Command keys without this.
+            // It is observe-only — the flags-changed branch always returns the
+            // event unmodified — and it is added only when the user asked for
+            // counts, so the default event mask is unchanged.
+            types.append(.flagsChanged)
+        }
         let mask = types.reduce(CGEventMask(0)) { partial, type in
             partial | (CGEventMask(1) << CGEventMask(type.rawValue))
         }
@@ -162,6 +195,10 @@ final class EventTapController {
         self.secureInputEnabled = secureInputEnabled
         contextIsCurrent = true
 
+        if contextChanged, !isConverting {
+            frequencyRecorder?.forgetModifierState()
+        }
+
         if contextChanged, !applicationAllowed {
             reset(.applicationChanged)
             suppressedKeyUps.removeAll()
@@ -180,6 +217,11 @@ final class EventTapController {
         applicationAllowed = false
         reset(reason)
         suppressedKeyUps.removeAll()
+        // Flags-changed events only reach the recorder while the gate is open,
+        // so a modifier released while it is shut is never seen to come up. The
+        // baseline is dropped here instead, or the next press of that modifier
+        // would read as "already down" and go uncounted.
+        frequencyRecorder?.forgetModifierState()
     }
 
     func setPermissionsGranted(_ granted: Bool) {
@@ -232,6 +274,19 @@ final class EventTapController {
             return Unmanaged.passUnretained(event)
         }
 
+        if type == .flagsChanged {
+            // Observe only. A modifier never resets the pending kana, because
+            // pressing Shift on the way to a shifted key must not throw away
+            // the romaji already streamed for the key before it.
+            if isConverting, let frequencyRecorder {
+                frequencyRecorder.recordFlagsChanged(
+                    keyCode: CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode)),
+                    flags: event.flags
+                )
+            }
+            return Unmanaged.passUnretained(event)
+        }
+
         guard type == .keyDown || type == .keyUp else {
             return Unmanaged.passUnretained(event)
         }
@@ -261,6 +316,13 @@ final class EventTapController {
         let isAutorepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
 
         if keyCode == CGKeyCode(kVK_JIS_Kana) || keyCode == CGKeyCode(kVK_JIS_Eisu) {
+            if isRecordingSafe, let frequencyRecorder {
+                frequencyRecorder.recordKeyDown(
+                    keyCode: keyCode,
+                    flags: event.flags,
+                    isAutorepeat: isAutorepeat
+                )
+            }
             if keyCode == CGKeyCode(kVK_JIS_Eisu) {
                 eisuIsHeld = true
                 if !isAutorepeat, englishFallbackTrigger == .eisuBurst {
@@ -321,6 +383,21 @@ final class EventTapController {
             transducer.reset()
             counters.bypassed()
             return Unmanaged.passUnretained(event)
+        }
+
+        // Counted here, once the conversion gate has been proved open and
+        // autorepeat has already returned above, so the tally covers exactly
+        // the keys WKR itself is responsible for interpreting. The recorder
+        // drops anything carrying Command, Control or Option on its own; this
+        // point is chosen so that Escape, Backspace, the cursor keys and the
+        // boundary keys are all counted too, because they are real presses the
+        // user made while typing Japanese.
+        if let frequencyRecorder {
+            frequencyRecorder.recordKeyDown(
+                keyCode: keyCode,
+                flags: event.flags,
+                isAutorepeat: isAutorepeat
+            )
         }
 
         // Escape is checked before the modifier filter so that its reset is
