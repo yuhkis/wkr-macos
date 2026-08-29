@@ -18,7 +18,51 @@ extension KeyboardGeometry {
     /// position does, not where that position sits on the board, so the legends
     /// and the identities are the only things worth taking from it.
     public static func cornix(keymap: VialKeymap) -> KeyboardGeometry {
-        CornixLayout.builtIn.applying(keymap).geometry()
+        CornixLayout.builtIn.applying(keymap, layer: 0).geometry()
+    }
+
+    /// The board once per layer that has anything countable on it.
+    ///
+    /// The first board is layer 0 exactly as `cornix(keymap:)` draws it, except
+    /// for the caveat that used to say the other layers are invisible — they no
+    /// longer are. Every further layer is drawn from the `.vil` alone, with no
+    /// built-in fallback: a hole in a higher layer means "this key does nothing
+    /// here", and filling it with the layer-0 default would draw a legend the
+    /// firmware does not have.
+    ///
+    /// macOS still never learns which layer a key event came through. What
+    /// keeps these boards honest is uniqueness, not attribution: an identity
+    /// that exists at one position across all layers belongs to that cap, and
+    /// one that exists at several is drawn at each with the shared total and
+    /// the shared marker, exactly as a duplicated Enter already is on layer 0.
+    public static func cornixLayers(keymap: VialKeymap) -> [KeyboardGeometry] {
+        var layerBoards: [KeyboardGeometry] = []
+        for index in 1..<max(keymap.layers.count, 1) {
+            let board = CornixLayout.blank.applying(keymap, layer: index).geometry(
+                idSuffix: "-layer\(index)",
+                displayName: "Cornix レイヤー\(index)",
+                caveats: CornixMetrics.layerCaveats(index),
+                includeShiftWrapCaveats: false
+            )
+            // A layer nothing can be counted on is firmware bookkeeping, not a
+            // picture. Vial exports every slot the firmware has, and this
+            // project's own board carries six empty layers.
+            guard board.caps.contains(where: { !$0.identities.isEmpty }) else { continue }
+            layerBoards.append(board)
+        }
+        // The base board's caveats are chosen after the filter, not before: a
+        // keymap that only populates layer 0 gets exactly one tab, and telling
+        // its reader the other layers have tabs of their own would point at
+        // tabs that do not exist. The single-board wording is the accurate one
+        // there.
+        let base = CornixLayout.builtIn.applying(keymap, layer: 0).geometry(
+            displayName: KeyboardModel.cornix.displayName,
+            caveats: layerBoards.isEmpty
+                ? CornixMetrics.caveats
+                : CornixMetrics.multiLayerBaseCaveats,
+            includeShiftWrapCaveats: true
+        )
+        return [base] + layerBoards
     }
 }
 
@@ -82,6 +126,24 @@ private struct CornixLayout {
         tokens.map(VialKeymap.decode(token:))
     }
 
+    /// Every position empty. The receiver for higher layers, where a missing
+    /// entry means "sends nothing" and must stay blank rather than inherit the
+    /// layer-0 default.
+    static let blank: CornixLayout = {
+        let none = VialKeymap.decode(token: "KC_NO")
+        let row = [VialKeyAssignment](repeating: none, count: 6)
+        return CornixLayout(
+            leftMain: [row, row, row],
+            leftRow3: [none, none, none],
+            leftThumbs: [none, none, none],
+            leftEncoder: none,
+            rightMain: [row, row, row],
+            rightRow3: [none, none, none],
+            rightThumbs: [none, none, none],
+            rightEncoder: none
+        )
+    }()
+
     /// Lay a parsed `.vil` over the built-in default.
     ///
     /// Every read is bounds-checked and every miss keeps the default cap. Being
@@ -89,10 +151,10 @@ private struct CornixLayout {
     /// an ordinary thing rather than an error: relabelling what is there and
     /// leaving the rest alone gives the user a usable picture, where trapping
     /// would take the whole report down over one key they do not have.
-    func applying(_ keymap: VialKeymap) -> CornixLayout {
+    func applying(_ keymap: VialKeymap, layer: Int) -> CornixLayout {
         var layout = self
         layout.keymapShiftWrapSides = keymap.firmwareShiftSides
-        let rows = keymap.baseLayer
+        let rows = keymap.layers.indices.contains(layer) ? keymap.layers[layer] : []
 
         func entry(_ row: Int, _ index: Int) -> VialKeyAssignment? {
             guard rows.indices.contains(row) else { return nil }
@@ -176,13 +238,21 @@ private struct CornixLayout {
         return layout
     }
 
-    func geometry() -> KeyboardGeometry {
+    func geometry(
+        idSuffix: String = "",
+        displayName: String = KeyboardModel.cornix.displayName,
+        caveats: [String] = CornixMetrics.caveats,
+        includeShiftWrapCaveats: Bool = true
+    ) -> KeyboardGeometry {
         var caps: [KeyCap] = []
+        // Cap ids only need to be unique within one geometry, but a debugging
+        // session with six boards open is easier when a layer-1 cap says so.
+        func capID(_ base: String) -> String { base + idSuffix }
 
         for row in 0..<3 {
             for column in 0..<6 {
                 caps.append(CornixMetrics.cap(
-                    id: "cornix-l-r\(row)-c\(column)",
+                    id: capID("cornix-l-r\(row)-c\(column)"),
                     assignment: leftMain[row][column],
                     centreX: Double(column),
                     centreY: Double(row) - CornixMetrics.leftStagger[column],
@@ -192,7 +262,7 @@ private struct CornixLayout {
         }
         for column in 0..<3 {
             caps.append(CornixMetrics.cap(
-                id: "cornix-l-r3-c\(column)",
+                id: capID("cornix-l-r3-c\(column)"),
                 assignment: leftRow3[column],
                 centreX: Double(column),
                 centreY: 3 - CornixMetrics.leftStagger[column],
@@ -203,7 +273,7 @@ private struct CornixLayout {
         }
         for (index, position) in CornixMetrics.leftThumbPositions.enumerated() {
             caps.append(CornixMetrics.cap(
-                id: "cornix-l-thumb\(index)",
+                id: capID("cornix-l-thumb\(index)"),
                 assignment: leftThumbs[index],
                 centreX: position.x,
                 centreY: position.y,
@@ -212,7 +282,7 @@ private struct CornixLayout {
             ))
         }
         caps.append(CornixMetrics.encoderCap(
-            id: "cornix-l-encoder",
+            id: capID("cornix-l-encoder"),
             assignment: leftEncoder,
             centreX: CornixMetrics.leftEncoderCentre.x,
             centreY: CornixMetrics.leftEncoderCentre.y
@@ -221,7 +291,7 @@ private struct CornixLayout {
         for row in 0..<3 {
             for column in 0..<6 {
                 caps.append(CornixMetrics.cap(
-                    id: "cornix-r-r\(row)-c\(column)",
+                    id: capID("cornix-r-r\(row)-c\(column)"),
                     assignment: rightMain[row][column],
                     centreX: CornixMetrics.rightInnerColumnX + Double(column),
                     centreY: Double(row) - CornixMetrics.rightStagger[column],
@@ -234,7 +304,7 @@ private struct CornixLayout {
             // the three outermost columns rather than the innermost three.
             let column = 3 + position
             caps.append(CornixMetrics.cap(
-                id: "cornix-r-r3-c\(column)",
+                id: capID("cornix-r-r3-c\(column)"),
                 assignment: rightRow3[position],
                 centreX: CornixMetrics.rightInnerColumnX + Double(column),
                 centreY: 3 - CornixMetrics.rightStagger[column],
@@ -243,7 +313,7 @@ private struct CornixLayout {
         }
         for (index, position) in CornixMetrics.rightThumbPositions.enumerated() {
             caps.append(CornixMetrics.cap(
-                id: "cornix-r-thumb\(index)",
+                id: capID("cornix-r-thumb\(index)"),
                 assignment: rightThumbs[index],
                 centreX: position.x,
                 centreY: position.y,
@@ -252,7 +322,7 @@ private struct CornixLayout {
             ))
         }
         caps.append(CornixMetrics.encoderCap(
-            id: "cornix-r-encoder",
+            id: capID("cornix-r-encoder"),
             assignment: rightEncoder,
             centreX: CornixMetrics.rightEncoderCentre.x,
             centreY: CornixMetrics.rightEncoderCentre.y
@@ -260,11 +330,11 @@ private struct CornixLayout {
 
         return KeyboardGeometry(
             model: .cornix,
-            displayName: KeyboardModel.cornix.displayName,
+            displayName: displayName,
             widthUnits: CornixMetrics.widthUnits,
             heightUnits: CornixMetrics.heightUnits,
             caps: caps,
-            caveats: CornixMetrics.caveats + shiftWrapCaveats()
+            caveats: caveats + (includeShiftWrapCaveats ? shiftWrapCaveats() : [])
         )
     }
 
@@ -405,7 +475,15 @@ private enum CornixMetrics {
             x: centreX - 0.5 + xOrigin,
             y: centreY - 0.5 + yOrigin,
             rotation: rotation,
-            legend: assignment.legend,
+            // A `.vil` legend's second line is always a hold or wrap label
+            // (`LT 1`, `LAlt_T`, `RSft`), never what Shift+key prints, so the
+            // flag is cleared here for every cap on the board. Without it the
+            // renderer used "LAlt_T" as the display name of Shift+Enter.
+            legend: KeyCapLegend(
+                assignment.legend.primary,
+                assignment.legend.secondary,
+                secondaryIsShifted: false
+            ),
             exclusion: assignment.exclusion,
             // A modifier sits in a finger's column but is held rather than
             // struck, and the per-finger table answers "how much is this finger
@@ -466,6 +544,32 @@ private enum CornixMetrics {
     /// What this particular picture cannot know. Longer than the staggered
     /// boards' lists because a programmable split keyboard hides more of itself
     /// from macOS than a board whose keys each send one code.
+    /// The layer-0 board's caveats when the other layers are drawn beside it.
+    /// The single-board list below says the higher layers are invisible, which
+    /// stops being true the moment they get tabs of their own.
+    static let multiLayerBaseCaveats = [
+        "このタブはレイヤー0です。数えられるキーがあるレイヤーは、それぞれのタブにあります（マクロやメディアキーしか無いレイヤーはタブになりません）。",
+        "レイヤーキーの hold はキーボードのファームウェア内で完結するため macOS には届きません。数えられるのは tap 側の動作だけです。",
+        "ロータリーエンコーダの回転と押下は system-defined イベントで届くため、event tap では数えられません。",
+        "同じキーコードを複数のキー（別のレイヤーを含む）が送る場合、macOS からはどれが押されたか区別できません。合算値を各キーに表示し、共有マークを付けます。",
+        "Shift を押しながらの打鍵は、同じ物理キーの打鍵として同じキーに合算しています。Shift 付きと Shift なしの内訳はキーの詳細に出ます。",
+        "⌘⌥ など Command / Control / Option を含むキーは、修飾キー付き入力を数えない方針のため数値を出しません。",
+        "指ごとの集計は「その指が叩いた回数」です。修飾キーは押しっぱなしにするもので叩く回数とは性質が違うため、指の集計には入れていません（キーごとの数値には出ます）。",
+    ]
+
+    /// What a layer board needs the reader to know, which is mostly what it
+    /// cannot know: the layer a key event came through is not in the event.
+    static func layerCaveats(_ index: Int) -> [String] {
+        [
+            "レイヤー\(index)の割り当てです。macOS はどのレイヤー経由で届いたかを報告しないため、"
+                + "同じキーコードがほかのレイヤー（レイヤー0を含む）にもあるキーは合算値で、共有マークが付きます。"
+                + "このレイヤーにしか無いキーの数値は、このレイヤーで打った回数そのものです。",
+            "空欄はこのレイヤーで何も送らない位置です。▽ は下のレイヤーへ抜ける割り当てで、"
+                + "その打鍵は抜け先のキーとして数えられています。",
+            "⌘ や ⌃ を含むキー、エンコーダ、修飾キーの扱いはレイヤー0のタブの注記のとおりです。",
+        ]
+    }
+
     static let caveats = [
         "レイヤーキーの hold はキーボードのファームウェア内で完結するため macOS には届きません。数えられるのは tap 側の動作だけです。",
         "描いているのはレイヤー0だけです。レイヤーを重ねて出した記号や数字は、同じキーコードを持つレイヤー0のキーに合算されます。レイヤー0に同じキーコードがなければ、どのキーにも現れません。",

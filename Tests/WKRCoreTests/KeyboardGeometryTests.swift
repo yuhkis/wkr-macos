@@ -442,6 +442,191 @@ final class KeyboardGeometryTests: XCTestCase {
         XCTAssertLessThan(y.x, p.x, "Y must sit inboard of P")
     }
 
+    // MARK: - Layer boards
+
+    private let layeredVil = #"""
+    {"version": 1, "layout": [
+      [["KC_TAB", "KC_Q", "KC_W", "KC_E", "KC_R", "KC_T", -1],
+       ["KC_LCTRL", "KC_A", "KC_S", "KC_D", "KC_F", "KC_G", -1],
+       ["KC_LSHIFT", "KC_Z", "KC_X", "KC_C", "KC_V", "KC_B", "KC_MUTE"],
+       ["KC_NO", "KC_NO", "KC_NO", "KC_LGUI", "LT1(KC_SPACE)", "KC_LANG2", -1],
+       ["KC_Y", "KC_U", "KC_I", "KC_O", "KC_P", "KC_BSPACE", -1],
+       ["KC_H", "KC_J", "KC_K", "KC_L", "KC_SCOLON", "KC_QUOTE", "KC_MUTE"],
+       ["KC_N", "KC_M", "KC_COMMA", "KC_DOT", "KC_SLASH", "KC_ESCAPE", -1],
+       ["KC_NO", "KC_NO", "KC_NO", "KC_RALT", "KC_LANG1", "KC_ENTER", -1]],
+      [["KC_NO", "RSFT(KC_1)", "KC_TRNS", "KC_NO", "KC_NO", "KC_NO", -1],
+       ["KC_NO", "KC_1", "KC_2", "KC_NO", "KC_NO", "KC_NO", -1],
+       ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_MUTE"],
+       ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", -1],
+       ["KC_LEFT", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", -1],
+       ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_MUTE"],
+       ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", -1],
+       ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", -1]],
+      [["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", -1],
+       ["KC_NO", "KC_LEFT", "KC_NO", "KC_NO", "KC_NO", "KC_NO", -1],
+       ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_MUTE"],
+       ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", -1],
+       ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", -1],
+       ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_MUTE"],
+       ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", -1],
+       ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", -1]],
+      [["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", -1],
+       ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", -1],
+       ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_MUTE"],
+       ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", -1],
+       ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", -1],
+       ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_MUTE"],
+       ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", -1],
+       ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", -1]]
+    ]}
+    """#
+
+    /// One tab per layer with countable content: layers 1 and 2 qualify, the
+    /// all-KC_NO layer 3 is firmware bookkeeping and must not become a tab.
+    func testCornixLayersDrawsOnlyLayersWithCountableContent() throws {
+        let keymap = try VialKeymap.parse(data: Data(layeredVil.utf8))
+        let boards = KeyboardGeometry.cornixLayers(keymap: keymap)
+        XCTAssertEqual(boards.count, 3, "layer 0, layer 1, layer 2")
+        XCTAssertEqual(boards[0].displayName, KeyboardModel.cornix.displayName)
+        XCTAssertEqual(boards[1].displayName, "Cornix レイヤー1")
+        XCTAssertEqual(boards[2].displayName, "Cornix レイヤー2")
+        for board in boards {
+            XCTAssertEqual(board.model, .cornix, "the family key the renderer groups by")
+        }
+    }
+
+    /// A higher layer is drawn from the file alone. Filling its holes with the
+    /// layer-0 defaults would print legends the firmware does not have.
+    func testLayerBoardsDoNotInheritTheBaseLayerCaps() throws {
+        let keymap = try VialKeymap.parse(data: Data(layeredVil.utf8))
+        let layer1 = KeyboardGeometry.cornixLayers(keymap: keymap)[1]
+
+        // The Tab position (l-r0-c0) is KC_NO on layer 1.
+        let tabPosition = try XCTUnwrap(layer1.caps.first { $0.id == "cornix-l-r0-c0-layer1" })
+        XCTAssertTrue(tabPosition.identities.isEmpty)
+        XCTAssertEqual(tabPosition.legend.primary, "")
+
+        // The Q position carries RSFT(KC_1) → a shifted 1 with its wrap legend.
+        let shifted1 = try XCTUnwrap(layer1.caps.first { $0.id == "cornix-l-r0-c1-layer1" })
+        XCTAssertEqual(shifted1.identities, [KeyIdentity(keyCode: 0x12, isShifted: true)])
+        XCTAssertEqual(shifted1.legend.secondary, "RSft")
+
+        // The A position carries a plain KC_1, claiming both shift states.
+        let plain1 = try XCTUnwrap(layer1.caps.first { $0.id == "cornix-l-r1-c1-layer1" })
+        XCTAssertTrue(plain1.identities.contains(KeyIdentity(keyCode: 0x12, isShifted: false)))
+        XCTAssertTrue(plain1.identities.contains(KeyIdentity(keyCode: 0x12, isShifted: true)))
+    }
+
+    /// Same physical position, same finger — the per-finger table folds the
+    /// symbol layers in only because the layer caps carry their columns'
+    /// fingers.
+    func testLayerCapsKeepTheirPositionsAndFingers() throws {
+        let keymap = try VialKeymap.parse(data: Data(layeredVil.utf8))
+        let boards = KeyboardGeometry.cornixLayers(keymap: keymap)
+        let base = boards[0]
+        let layer1 = boards[1]
+        for cap in layer1.caps {
+            let baseID = String(cap.id.dropLast("-layer1".count))
+            let sibling = try XCTUnwrap(base.caps.first { $0.id == baseID }, baseID)
+            XCTAssertEqual(cap.x, sibling.x, accuracy: 0.0001, cap.id)
+            XCTAssertEqual(cap.y, sibling.y, accuracy: 0.0001, cap.id)
+            XCTAssertEqual(cap.rotation, sibling.rotation, accuracy: 0.0001, cap.id)
+            if !cap.identities.isEmpty {
+                XCTAssertEqual(cap.finger, sibling.finger, cap.id)
+            }
+        }
+    }
+
+    /// KC_LEFT sits on layers 1 and 2 at different positions. Both boards must
+    /// claim it — the renderer turns the double claim into the shared marker —
+    /// and each layer tab must say in its caveats what a duplicate means.
+    func testAnIdentityOnTwoLayersIsClaimedByBoth() throws {
+        let keymap = try VialKeymap.parse(data: Data(layeredVil.utf8))
+        let boards = KeyboardGeometry.cornixLayers(keymap: keymap)
+        let left = KeyIdentity(keyCode: 0x7B, isShifted: false)
+        XCTAssertTrue(boards[1].caps.contains { $0.identities.contains(left) })
+        XCTAssertTrue(boards[2].caps.contains { $0.identities.contains(left) })
+        for board in boards.dropFirst() {
+            XCTAssertFalse(board.caveats.isEmpty, board.displayName)
+            XCTAssertTrue(
+                board.caveats.contains { $0.contains("合算") },
+                "\(board.displayName) must explain shared totals"
+            )
+        }
+    }
+
+    /// The single-board caveat says the higher layers are invisible; the
+    /// layered report must not keep saying that.
+    func testLayeredBaseBoardDropsTheLayersAreInvisibleCaveat() throws {
+        let keymap = try VialKeymap.parse(data: Data(layeredVil.utf8))
+        let base = KeyboardGeometry.cornixLayers(keymap: keymap)[0]
+        XCTAssertFalse(base.caveats.contains { $0.contains("描いているのはレイヤー0だけ") })
+        XCTAssertTrue(base.caveats.contains { $0.contains("それぞれのタブ") })
+        // The single-board path is untouched: no tabs, so the old sentence
+        // stays true there.
+        XCTAssertTrue(
+            KeyboardGeometry.cornix(keymap: keymap).caveats
+                .contains { $0.contains("描いているのはレイヤー0だけ") }
+        )
+    }
+
+    /// Cap ids stay unique within every layer board, and across the family
+    /// thanks to the layer suffix.
+    func testLayerBoardCapIDsAreUniqueAcrossTheFamily() throws {
+        let keymap = try VialKeymap.parse(data: Data(layeredVil.utf8))
+        var seen: Set<String> = []
+        for board in KeyboardGeometry.cornixLayers(keymap: keymap) {
+            for cap in board.caps {
+                XCTAssertTrue(seen.insert(cap.id).inserted, cap.id)
+            }
+        }
+    }
+
+    /// A single-layer keymap produces a single board, and the empty layout
+    /// cannot produce layer tabs out of nothing.
+    func testCornixLayersDegradesToOneBoard() throws {
+        let single = try VialKeymap.parse(data: Data(#"{"version":1,"layout":[[["KC_A"]]]}"#.utf8))
+        XCTAssertEqual(KeyboardGeometry.cornixLayers(keymap: single).count, 1)
+    }
+
+    /// A keymap that only populates layer 0 gets one tab, and that tab's
+    /// caveats must be the single-board ones — the multi-layer text points the
+    /// reader at tabs that do not exist.
+    func testSingleTabKeepsTheSingleBoardCaveats() throws {
+        let vil = #"""
+        {"version":1,"layout":[
+          [["KC_A", "KC_B"]],
+          [["KC_NO", "KC_NO"]],
+          [["KC_MUTE", "KC_NO"]]
+        ]}
+        """#
+        let boards = KeyboardGeometry.cornixLayers(
+            keymap: try VialKeymap.parse(data: Data(vil.utf8))
+        )
+        XCTAssertEqual(boards.count, 1, "an all-KC_NO layer and a media-only layer are not tabs")
+        XCTAssertTrue(boards[0].caveats.contains { $0.contains("描いているのはレイヤー0だけ") })
+        XCTAssertFalse(boards[0].caveats.contains { $0.contains("それぞれのタブ") })
+    }
+
+    /// A `.vil` legend's second line is a hold or wrap label, never what
+    /// Shift+key prints. The flag is what stops the renderer from naming
+    /// Shift+Enter "LAlt_T" in the ranking.
+    func testCornixSecondariesAreNeverShiftedLegends() throws {
+        let keymap = try VialKeymap.parse(data: Data(layeredVil.utf8))
+        for board in KeyboardGeometry.cornixLayers(keymap: keymap) {
+            for cap in board.caps where cap.legend.secondary != nil {
+                XCTAssertFalse(
+                    cap.legend.secondaryIsShifted,
+                    "\(board.displayName) \(cap.id) claims its hold label is a shifted legend"
+                )
+            }
+        }
+        // The staggered boards keep the default: their secondaries genuinely
+        // are the shifted printing.
+        let jis2 = try XCTUnwrap(KeyboardGeometry.jis.caps.first { $0.legend.primary == "2" })
+        XCTAssertTrue(jis2.legend.secondaryIsShifted)
+    }
+
     /// A .vil from a different keyboard must degrade to the built-in caps
     /// rather than trapping. Someone will point this at the wrong file.
     func testCornixSurvivesATruncatedOrForeignVialExport() throws {
