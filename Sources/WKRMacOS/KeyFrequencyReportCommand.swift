@@ -37,11 +37,7 @@ enum KeyFrequencyReportCommand {
             fputs("key-frequency-report: no counts recorded yet (start with --key-frequency on)\n", stderr)
         }
 
-        let geometries: [KeyboardGeometry] = [
-            .jis,
-            .us,
-            cornixGeometry(for: configuration),
-        ]
+        let geometries: [KeyboardGeometry] = [.jis, .us] + cornixGeometries(for: configuration)
 
         let html = KeyFrequencyReportRenderer.html(
             store: store,
@@ -119,19 +115,22 @@ enum KeyFrequencyReportCommand {
     /// decides what is printed on the caps; the counts underneath are the same
     /// either way, so a wrong or missing keymap must not cost the user their
     /// report.
-    private static func cornixGeometry(for configuration: AppConfiguration) -> KeyboardGeometry {
-        guard let path = configuration.vialKeymapPath else { return .cornix }
+    private static func cornixGeometries(for configuration: AppConfiguration) -> [KeyboardGeometry] {
+        guard let path = configuration.vialKeymapPath else { return [.cornix] }
         let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
         do {
             let keymap = try VialKeymap.parse(data: try Data(contentsOf: url))
-            return .cornix(keymap: keymap)
+            // One tab per layer that has anything countable on it. Only the
+            // keymap path gets layers: the built-in default is one generic
+            // layer and has nothing to put on more tabs.
+            return KeyboardGeometry.cornixLayers(keymap: keymap)
         } catch {
             fputs(
                 "key-frequency-report: could not read \(url.lastPathComponent) "
                     + "(\(error.localizedDescription)); using the built-in Cornix layout\n",
                 stderr
             )
-            return .cornix
+            return [.cornix]
         }
     }
 }

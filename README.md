@@ -60,7 +60,8 @@ Apple日本語入力へ打ち直します**。Apple日本語入力から見れ�
   **Apple日本語入力のローマ字入力で打てるかな206種はすべて入力できます**（[docs/layout-coverage.md](./docs/layout-coverage.md)）。
 - 常用方式は **prefix-romaji**（ログイン時起動もこれ）。CLI の既定値は最も安全な deferred-romaji です。
 - **打鍵頻度のヒートマップ**を出せます（既定オフ）。`--key-frequency on` で数え、
-  `--key-frequency-report` で JIS・US・Cornix の3配列に描き分けた HTML を1枚書き出します。
+  `--key-frequency-report` で JIS・US・Cornix の3配列（Cornix はレイヤーごとのタブ付き）に
+  描き分けた HTML を1枚書き出します。
 - `英数` を素早く2回叩くと**打った物理キーどおりの英字へ打ち直します**。2026-08-15 に TextEdit と
   Claude.app で確認済みで、先行するテキストは削りません。Unicode 直接注入を使うため、そのイベントを
   無視するアプリでは働きません。`--english-fallback off` で無効にできます。

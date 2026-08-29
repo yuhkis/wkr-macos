@@ -94,20 +94,21 @@ public enum VialKeymapError: Error, Equatable, LocalizedError {
     }
 }
 
-/// Layer 0 of a Vial `.vil` export, decoded into cap labels and countable
-/// identities.
+/// A Vial `.vil` export, decoded into cap labels and countable identities,
+/// layer by layer.
 ///
-/// Only layer 0 is *drawn*. The tally the picture is filled from holds macOS
-/// virtual key codes and nothing else, so it cannot say which firmware layer was
-/// active when a code arrived — macOS sees the tap action and never the layer,
-/// and labelling the higher layers would produce caps that no number can
-/// honestly be attached to.
-///
-/// Every layer is still *read*, for `firmwareShiftSides` alone: a Shift wrap
-/// contaminates the modifier count from whatever layer it sits on.
+/// macOS never learns which firmware layer a key event came through — it sees
+/// the tap action and nothing else — so drawing the higher layers does not mean
+/// the tally can tell them apart. What makes the layer boards honest anyway is
+/// uniqueness: an identity that exists at exactly one position across every
+/// layer can be attributed to that cap without guessing, and one that exists at
+/// several is drawn at each with the same shared total, exactly as the layer-0
+/// board already does for a duplicated Enter.
 public struct VialKeymap: Equatable, Sendable {
-    /// Layer 0 only, in the file's own row/column order.
-    public let baseLayer: [[VialKeyAssignment]]
+    /// Every layer, in the file's own layer/row/column order.
+    public let layers: [[[VialKeyAssignment]]]
+    /// Layer 0, in the file's own row/column order.
+    public var baseLayer: [[VialKeyAssignment]] { layers.first ?? [] }
     /// Sides whose Shift some key on ANY layer holds down when tapped.
     ///
     /// The picture only draws layer 0, but the counts it explains come from
@@ -119,11 +120,19 @@ public struct VialKeymap: Equatable, Sendable {
     public let firmwareShiftSides: Set<FirmwareShiftSide>
 
     public init(
+        layers: [[[VialKeyAssignment]]],
+        firmwareShiftSides: Set<FirmwareShiftSide> = []
+    ) {
+        self.layers = layers
+        self.firmwareShiftSides = firmwareShiftSides
+    }
+
+    /// A single-layer keymap, kept for callers that build one by hand.
+    public init(
         baseLayer: [[VialKeyAssignment]],
         firmwareShiftSides: Set<FirmwareShiftSide> = []
     ) {
-        self.baseLayer = baseLayer
-        self.firmwareShiftSides = firmwareShiftSides
+        self.init(layers: [baseLayer], firmwareShiftSides: firmwareShiftSides)
     }
 
     public static func parse(data: Data) throws -> VialKeymap {
@@ -141,32 +150,32 @@ public struct VialKeymap: Equatable, Sendable {
         guard let rows = base as? [Any] else { throw VialKeymapError.missingLayout }
         guard !rows.isEmpty else { throw VialKeymapError.emptyLayout }
 
-        // Every layer is decoded for the Shift-side scan even though only
-        // layer 0 is kept for drawing. The decoder is total, so a foreign or
-        // half-edited layer cannot make this throw.
+        // Every layer is decoded once, and both the drawing and the Shift-side
+        // scan read the same decoded assignments. The decoder is total, so a
+        // foreign or half-edited layer cannot make this throw.
+        let decodedLayers: [[[VialKeyAssignment]]] = layers.map { layer in
+            guard let layerRows = layer as? [Any] else { return [] }
+            return layerRows.map { row in
+                // A row that is not an array is the only shape this can meet
+                // that has no column count to preserve, so it becomes an empty
+                // row rather than aborting a file whose other rows are readable.
+                guard let entries = row as? [Any] else { return [] }
+                return entries.map(VialTokenDecoder.assignment(forEntry:))
+            }
+        }
+
         var sides: Set<FirmwareShiftSide> = []
-        for layer in layers {
-            guard let layerRows = layer as? [Any] else { continue }
-            for row in layerRows {
-                guard let entries = row as? [Any] else { continue }
-                for entry in entries {
-                    if let side = VialTokenDecoder.assignment(forEntry: entry).firmwareShiftSide {
+        for layer in decodedLayers {
+            for row in layer {
+                for assignment in row {
+                    if let side = assignment.firmwareShiftSide {
                         sides.insert(side)
                     }
                 }
             }
         }
 
-        return VialKeymap(
-            baseLayer: rows.map { row in
-                // A row that is not an array is the only shape this can meet that
-                // has no column count to preserve, so it becomes an empty row
-                // rather than aborting a file whose other rows are readable.
-                guard let entries = row as? [Any] else { return [] }
-                return entries.map(VialTokenDecoder.assignment(forEntry:))
-            },
-            firmwareShiftSides: sides
-        )
+        return VialKeymap(layers: decodedLayers, firmwareShiftSides: sides)
     }
 
     /// Total by construction: an unrecognised token becomes its own legend, and

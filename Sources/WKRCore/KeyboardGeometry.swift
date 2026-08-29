@@ -28,10 +28,21 @@ public struct KeyCapLegend: Equatable, Sendable, Codable {
     /// Corne-style board (`LT 1` over `Space`). `nil` when the key has one
     /// meaning only.
     public let secondary: String?
+    /// Whether `secondary` is what Shift+key prints, as opposed to a hold or
+    /// wrap action.
+    ///
+    /// The two uses of `secondary` are indistinguishable by shape — a JIS `2`
+    /// cap and a Corne `LAlt_T` Enter cap both carry two identities and a
+    /// second line of text — and the renderer once guessed from that shape,
+    /// which put "LAlt_T" in a ranking as the name of Shift+Enter. The producer
+    /// of the legend is the only party that knows which kind it made, so the
+    /// flag travels with the legend.
+    public let secondaryIsShifted: Bool
 
-    public init(_ primary: String, _ secondary: String? = nil) {
+    public init(_ primary: String, _ secondary: String? = nil, secondaryIsShifted: Bool = true) {
         self.primary = primary
         self.secondary = secondary
+        self.secondaryIsShifted = secondaryIsShifted
     }
 }
 

@@ -533,6 +533,16 @@ extension KeyFrequencyReportRenderer {
   var dayNames = days.map(function (d) { return d.date; });
   var geometries = DATA.geometries || [];
 
+  // Caps grouped by model. The Cornix layer boards are separate tabs of one
+  // physical keyboard, so "how many caps send this identity" has to be asked
+  // across the whole family: a keycode drawn on layer 0 and layer 2 is one
+  // shared total shown twice, not two independent numbers. JIS and US are
+  // families of one, so nothing changes for them.
+  var familyCaps = {};
+  geometries.forEach(function (geo) {
+    familyCaps[geo.model] = (familyCaps[geo.model] || []).concat(geo.caps);
+  });
+
   var state = {
     period: 'all',
     day: dayNames.length ? dayNames[dayNames.length - 1] : null,
@@ -570,7 +580,8 @@ extension KeyFrequencyReportRenderer {
     if (state.period === 'day') {
       return days.filter(function (d) { return d.date === state.day; });
     }
-    var window_ = state.period === 'w7' ? DATA.windows.recent7 : DATA.windows.recent30;
+    var windows = DATA.windows || { recent7: [], recent30: [] };
+    var window_ = state.period === 'w7' ? windows.recent7 : windows.recent30;
     return days.filter(function (d) { return window_.indexOf(d.date) >= 0; });
   }
 
@@ -598,7 +609,7 @@ extension KeyFrequencyReportRenderer {
   // would blank the most-pressed keys on the board.
   function analyse(geo, agg) {
     var claims = {};
-    geo.caps.forEach(function (cap) {
+    (familyCaps[geo.model] || geo.caps).forEach(function (cap) {
       cap.identities.forEach(function (identity) {
         var key = idKey(identity);
         claims[key] = (claims[key] || 0) + 1;
@@ -728,7 +739,7 @@ extension KeyFrequencyReportRenderer {
       lines.push({ k: '打鍵数', v: num(count) });
       lines.push({ k: '割合', v: share(count, agg.total) });
       if (shared > 1) {
-        lines.push({ v: 'この数値は同じキーコードを持つ ' + shared + ' 箇所の合計で、どのキーで打ったかは区別できない。' });
+        lines.push({ v: 'この数値は同じキーコードを送る ' + shared + ' 箇所の合計（別のレイヤーのキーを含むことがある）で、どのキーで打ったかは区別できない。' });
       }
     } else {
       lines.push({ v: 'このキーの打鍵は数えられない。' });
@@ -875,9 +886,9 @@ extension KeyFrequencyReportRenderer {
   // unshifted identity: on a staggered board that pairing is what "shifted legend"
   // means, while on a split board a lone secondary is a hold action and would be
   // the wrong answer entirely.
-  function labelFor(geo, key) {
-    for (var c = 0; c < geo.caps.length; c++) {
-      var cap = geo.caps[c];
+  function labelIn(caps, key) {
+    for (var c = 0; c < caps.length; c++) {
+      var cap = caps[c];
       for (var i = 0; i < cap.identities.length; i++) {
         var identity = cap.identities[i];
         if (idKey(identity) !== key) { continue; }
@@ -885,8 +896,32 @@ extension KeyFrequencyReportRenderer {
         var pairs = cap.identities.some(function (other) {
           return other.keyCode === identity.keyCode && other.isShifted !== identity.isShifted;
         });
-        return pairs && cap.legend.secondary ? cap.legend.secondary : cap.legend.primary + ' + Shift';
+        // The legend says whether its second line is the shifted printing or a
+        // hold action; guessing from the pairing alone once named Shift+Enter
+        // "LAlt_T".
+        return pairs && cap.legend.secondary && cap.legend.secondaryIsShifted
+          ? cap.legend.secondary
+          : cap.legend.primary + ' + Shift';
       }
+    }
+    return null;
+  }
+
+  function labelFor(geo, key) {
+    return labelIn(geo.caps, key);
+  }
+
+  // A readable name for an identity this board does not draw: first the same
+  // keyboard's other layers, then the other boards. Only the raw code is
+  // hopeless enough for the hex fallback.
+  function borrowedLabel(geo, key) {
+    var family = familyCaps[geo.model] || [];
+    var label = labelIn(family, key);
+    if (label !== null) { return label; }
+    for (var g = 0; g < geometries.length; g++) {
+      if (geometries[g].model === geo.model) { continue; }
+      label = labelIn(geometries[g].caps, key);
+      if (label !== null) { return label; }
     }
     return null;
   }
@@ -920,10 +955,14 @@ extension KeyFrequencyReportRenderer {
       var code = parseInt(row.key.slice(0, -1), 10);
 
       tr.appendChild(cell(String(index + 1), 'rank'));
+      var borrowed = label === null ? borrowedLabel(geo, row.key) : null;
       tr.appendChild(cell(
         label !== null
           ? label
-          : (FALLBACK_NAMES[code] || hex(code)) + (shifted ? ' + Shift' : '') + '（この図に無いキー）',
+          : (borrowed !== null
+              ? borrowed
+              : (FALLBACK_NAMES[code] || hex(code)) + (shifted ? ' + Shift' : ''))
+            + '（この図に無いキー）',
         label !== null ? '' : 'absent'
       ));
       tr.appendChild(cell(num(row.count), 'num'));
@@ -965,7 +1004,7 @@ extension KeyFrequencyReportRenderer {
     // row, where the reader can see how much is unaccounted for.
     var owner = {};
     var contested = {};
-    geo.caps.forEach(function (cap) {
+    (familyCaps[geo.model] || geo.caps).forEach(function (cap) {
       cap.identities.forEach(function (identity) {
         var key = idKey(identity);
         // A cap with no finger still contests the code: a key struck by a hand
@@ -1001,7 +1040,7 @@ extension KeyFrequencyReportRenderer {
     var rest = agg.total - attributed;
     if (rest > 0) {
       var tr = document.createElement('tr');
-      tr.appendChild(cell('指の割り当てなし・この図に無いキー', 'absent'));
+      tr.appendChild(cell('指の割り当てなし・この鍵盤に無いキー', 'absent'));
       tr.appendChild(cell(num(rest), 'num absent'));
       tr.appendChild(cell(share(rest, agg.total), 'num absent'));
       body.appendChild(tr);
