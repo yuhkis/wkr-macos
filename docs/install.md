@@ -571,6 +571,7 @@ prefix モードでの期待値は次のとおりです。
 | ログに `reason=duplicate-instance` | 既に常駐しています。`make stop` してから起動してください |
 | `reason=not-a-bundle` | `.app` bundle の外から実行しています。`make start` / `make start-installed` を使ってください |
 | ad-hoc署名で毎回再許可が必要 | 安定した署名 identity がない環境の既知の制約です。常用するなら `/Applications` へ配備した bundle を固定して使ってください |
+| `make start` 系が `_LSOpenURLsWithCompletionHandler() failed with error -600` | 配備直後に Launch Services の登録が移動前のバンドルを指したままの一過性の失敗です。`start-app.sh` が自動でリトライします（リトライしない旧版では、数秒おいて再実行してください） |
 
 ### 変換が止まったときのログの見方
 
