@@ -30,7 +30,21 @@ announced=0
 first=1
 
 while :; do
-    open "$app" --args "$@"
+    # `open` itself can fail transiently with -600 (procNotFound) right after
+    # install-app.sh replaces the bundle: Launch Services still points at the
+    # moved copy for a moment. Under `set -e` that single failure used to kill
+    # the script before the retry loop — the loop that exists precisely for
+    # flaky startups — ever ran once. Treat it like any other failed attempt.
+    if ! open "$app" --args "$@"; then
+        printf 'open failed (Launch Services may still be settling after the bundle was replaced); retrying.\n' >&2
+        elapsed=$((elapsed + attempt_interval))
+        if [ "$elapsed" -ge "$timeout" ]; then
+            printf 'Gave up after %s seconds: open kept failing.\n' "$timeout" >&2
+            exit 1
+        fi
+        sleep "$attempt_interval"
+        continue
+    fi
 
     if [ "$first" -eq 1 ]; then
         first=0
