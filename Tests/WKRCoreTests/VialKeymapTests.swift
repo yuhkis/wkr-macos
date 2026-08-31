@@ -64,15 +64,51 @@ final class VialKeymapTests: XCTestCase {
         XCTAssertNotEqual(wrapped.identity, modTap.identity)
     }
 
+    /// The tap remains the ordinary key while the independently observable
+    /// hold is filed under the side-specific flags-changed key code. Keeping
+    /// both identities is what lets the report split one cap without adding
+    /// the modifier total to the tap total.
+    func testShiftModTapsExposeSideSpecificHoldIdentities() throws {
+        let left = decode("LSFT_T(KC_LANG2)")
+        XCTAssertEqual(left.identity, KeyIdentity(keyCode: 0x66))
+        let leftHold = try XCTUnwrap(left.holdAction)
+        XCTAssertEqual(leftHold.legend, "LShift")
+        XCTAssertEqual(leftHold.identity, KeyIdentity(keyCode: 0x38))
+        XCTAssertEqual(leftHold.exclusion, .modifier)
+
+        let right = decode("RSFT_T(KC_LANG1)")
+        XCTAssertEqual(right.identity, KeyIdentity(keyCode: 0x68))
+        let rightHold = try XCTUnwrap(right.holdAction)
+        XCTAssertEqual(rightHold.legend, "RShift")
+        XCTAssertEqual(rightHold.identity, KeyIdentity(keyCode: 0x3C))
+        XCTAssertEqual(rightHold.exclusion, .modifier)
+    }
+
     /// A tapped mod-tap sends the bare key, so it is counted like any other.
-    func testModTapWithANonShiftModifierIsStillCounted() {
+    func testModTapWithANonShiftModifierKeepsSeparateTapAndHoldIdentities() {
         let altEnter = decode("LALT_T(KC_ENTER)")
         XCTAssertEqual(altEnter.identity, KeyIdentity(keyCode: 0x24, isShifted: false))
         XCTAssertNil(altEnter.exclusion, "a tapped LALT_T sends a plain Return, not Option+Return")
+        XCTAssertEqual(altEnter.holdAction?.legend, "LAlt")
+        XCTAssertEqual(altEnter.holdAction?.identity, KeyIdentity(keyCode: 0x3A))
+        XCTAssertEqual(altEnter.holdAction?.exclusion, .modifier)
 
         let guiBackspace = decode("RGUI_T(KC_BSPACE)")
         XCTAssertEqual(guiBackspace.identity, KeyIdentity(keyCode: 0x33, isShifted: false))
         XCTAssertNil(guiBackspace.exclusion)
+        XCTAssertEqual(guiBackspace.holdAction?.legend, "RGui")
+        XCTAssertEqual(guiBackspace.holdAction?.identity, KeyIdentity(keyCode: 0x36))
+        XCTAssertEqual(guiBackspace.holdAction?.exclusion, .modifier)
+
+        let compound = decode("C_S_T(KC_A)")
+        XCTAssertEqual(compound.identity, KeyIdentity(keyCode: 0x00))
+        XCTAssertNil(compound.holdAction?.identity)
+        XCTAssertEqual(compound.holdAction?.exclusion, .compoundModifierHold)
+
+        let capsLock = decode("LALT_T(KC_CAPSLOCK)")
+        XCTAssertEqual(capsLock.identity, KeyIdentity(keyCode: 0x39))
+        XCTAssertEqual(capsLock.exclusion, .modifier)
+        XCTAssertEqual(capsLock.holdAction?.identity, KeyIdentity(keyCode: 0x3A))
     }
 
     /// A wrapper that adds Command, Control or Option produces an event the
@@ -88,16 +124,25 @@ final class VialKeymapTests: XCTestCase {
     func testLayerTapKeepsTheTapActionAndMarksTheHold() {
         let space = decode("LT1(KC_SPACE)")
         XCTAssertEqual(space.identity, KeyIdentity(keyCode: 0x31))
-        XCTAssertEqual(space.exclusion, .layerHold)
+        XCTAssertNil(space.exclusion)
         XCTAssertEqual(space.legend.primary, "Space")
+        XCTAssertEqual(space.holdAction?.legend, "Layer 1")
+        XCTAssertNil(space.holdAction?.identity)
+        XCTAssertEqual(space.holdAction?.exclusion, .layerHold)
 
         let eisu = decode("LT2(KC_LANG2)")
         XCTAssertEqual(eisu.identity, KeyIdentity(keyCode: 0x66))
-        XCTAssertEqual(eisu.exclusion, .layerHold)
+        XCTAssertNil(eisu.exclusion)
+        XCTAssertEqual(eisu.holdAction?.legend, "Layer 2")
+        XCTAssertNil(eisu.holdAction?.identity)
+        XCTAssertEqual(eisu.holdAction?.exclusion, .layerHold)
 
         let backspace = decode("LT3(KC_BSPACE)")
         XCTAssertEqual(backspace.identity, KeyIdentity(keyCode: 0x33))
-        XCTAssertEqual(backspace.exclusion, .layerHold)
+        XCTAssertNil(backspace.exclusion)
+        XCTAssertEqual(backspace.holdAction?.legend, "Layer 3")
+        XCTAssertNil(backspace.holdAction?.identity)
+        XCTAssertEqual(backspace.holdAction?.exclusion, .layerHold)
     }
 
     func testPlainLayerSwitchesHaveNoIdentity() {
@@ -178,11 +223,14 @@ final class VialKeymapTests: XCTestCase {
 
     func testRawHexModTapAndLayerTapUseTheirOwnRanges() {
         // QK_MOD_TAP: 0x2000 | (MOD_LSFT << 8) | KC_ENTER == 0x2228.
-        XCTAssertEqual(decode("0x2228").identity, KeyIdentity(keyCode: 0x24, isShifted: false))
+        let modTap = decode("0x2228")
+        XCTAssertEqual(modTap.identity, KeyIdentity(keyCode: 0x24, isShifted: false))
+        XCTAssertEqual(modTap.holdAction?.identity, KeyIdentity(keyCode: 0x38))
+        XCTAssertEqual(modTap.holdAction?.exclusion, .modifier)
         // QK_LAYER_TAP: 0x4000 | (layer 1 << 8) | KC_SPACE == 0x412C.
         let layerTap = decode("0x412c")
         XCTAssertEqual(layerTap.identity, KeyIdentity(keyCode: 0x31))
-        XCTAssertEqual(layerTap.exclusion, .layerHold)
+        XCTAssertNil(layerTap.exclusion)
     }
 
     // MARK: - Totality
@@ -245,8 +293,11 @@ final class VialKeymapTests: XCTestCase {
         XCTAssertEqual(decode("LT1(KC_MUTE)").exclusion, .media)
         XCTAssertEqual(decode("LT2(KC_BTN1)").exclusion, .mouse)
         XCTAssertEqual(decode("LT1(KC_APPLICATION)").exclusion, .unmappedOnMacOS)
-        // A tap action macOS can see keeps `.layerHold`: only the hold is lost.
-        XCTAssertEqual(decode("LT1(KC_SPACE)").exclusion, .layerHold)
+        // A visible tap has no tap-side caveat unless the inner action itself
+        // needs one; the invisible layer hold has its own action field.
+        XCTAssertNil(decode("LT1(KC_SPACE)").exclusion)
+        XCTAssertEqual(decode("LT2(KC_CAPSLOCK)").exclusion, .modifier)
+        XCTAssertEqual(decode("LT2(KC_CAPSLOCK)").holdAction?.exclusion, .layerHold)
     }
 
     // MARK: - File parsing

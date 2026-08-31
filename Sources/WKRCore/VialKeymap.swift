@@ -1,5 +1,28 @@
 import Foundation
 
+/// The hold half of a dual-role key after reducing it to what the frequency
+/// report can honestly observe.
+///
+/// A single modifier has its own macOS flags-changed key code and is countable.
+/// A firmware-only layer hold or a compound modifier without one unambiguous
+/// host identity keeps an exclusion instead. The tap half remains the ordinary
+/// fields on `VialKeyAssignment` for compatibility with existing geometry code.
+public struct VialHoldAction: Equatable, Sendable {
+    public let legend: String
+    public let identity: KeyIdentity?
+    public let exclusion: KeyCapExclusion?
+
+    public init(
+        legend: String,
+        identity: KeyIdentity?,
+        exclusion: KeyCapExclusion?
+    ) {
+        self.legend = legend
+        self.identity = identity
+        self.exclusion = exclusion
+    }
+}
+
 /// One key of a Vial keymap, reduced to what a heatmap can use.
 ///
 /// A `.vil` export describes the firmware's intent, which is not the same thing
@@ -16,17 +39,22 @@ public struct VialKeyAssignment: Equatable, Sendable {
     public let legend: KeyCapLegend
     public let identity: KeyIdentity?
     public let exclusion: KeyCapExclusion?
+    /// `nil` for a one-action key. When present, the report draws this action
+    /// above the assignment's ordinary tap action and never adds their counts.
+    public let holdAction: VialHoldAction?
 
     public init(
         raw: String,
         legend: KeyCapLegend,
         identity: KeyIdentity?,
-        exclusion: KeyCapExclusion?
+        exclusion: KeyCapExclusion?,
+        holdAction: VialHoldAction? = nil
     ) {
         self.raw = raw
         self.legend = legend
         self.identity = identity
         self.exclusion = exclusion
+        self.holdAction = holdAction
     }
 
     /// Which Shift the firmware itself holds down when this key is tapped, or
@@ -613,7 +641,8 @@ private enum VialTokenDecoder {
                 raw: token,
                 legend: legend,
                 identity: nil,
-                exclusion: inner.exclusion
+                exclusion: inner.exclusion,
+                holdAction: inner.holdAction
             )
         }
         guard (mods & ModMask.uncounted) == 0 else {
@@ -621,7 +650,8 @@ private enum VialTokenDecoder {
                 raw: token,
                 legend: legend,
                 identity: nil,
-                exclusion: .shortcut
+                exclusion: .shortcut,
+                holdAction: inner.holdAction
             )
         }
         let isShifted = identity.isShifted || (mods & ModMask.shift) != 0
@@ -629,7 +659,8 @@ private enum VialTokenDecoder {
             raw: token,
             legend: legend,
             identity: KeyIdentity(keyCode: identity.keyCode, isShifted: isShifted),
-            exclusion: inner.exclusion
+            exclusion: inner.exclusion,
+            holdAction: inner.holdAction
         )
     }
 
@@ -644,19 +675,31 @@ private enum VialTokenDecoder {
         token: String
     ) -> VialKeyAssignment {
         let legend = KeyCapLegend(inner.legend.primary, modifierLabel(mods) + "_T")
+        let holdIdentity = modifierIdentity(mods)
+        let holdAction = VialHoldAction(
+            legend: modifierHoldLegend(mods),
+            identity: holdIdentity,
+            exclusion: holdIdentity == nil ? .compoundModifierHold : .modifier
+        )
         guard let identity = inner.identity else {
             return VialKeyAssignment(
                 raw: token,
                 legend: legend,
                 identity: nil,
-                exclusion: inner.exclusion
+                exclusion: inner.exclusion,
+                holdAction: holdAction
             )
         }
         return VialKeyAssignment(
             raw: token,
             legend: legend,
             identity: KeyIdentity(keyCode: identity.keyCode, isShifted: false),
-            exclusion: nil
+            // The modifier belongs to the hold, but any caveat on the tapped
+            // key still belongs to the tap. `LALT_T(KC_CAPSLOCK)` is the
+            // clearest case: the lower half is Caps Lock and is measured via
+            // flags-changed, independently of the upper Option hold.
+            exclusion: inner.exclusion,
+            holdAction: holdAction
         )
     }
 
@@ -672,13 +715,16 @@ private enum VialTokenDecoder {
             raw: token,
             legend: KeyCapLegend(inner.legend.primary, "LT \(layer)"),
             identity: inner.identity,
-            // With a tap action the host can see, `.layerHold` is the whole
-            // story: only the hold is invisible. With no identity the tap is
-            // unreachable too, and the inner key's own reason is the more useful
-            // one to show — `LT1(KC_MUTE)` is not seen because it is a media
-            // key, and saying "layer hold" would send the reader looking for a
-            // layer that is not the problem.
-            exclusion: inner.identity == nil ? (inner.exclusion ?? .layerHold) : .layerHold
+            // `exclusion` describes the tap action now that the hold has its
+            // own field. Keep the inner reason even when the tap is countable:
+            // `LT2(KC_CAPSLOCK)` needs the modifier caveat on its lower half.
+            // The upper half independently carries `.layerHold` below.
+            exclusion: inner.exclusion,
+            holdAction: VialHoldAction(
+                legend: "Layer \(layer)",
+                identity: nil,
+                exclusion: .layerHold
+            )
         )
     }
 
@@ -713,6 +759,40 @@ private enum VialTokenDecoder {
         if applied & ModMask.alt != 0 { label += "⌥" }
         if applied & ModMask.shift != 0 { label += "⇧" }
         return label
+    }
+
+    /// The full name used inside the upper half of a tap/hold key. The compact
+    /// `_T` legend remains available for old consumers, while the split report
+    /// has enough room to say `LShift` rather than making the reader decode
+    /// `LSft_T` again.
+    private static func modifierHoldLegend(_ mods: UInt8) -> String {
+        let isRight = (mods & ModMask.right) != 0
+        let applied = mods & 0x0F
+        guard applied.nonzeroBitCount == 1 else { return modifierLabel(mods) }
+        switch applied {
+        case ModMask.ctrl: return isRight ? "RCtrl" : "LCtrl"
+        case ModMask.shift: return isRight ? "RShift" : "LShift"
+        case ModMask.alt: return isRight ? "RAlt" : "LAlt"
+        default: return isRight ? "RGui" : "LGui"
+        }
+    }
+
+    /// A single held modifier is a single identity in the flags-changed tally.
+    /// Compound holds deliberately return `nil`: adding several modifier totals
+    /// would make one physical hold look like several uses, while choosing one
+    /// would hide the rest.
+    private static func modifierIdentity(_ mods: UInt8) -> KeyIdentity? {
+        let isRight = (mods & ModMask.right) != 0
+        let applied = mods & 0x0F
+        guard applied.nonzeroBitCount == 1 else { return nil }
+        let keyCode: UInt16
+        switch applied {
+        case ModMask.ctrl: keyCode = isRight ? 0x3E : 0x3B
+        case ModMask.shift: keyCode = isRight ? 0x3C : 0x38
+        case ModMask.alt: keyCode = isRight ? 0x3D : 0x3A
+        default: keyCode = isRight ? 0x36 : 0x37
+        }
+        return KeyIdentity(keyCode: keyCode)
     }
 
     // MARK: - Small pieces
