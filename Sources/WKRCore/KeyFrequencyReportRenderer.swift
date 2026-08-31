@@ -95,7 +95,8 @@ extension KeyFrequencyReportRenderer {
     /// value in the tooltip rather than disappearing.
     private static let exclusionReasons: [String: String] = {
         let all: [KeyCapExclusion] = [
-            .modifier, .layerHold, .encoder, .media, .mouse, .shortcut, .unmappedOnMacOS,
+            .modifier, .layerHold, .compoundModifierHold, .encoder, .media, .mouse,
+            .shortcut, .unmappedOnMacOS,
         ]
         return Dictionary(uniqueKeysWithValues: all.map { ($0.rawValue, reason(for: $0)) })
     }()
@@ -106,6 +107,8 @@ extension KeyFrequencyReportRenderer {
             return "修飾キー。押下は flags-changed イベントとして届くため、頻度記録を有効にしている間だけ数えられる。"
         case .layerHold:
             return "レイヤーキーの長押し。キーボードのファームウェア内で完結し、macOS には届かない。数えているのはタップ側の動作だけ。"
+        case .compoundModifierHold:
+            return "複数の修飾キーを同時に押す長押し。macOS には修飾キーごとの値しか届かず、この長押し1回を表す単独の打鍵数には戻せない。"
         case .encoder:
             return "ロータリーエンコーダ。押下も回転も system-defined イベントとして届くため、キーイベントの tap からは見えない。"
         case .media:
@@ -250,7 +253,7 @@ extension KeyFrequencyReportRenderer {
               <span class="key-swatch zero"></span>期間内に打鍵なし
               <span class="key-swatch excl"></span>数えられない
               <span class="key-swatch noted"></span>注記あり（数値は有効）
-              <span class="key-swatch shared"></span>数値を共有
+              <span class="shared-glyph">◇</span>同じ合計値を共有
             </div>
           </div>
 
@@ -429,18 +432,26 @@ h2 { margin: 0 0 8px; font-size: 13px; font-weight: 600; letter-spacing: .06em; 
    scroller: the page body must never scroll sideways. */
 .board-scroll { overflow-x: auto; overflow-y: hidden; padding-bottom: 6px; }
 
-.cap rect { stroke: var(--cap-stroke); stroke-width: 1; }
+.cap .part-bg { stroke: var(--cap-stroke); stroke-width: 1; }
 .cap text { text-anchor: middle; dominant-baseline: central; pointer-events: none; }
 .cap .pri { font-weight: 600; }
 .cap .cnt { font-variant-numeric: tabular-nums; font-weight: 600; }
 .cap .shr, .cap .sec { font-variant-numeric: tabular-nums; }
-.cap:hover rect { stroke: var(--fg); stroke-width: 1.6; }
+.cap .role { font-weight: 600; letter-spacing: .08em; opacity: .68; }
+.cap-part:hover .part-bg { stroke: var(--fg); stroke-width: 1.6; }
+.cap.split .part-bg { stroke-width: 0; }
+.cap-outline { fill: none; stroke: var(--cap-stroke); stroke-width: 1; pointer-events: none; }
+.cap-divider { stroke: var(--cap-stroke); stroke-width: 1; pointer-events: none; }
+.part-state-outline {
+  fill: none; stroke: var(--rule-strong); stroke-width: 1.2;
+  stroke-dasharray: 4 3; pointer-events: none;
+}
 
-.cap.uncountable rect { fill: var(--cap-excluded); stroke-dasharray: 4 3; stroke: var(--rule-strong); }
-.cap.uncountable text { fill: var(--fg-faint); }
+.cap-part.uncountable .part-bg { fill: var(--cap-excluded); stroke-dasharray: 4 3; stroke: var(--rule-strong); }
+.cap-part.uncountable text { fill: var(--fg-faint); }
 /* A noted cap keeps its heat fill. Setting `fill` here would win over the
    presentation attribute the script writes and flatten it back to neutral. */
-.cap.noted rect { stroke-dasharray: 4 3; stroke: var(--rule-strong); }
+.cap-part.noted .part-bg { stroke-dasharray: 4 3; stroke: var(--rule-strong); }
 .mark-excl { fill: none; stroke: var(--fg-faint); stroke-width: 1.2; }
 .mark-shared { fill: var(--accent); opacity: .85; }
 
@@ -466,7 +477,7 @@ h2 { margin: 0 0 8px; font-size: 13px; font-weight: 600; letter-spacing: .06em; 
 .key-swatch.zero { background: rgb(var(--ramp-0)); border: 1px solid var(--cap-stroke); }
 .key-swatch.excl { background: var(--cap-excluded); border: 1px dashed var(--rule-strong); }
 .key-swatch.noted { background: rgb(var(--ramp-0)); border: 1px dashed var(--rule-strong); }
-.key-swatch.shared { background: var(--accent); opacity: .85; clip-path: polygon(100% 0, 100% 100%, 0 0); }
+.shared-glyph { color: var(--accent); font-size: 15px; font-weight: 700; line-height: 1; }
 
 /* The caveats are the honest part of the picture, not a warning: a quiet left
    rule and body-sized text, no alarm colour. */
@@ -543,6 +554,46 @@ extension KeyFrequencyReportRenderer {
     familyCaps[geo.model] = (familyCaps[geo.model] || []).concat(geo.caps);
   });
 
+  // A normal cap is one measured surface. A genuine dual-role cap is two:
+  // firmware resolves the lower tap and upper hold into unrelated host
+  // identities, so adding them would manufacture a per-key total that macOS
+  // never observed. `partsFor` is the single boundary every later calculation
+  // uses, which keeps colour, labels, shared claims and finger ownership from
+  // drifting apart.
+  function partsFor(cap) {
+    if (cap.tapHold) {
+      return [
+        {
+          role: 'hold',
+          legend: cap.tapHold.hold.legend,
+          secondary: null,
+          secondaryIsShifted: false,
+          identities: cap.tapHold.hold.identities || [],
+          exclusion: cap.tapHold.hold.exclusion || null,
+          finger: null
+        },
+        {
+          role: 'tap',
+          legend: cap.tapHold.tap.legend,
+          secondary: null,
+          secondaryIsShifted: false,
+          identities: cap.tapHold.tap.identities || [],
+          exclusion: cap.tapHold.tap.exclusion || null,
+          finger: cap.finger || null
+        }
+      ];
+    }
+    return [{
+      role: 'key',
+      legend: cap.legend.primary,
+      secondary: cap.legend.secondary,
+      secondaryIsShifted: cap.legend.secondaryIsShifted,
+      identities: cap.identities || [],
+      exclusion: cap.exclusion || null,
+      finger: cap.finger || null
+    }];
+  }
+
   var state = {
     period: 'all',
     day: dayNames.length ? dayNames[dayNames.length - 1] : null,
@@ -598,8 +649,9 @@ extension KeyFrequencyReportRenderer {
     return { counts: counts, total: total };
   }
 
-  // Per-geometry facts that depend on the period: what each cap totals, how many
-  // caps claim each identity, and the maximum the colour scale runs to.
+  // Per-geometry facts that depend on the period: what each independently drawn
+  // action totals, how many displayed actions claim each identity, and the
+  // maximum the colour scale runs to.
   //
   // The test is whether a cap holds an identity, NOT whether it carries an
   // exclusion. Those are different questions: an exclusion is a caveat about how
@@ -610,19 +662,28 @@ extension KeyFrequencyReportRenderer {
   function analyse(geo, agg) {
     var claims = {};
     (familyCaps[geo.model] || geo.caps).forEach(function (cap) {
-      cap.identities.forEach(function (identity) {
-        var key = idKey(identity);
-        claims[key] = (claims[key] || 0) + 1;
+      partsFor(cap).forEach(function (part) {
+        part.identities.forEach(function (identity) {
+          var key = idKey(identity);
+          claims[key] = (claims[key] || 0) + 1;
+        });
       });
     });
     var max = 0;
-    var counts = geo.caps.map(function (cap) {
-      var total = 0;
-      cap.identities.forEach(function (identity) { total += agg.counts[idKey(identity)] || 0; });
-      if (cap.identities.length && total > max) { max = total; }
-      return total;
+    var parts = geo.caps.map(function (cap) {
+      return partsFor(cap).map(function (part) {
+        var count = 0;
+        part.identities.forEach(function (identity) {
+          count += agg.counts[idKey(identity)] || 0;
+        });
+        if (part.identities.length && count > max) { max = count; }
+        var claimed = part.identities.reduce(function (most, identity) {
+          return Math.max(most, claims[idKey(identity)] || 0);
+        }, 0);
+        return { count: count, claimed: claimed };
+      });
     });
-    return { claims: claims, counts: counts, max: max };
+    return { claims: claims, parts: parts, max: max };
   }
 
   // ---- colour --------------------------------------------------------------
@@ -723,29 +784,80 @@ extension KeyFrequencyReportRenderer {
     tip.style.top = top + 'px';
   }
 
-  function tipLines(cap, count, shared, agg) {
+  function shiftSharingInfo(geo, keyCode) {
+    var holdCount = 0;
+    var dedicatedCount = 0;
+    var claimed = 0;
+    (familyCaps[geo.model] || geo.caps).forEach(function (cap) {
+      partsFor(cap).forEach(function (part) {
+        var hasIdentity = part.identities.some(function (identity) {
+          return identity.keyCode === keyCode && !identity.isShifted;
+        });
+        if (!hasIdentity) { return; }
+        claimed += 1;
+        if (part.role === 'hold') { holdCount += 1; }
+        else if (part.role === 'key') { dedicatedCount += 1; }
+      });
+    });
+    if (!holdCount) { return null; }
+    var left = keyCode === 0x38;
+    var shift = left ? 'LShift' : 'RShift';
+    var modTap = left ? 'LSFT_T' : 'RSFT_T';
+    return {
+      keyCode: keyCode,
+      claimed: claimed,
+      summary: dedicatedCount
+        ? '専用' + shift + '＋全' + modTap + 'ホールドの合計'
+        : '全' + modTap + 'ホールドの共有合計'
+    };
+  }
+
+  function shiftSharingForPart(geo, part) {
+    for (var i = 0; i < part.identities.length; i++) {
+      var identity = part.identities[i];
+      if (identity.isShifted) { continue; }
+      if (identity.keyCode === 0x38 || identity.keyCode === 0x3C) {
+        var info = shiftSharingInfo(geo, identity.keyCode);
+        if (info) { return info; }
+      }
+    }
+    return null;
+  }
+
+  function actionName(part) {
+    if (part.role === 'hold') { return 'HOLD · ' + part.legend; }
+    if (part.role === 'tap') { return 'TAP · ' + part.legend; }
+    return part.legend + (part.secondary ? ' / ' + part.secondary : '');
+  }
+
+  function tipLines(geo, part, count, shared, agg) {
     var lines = [];
     lines.push({
-      k: '刻印',
-      v: cap.legend.primary + (cap.legend.secondary ? ' / ' + cap.legend.secondary : '')
+      k: part.role === 'key' ? '刻印' : '動作',
+      v: actionName(part)
     });
-    cap.identities.forEach(function (identity) {
+    part.identities.forEach(function (identity) {
       lines.push({
         k: 'キーコード',
         v: hex(identity.keyCode) + (identity.isShifted ? '（Shiftあり）' : '（Shiftなし）')
       });
     });
-    if (cap.identities.length) {
+    if (part.identities.length) {
       lines.push({ k: '打鍵数', v: num(count) });
       lines.push({ k: '割合', v: share(count, agg.total) });
       if (shared > 1) {
-        lines.push({ v: 'この数値は同じキーコードを送る ' + shared + ' 箇所の合計（別のレイヤーのキーを含むことがある）で、どのキーで打ったかは区別できない。' });
+        var shiftInfo = shiftSharingForPart(geo, part);
+        lines.push({
+          v: shiftInfo
+            ? 'この' + num(count) + '回は、' + shiftInfo.summary + 'で、どの位置で押したかは区別できない。'
+            : 'この数値は同じキーコードを送る ' + shared + ' 箇所の合計（別のレイヤーのキーを含むことがある）で、どのキーで打ったかは区別できない。'
+        });
       }
     } else {
-      lines.push({ v: 'このキーの打鍵は数えられない。' });
+      lines.push({ v: 'この動作の打鍵は数えられない。' });
     }
-    if (cap.exclusion) {
-      lines.push({ v: '注記：' + (DATA.exclusionNames[cap.exclusion] || cap.exclusion) });
+    if (part.exclusion) {
+      lines.push({ v: '注記：' + (DATA.exclusionNames[part.exclusion] || part.exclusion) });
     }
     return lines;
   }
@@ -759,7 +871,10 @@ extension KeyFrequencyReportRenderer {
     var height = geo.heightUnits * UNIT;
     var svg = svgEl('svg', {
       viewBox: '0 0 ' + width + ' ' + height,
-      role: 'img',
+      // The board is a group of independently described actions. `img` would
+      // make every descendant presentational and hide the HOLD/TAP labels from
+      // assistive technology.
+      role: 'group',
       'aria-label': geo.displayName + ' の打鍵頻度'
     });
     svg.style.display = 'block';
@@ -770,72 +885,131 @@ extension KeyFrequencyReportRenderer {
     // shrinking further.
     svg.style.minWidth = Math.min(width, 720) + 'px';
 
+    var defs = svgEl('defs');
+    svg.appendChild(defs);
+
     geo.caps.forEach(function (cap, index) {
-      var count = board.counts[index];
-      var claimed = cap.identities.reduce(function (most, identity) {
-        return Math.max(most, board.claims[idKey(identity)] || 0);
-      }, 0);
       var x = cap.x * UNIT + INSET;
       var y = cap.y * UNIT + INSET;
       var w = cap.width * UNIT - INSET * 2;
       var h = cap.height * UNIT - INSET * 2;
       var cx = cap.x * UNIT + cap.width * UNIT / 2;
       var cy = cap.y * UNIT + cap.height * UNIT / 2;
-
-      // Two states, not one. `uncountable` is a cap no key event can name, and it
-      // is drawn neutral because there is genuinely no number. `noted` is a cap
-      // that does have a number and also has something the reader should know
-      // about how it was obtained; it keeps its heat colour and gains the dashed
-      // outline and the ring.
-      var countable = cap.identities.length > 0;
-      var state = countable ? (cap.exclusion ? ' noted' : '') : ' uncountable';
-      var group = svgEl('g', { 'class': 'cap' + state });
+      var capParts = partsFor(cap);
+      var measurements = board.parts[index];
+      var split = capParts.length === 2;
+      var group = svgEl('g', { 'class': 'cap' + (split ? ' split' : '') });
+      var stateOverlays = [];
       if (cap.rotation) {
         group.setAttribute('transform', 'rotate(' + cap.rotation + ' ' + cx + ' ' + cy + ')');
       }
 
-      var rect = svgEl('rect', { x: x, y: y, width: w, height: h, rx: 6 });
-      var ink = null;
-      if (countable) {
-        var fill = rampColor(pal.stops, heat(count, board.max));
-        rect.setAttribute('fill', css(fill));
-        ink = css(luminance(fill) > 0.5 ? pal.inkDark : pal.inkLight);
-      }
-      group.appendChild(rect);
-
-      var primary = cap.legend.primary;
-      var secondary = cap.legend.secondary;
-      var primarySize = primary.length <= 1 ? 17 : (primary.length <= 3 ? 12.5 : 10);
-      var showCount = countable && count > 0;
-
-      if (showCount) {
-        if (secondary) { group.appendChild(capText(secondary, 10, 'sec', -18, cx, cy, ink)); }
-        group.appendChild(capText(primary, primarySize, 'pri', secondary ? -4 : -9, cx, cy, ink));
-        group.appendChild(capText(num(count), 11.5, 'cnt', secondary ? 11 : 8, cx, cy, ink));
-        group.appendChild(capText(share(count, agg.total), 8.5, 'shr', secondary ? 22 : 20, cx, cy, ink));
-      } else {
-        if (secondary) { group.appendChild(capText(secondary, 10, 'sec', -11, cx, cy, ink)); }
-        group.appendChild(capText(primary, primarySize, 'pri', secondary ? 8 : 0, cx, cy, ink));
+      var clipID = 'cap-clip-' + state.tab + '-' + index;
+      if (split) {
+        var clip = svgEl('clipPath', { id: clipID });
+        clip.appendChild(svgEl('rect', { x: x, y: y, width: w, height: h, rx: 6 }));
+        defs.appendChild(clip);
       }
 
-      // A hollow ring for "cannot be seen from here" and a filled corner wedge for
-      // "this number belongs to more than one cap". Two different shapes rather
-      // than two colours, because the cap underneath them is already carrying the
-      // colour channel.
-      if (cap.exclusion) {
-        group.appendChild(svgEl('circle', { cx: x + w - 9, cy: y + h - 9, r: 3.4, 'class': 'mark-excl' }));
-      }
-      if (claimed > 1) {
-        group.appendChild(svgEl('path', {
-          d: 'M' + (x + w - 13) + ' ' + (y + 1) + 'H' + (x + w - 1) + 'V' + (y + 13) + 'Z',
-          'class': 'mark-shared'
-        }));
-      }
+      capParts.forEach(function (part, partIndex) {
+        var measured = measurements[partIndex];
+        var count = measured.count;
+        var claimed = measured.claimed;
+        var partY = split ? y + partIndex * h / 2 : y;
+        var partH = split ? h / 2 : h;
+        var partCy = partY + partH / 2;
 
-      group.addEventListener('mousemove', function (event) {
-        showTip(event, tipLines(cap, count, claimed, agg));
+        // Two states, not one. `uncountable` is an action no key event can name,
+        // while `noted` has a real number plus a caveat about how it was obtained.
+        var countable = part.identities.length > 0;
+        var partState = countable ? (part.exclusion ? ' noted' : '') : ' uncountable';
+        var exclusionNote = part.exclusion
+          ? '、注記：' + (DATA.exclusionNames[part.exclusion] || part.exclusion)
+          : '';
+        var partGroup = svgEl('g', {
+          'class': 'cap-part' + partState,
+          role: 'img',
+          'aria-label': actionName(part) + '、' + (countable ? num(count) + '回' : '計測不可')
+            + (claimed > 1 ? '、同じ合計値を共有' : '') + exclusionNote
+        });
+        if (split) { partGroup.setAttribute('clip-path', 'url(#' + clipID + ')'); }
+
+        var rectAttrs = { x: x, y: partY, width: w, height: partH, 'class': 'part-bg' };
+        if (!split) { rectAttrs.rx = 6; }
+        var rect = svgEl('rect', rectAttrs);
+        var ink = null;
+        if (countable) {
+          var fill = rampColor(pal.stops, heat(count, board.max));
+          rect.setAttribute('fill', css(fill));
+          ink = css(luminance(fill) > 0.5 ? pal.inkDark : pal.inkLight);
+        }
+        partGroup.appendChild(rect);
+
+        var primary = part.legend;
+        var secondary = part.secondary;
+        var primarySize = primary.length <= 1 ? 17 : (primary.length <= 3 ? 12.5 : 10);
+        var showCount = countable && count > 0;
+        var countText = (claimed > 1 ? '◇ ' : '') + num(count);
+
+        if (split) {
+          if (showCount) {
+            partGroup.appendChild(capText(part.role.toUpperCase(), 6.5, 'role', -8, cx, partCy, ink));
+            partGroup.appendChild(capText(primary, Math.min(primarySize, 9.5), 'pri', 0, cx, partCy, ink));
+            partGroup.appendChild(capText(countText, 8.5, 'cnt', 9, cx, partCy, ink));
+          } else {
+            partGroup.appendChild(capText(part.role.toUpperCase(), 6.5, 'role', -5, cx, partCy, ink));
+            partGroup.appendChild(capText(primary, Math.min(primarySize, 9.5), 'pri', 5, cx, partCy, ink));
+          }
+        } else if (showCount) {
+          if (secondary) { partGroup.appendChild(capText(secondary, 10, 'sec', -18, cx, cy, ink)); }
+          partGroup.appendChild(capText(primary, primarySize, 'pri', secondary ? -4 : -9, cx, cy, ink));
+          partGroup.appendChild(capText(countText, 11.5, 'cnt', secondary ? 11 : 8, cx, cy, ink));
+          partGroup.appendChild(capText(share(count, agg.total), 8.5, 'shr', secondary ? 22 : 20, cx, cy, ink));
+        } else {
+          if (secondary) { partGroup.appendChild(capText(secondary, 10, 'sec', -11, cx, cy, ink)); }
+          partGroup.appendChild(capText(primary, primarySize, 'pri', secondary ? 8 : 0, cx, cy, ink));
+        }
+
+        // A hollow ring means a measurement caveat. The corner diamond remains
+        // visible even at zero; the same diamond prefixes a non-zero shared
+        // count, so the legend has one symbol with one meaning.
+        if (part.exclusion) {
+          partGroup.appendChild(svgEl('circle', {
+            cx: x + w - 9, cy: partY + partH - 8, r: 3.1, 'class': 'mark-excl'
+          }));
+        }
+        if (claimed > 1) {
+          var markX = x + w - 7;
+          var markY = partY + 7;
+          partGroup.appendChild(svgEl('path', {
+            d: 'M' + markX + ' ' + (markY - 4) + 'L' + (markX + 4) + ' ' + markY
+              + 'L' + markX + ' ' + (markY + 4) + 'L' + (markX - 4) + ' ' + markY + 'Z',
+            'class': 'mark-shared'
+          }));
+        }
+
+        partGroup.addEventListener('mousemove', function (event) {
+          showTip(event, tipLines(geo, part, count, claimed, agg));
+        });
+        partGroup.addEventListener('mouseleave', hideTip);
+        group.appendChild(partGroup);
+
+        if (split && part.exclusion) {
+          stateOverlays.push(svgEl('rect', {
+            x: x, y: partY, width: w, height: partH,
+            'class': 'part-state-outline',
+            'clip-path': 'url(#' + clipID + ')'
+          }));
+        }
       });
-      group.addEventListener('mouseleave', hideTip);
+
+      if (split) {
+        group.appendChild(svgEl('rect', { x: x, y: y, width: w, height: h, rx: 6, 'class': 'cap-outline' }));
+        group.appendChild(svgEl('line', {
+          x1: x, y1: y + h / 2, x2: x + w, y2: y + h / 2, 'class': 'cap-divider'
+        }));
+        stateOverlays.forEach(function (overlay) { group.appendChild(overlay); });
+      }
 
       svg.appendChild(group);
     });
@@ -889,19 +1063,22 @@ extension KeyFrequencyReportRenderer {
   function labelIn(caps, key) {
     for (var c = 0; c < caps.length; c++) {
       var cap = caps[c];
-      for (var i = 0; i < cap.identities.length; i++) {
-        var identity = cap.identities[i];
-        if (idKey(identity) !== key) { continue; }
-        if (!identity.isShifted) { return cap.legend.primary; }
-        var pairs = cap.identities.some(function (other) {
-          return other.keyCode === identity.keyCode && other.isShifted !== identity.isShifted;
-        });
-        // The legend says whether its second line is the shifted printing or a
-        // hold action; guessing from the pairing alone once named Shift+Enter
-        // "LAlt_T".
-        return pairs && cap.legend.secondary && cap.legend.secondaryIsShifted
-          ? cap.legend.secondary
-          : cap.legend.primary + ' + Shift';
+      var parts = partsFor(cap);
+      for (var p = 0; p < parts.length; p++) {
+        var part = parts[p];
+        for (var i = 0; i < part.identities.length; i++) {
+          var identity = part.identities[i];
+          if (idKey(identity) !== key) { continue; }
+          if (!identity.isShifted) { return part.legend; }
+          var pairs = part.identities.some(function (other) {
+            return other.keyCode === identity.keyCode && other.isShifted !== identity.isShifted;
+          });
+          // Only a normal cap has a shifted second legend. The two lines of a
+          // tap/hold key are separate parts and never enter this branch together.
+          return pairs && part.secondary && part.secondaryIsShifted
+            ? part.secondary
+            : part.legend + ' + Shift';
+        }
       }
     }
     return null;
@@ -1005,13 +1182,15 @@ extension KeyFrequencyReportRenderer {
     var owner = {};
     var contested = {};
     (familyCaps[geo.model] || geo.caps).forEach(function (cap) {
-      cap.identities.forEach(function (identity) {
-        var key = idKey(identity);
-        // A cap with no finger still contests the code: a key struck by a hand
-        // this table does not model is exactly as unattributable.
-        var claim = cap.finger || null;
-        if (!(key in owner)) { owner[key] = claim; }
-        else if (owner[key] !== claim) { contested[key] = true; }
+      partsFor(cap).forEach(function (part) {
+        part.identities.forEach(function (identity) {
+          var key = idKey(identity);
+          // A part with no finger still contests the code: a hold that macOS
+          // cannot return to one physical cap is exactly as unattributable.
+          var claim = part.finger || null;
+          if (!(key in owner)) { owner[key] = claim; }
+          else if (owner[key] !== claim) { contested[key] = true; }
+        });
       });
     });
     var ambiguous = Object.keys(contested).length > 0;
@@ -1052,10 +1231,20 @@ extension KeyFrequencyReportRenderer {
   }
 
   // ---- caveats -------------------------------------------------------------
-  function drawCaveats(geo) {
+  function drawCaveats(geo, agg) {
     var host = document.getElementById('caveats');
     host.textContent = '';
-    if (!geo.caveats || !geo.caveats.length) {
+    var caveats = (geo.caveats || []).slice();
+    [0x38, 0x3C].forEach(function (keyCode) {
+      var info = shiftSharingInfo(geo, keyCode);
+      if (!info) { return; }
+      var count = agg.counts[idKey({ keyCode: keyCode, isShifted: false })] || 0;
+      caveats.push(
+        info.summary + num(count) + '回を、該当する' + info.claimed
+          + '箇所に◇付きで表示しています。各位置の個別回数ではなく、総打鍵数・ランキング・指別合計には1回だけ加算します。'
+      );
+    });
+    if (!caveats.length) {
       host.hidden = true;
       return;
     }
@@ -1065,7 +1254,7 @@ extension KeyFrequencyReportRenderer {
     head.textContent = 'この図が知り得ないこと';
     host.appendChild(head);
     var list = document.createElement('ul');
-    geo.caveats.forEach(function (caveat) {
+    caveats.forEach(function (caveat) {
       var item = document.createElement('li');
       item.textContent = caveat;
       list.appendChild(item);
@@ -1175,7 +1364,7 @@ extension KeyFrequencyReportRenderer {
     drawScale(board.max);
     drawRanking(geo, agg);
     drawFingers(geo, agg);
-    drawCaveats(geo);
+    drawCaveats(geo, agg);
   }
 
   restore();

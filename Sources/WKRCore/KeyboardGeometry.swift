@@ -46,12 +46,50 @@ public struct KeyCapLegend: Equatable, Sendable, Codable {
     }
 }
 
-/// Why a key cap carries no number, so the picture can say so instead of
-/// silently drawing it as unused.
+/// One independently measurable half of a tap/hold key.
 ///
-/// A cold key is ambiguous on its own: it can mean "never pressed" or "cannot
-/// be seen from here". Only the second is a property of the tool, and only the
-/// second is worth annotating.
+/// A modifier-tap such as `LSFT_T(KC_LANG1)` produces two unrelated host
+/// identities: `KC_LANG1` when tapped and Left Shift when held. Keeping those
+/// identities in separate actions is what lets the report colour the bottom
+/// and top halves independently instead of adding the Shift total to the tap
+/// total and inventing a per-key usage count that macOS never observed.
+public struct KeyCapActionPart: Equatable, Sendable, Codable {
+    public let legend: String
+    public let identities: [KeyIdentity]
+    public let exclusion: KeyCapExclusion?
+
+    public init(
+        legend: String,
+        identities: [KeyIdentity] = [],
+        exclusion: KeyCapExclusion? = nil
+    ) {
+        self.legend = legend
+        self.identities = identities
+        self.exclusion = exclusion
+    }
+}
+
+/// The two vertically stacked actions drawn on a dual-role key.
+///
+/// The report always puts `hold` on the upper half and `tap` on the lower half.
+/// The order is part of the public payload rather than a renderer guess so a
+/// future renderer cannot silently swap the two meanings.
+public struct KeyCapTapHold: Equatable, Sendable, Codable {
+    public let tap: KeyCapActionPart
+    public let hold: KeyCapActionPart
+
+    public init(tap: KeyCapActionPart, hold: KeyCapActionPart) {
+        self.tap = tap
+        self.hold = hold
+    }
+}
+
+/// Why a key action needs a measurement caveat.
+///
+/// Most cases mean that no number can be recovered. Modifiers are the exception:
+/// they do have a global flags-changed total while frequency logging is enabled,
+/// but that total still needs an explanation. In either case the report must not
+/// make a cold or shared action look like an ordinary unused key.
 public enum KeyCapExclusion: String, Equatable, Sendable, Codable {
     /// A modifier that reaches macOS as a flags-changed event. Counted only
     /// when frequency logging is on, since that is what widens the event tap.
@@ -59,6 +97,11 @@ public enum KeyCapExclusion: String, Equatable, Sendable, Codable {
     /// A layer key whose hold never leaves the keyboard's own firmware. Only
     /// its tap action is visible to macOS, and that is filed under the tap.
     case layerHold
+    /// A mod-tap whose hold presses two or more modifiers together. macOS sees
+    /// each modifier edge, but there is no one counter that means "this chord
+    /// was held", so the report must not add several global modifier totals and
+    /// present the result as a per-key count.
+    case compoundModifierHold
     /// A rotary encoder press or turn. These arrive as system-defined media
     /// events, not key events, so the event tap never sees them.
     case encoder
@@ -86,11 +129,12 @@ public struct KeyCap: Equatable, Sendable, Codable {
     /// Unique within one `KeyboardGeometry`. Stable across releases so that a
     /// saved report and a new build agree on which cap is which.
     public let id: String
-    /// Every counted identity that lands on this cap.
+    /// Every counted identity displayed anywhere on this cap.
     ///
     /// More than one when a cap covers both shift states of a key that WKR
-    /// treats as two (JIS `2` and `"`). Empty when the cap is not countable,
-    /// in which case `exclusion` says why.
+    /// treats as two (JIS `2` and `"`), or when a tap/hold key has independently
+    /// countable tap and hold actions. Empty when the cap is not countable, in
+    /// which case `exclusion` says why.
     ///
     /// The same identity may appear on several caps. A split keyboard can put
     /// Enter under three different fingers, and macOS receives one keycode from
@@ -98,6 +142,10 @@ public struct KeyCap: Equatable, Sendable, Codable {
     /// The renderer marks those caps instead of dividing the number up, because
     /// dividing would invent precision that does not exist.
     public let identities: [KeyIdentity]
+    /// Present only for a genuine dual-role key. `identities` is the deduplicated
+    /// union of the two parts so geometry queries keep seeing everything the cap
+    /// can send; the renderer must use the parts for colour and per-cap totals.
+    public let tapHold: KeyCapTapHold?
     public let x: Double
     public let y: Double
     public let width: Double
@@ -133,6 +181,7 @@ public struct KeyCap: Equatable, Sendable, Codable {
     public init(
         id: String,
         identities: [KeyIdentity] = [],
+        tapHold: KeyCapTapHold? = nil,
         x: Double,
         y: Double,
         width: Double = 1,
@@ -144,6 +193,7 @@ public struct KeyCap: Equatable, Sendable, Codable {
     ) {
         self.id = id
         self.identities = identities
+        self.tapHold = tapHold
         self.x = x
         self.y = y
         self.width = width

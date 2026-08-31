@@ -272,6 +272,103 @@ final class KeyboardGeometryTests: XCTestCase {
         return try VialKeymap.parse(data: Data(vil.utf8))
     }
 
+    /// A synthetic Cornix arrangement has two Shift mod-taps on layer 0 and a
+    /// third on layer 2, alongside one dedicated Left Shift. All four displayed
+    /// actions honestly share the one Left Shift total, while each mod-tap keeps
+    /// its own tap identity in the other half of the cap.
+    func testCornixShiftModTapsSplitThreeCapsAndShareLeftShiftWithDedicatedKey() throws {
+        let keymap = try VialKeymap.parse(data: Data(Self.splitShiftKeymap.utf8))
+        let boards = KeyboardGeometry.cornixLayers(keymap: keymap)
+        XCTAssertEqual(boards.map(\.displayName), [
+            KeyboardModel.cornix.displayName,
+            "Cornix レイヤー2",
+        ])
+
+        let caps = boards.flatMap(\.caps)
+        let leftShift = KeyIdentity(keyCode: 0x38)
+        let splitCaps = caps.filter { $0.tapHold?.hold.identities == [leftShift] }
+        XCTAssertEqual(splitCaps.count, 3)
+        for cap in splitCaps {
+            XCTAssertEqual(cap.tapHold?.hold.legend, "LShift", cap.id)
+            XCTAssertEqual(cap.tapHold?.hold.exclusion, .modifier, cap.id)
+        }
+
+        let tapParts = Dictionary(
+            uniqueKeysWithValues: try splitCaps.map { cap in
+                (cap.id, try XCTUnwrap(cap.tapHold).tap)
+            }
+        )
+        XCTAssertEqual(tapParts["cornix-l-r0-c1"]?.legend, "A")
+        XCTAssertEqual(tapParts["cornix-l-r0-c1"]?.identities, [
+            KeyIdentity(keyCode: 0x00),
+            KeyIdentity(keyCode: 0x00, isShifted: true),
+        ])
+        XCTAssertEqual(tapParts["cornix-r-r0-c4"]?.legend, "B")
+        XCTAssertEqual(tapParts["cornix-r-r0-c4"]?.identities, [
+            KeyIdentity(keyCode: 0x0B),
+            KeyIdentity(keyCode: 0x0B, isShifted: true),
+        ])
+        XCTAssertEqual(tapParts["cornix-l-r0-c2-layer2"]?.legend, "C")
+        XCTAssertEqual(tapParts["cornix-l-r0-c2-layer2"]?.identities, [
+            KeyIdentity(keyCode: 0x08),
+            KeyIdentity(keyCode: 0x08, isShifted: true),
+        ])
+
+        let dedicated = try XCTUnwrap(caps.first { $0.id == "cornix-l-r0-c0" })
+        XCTAssertNil(dedicated.tapHold)
+        XCTAssertEqual(dedicated.exclusion, .modifier)
+        XCTAssertTrue(dedicated.identities.contains(leftShift))
+
+        let actionClaims = caps.flatMap { cap -> [[KeyIdentity]] in
+            if let tapHold = cap.tapHold {
+                return [tapHold.tap.identities, tapHold.hold.identities]
+            }
+            return [cap.identities]
+        }
+        XCTAssertEqual(
+            actionClaims.filter { $0.contains(leftShift) }.count,
+            4,
+            "three hold halves and the dedicated key must claim one shared Left Shift total"
+        )
+
+        let layerTapCaps = try XCTUnwrap(caps.first { $0.id == "cornix-l-r1-c1" })
+        XCTAssertEqual(layerTapCaps.tapHold?.tap.legend, "Caps")
+        XCTAssertEqual(layerTapCaps.tapHold?.tap.exclusion, .modifier)
+        XCTAssertEqual(layerTapCaps.tapHold?.hold.legend, "Layer 2")
+        XCTAssertEqual(layerTapCaps.tapHold?.hold.exclusion, .layerHold)
+    }
+
+    /// A deliberately artificial minimal export. `KC_NO` is intentional so no
+    /// built-in fallback invents another action in the test.
+    private static let splitShiftKeymap = #"""
+    {"version": 1, "layout": [
+      [["KC_LSHIFT", "LSFT_T(KC_A)", "KC_NO", "KC_NO", "KC_NO", "KC_NO", -1],
+       ["KC_NO", "LT2(KC_CAPSLOCK)", "KC_NO", "KC_NO", "KC_NO", "KC_NO", -1],
+       ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO"],
+       ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", -1],
+       ["KC_NO", "LSFT_T(KC_B)", "KC_NO", "KC_NO", "KC_NO", "KC_NO", -1],
+       ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", -1],
+       ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO"],
+       ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", -1]],
+      [["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", -1],
+       ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", -1],
+       ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO"],
+       ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", -1],
+       ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", -1],
+       ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", -1],
+       ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO"],
+       ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", -1]],
+      [["KC_NO", "KC_NO", "LSFT_T(KC_C)", "KC_NO", "KC_NO", "KC_NO", -1],
+       ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", -1],
+       ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO"],
+       ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", -1],
+       ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", -1],
+       ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", -1],
+       ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO"],
+       ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO", -1]]
+    ]}
+    """#
+
     /// Shift is a physical fact, not a keymap entry: the same `A` key sends a
     /// shifted `A` when Shift is held. A board that claimed only the unshifted
     /// identity would record every `Shift+;` and `Shift+/` and then draw them

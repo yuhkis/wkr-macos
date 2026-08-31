@@ -469,9 +469,36 @@ private enum CornixMetrics {
         rotation: Double = 0,
         finger: KeyCap.Finger?
     ) -> KeyCap {
-        KeyCap(
+        let tapIdentities = identities(for: assignment)
+        let tapHold: KeyCapTapHold?
+        var allIdentities = tapIdentities
+        if let hold = assignment.holdAction {
+            let holdIdentities = hold.identity.map { [$0] } ?? []
+            for identity in holdIdentities where !allIdentities.contains(identity) {
+                allIdentities.append(identity)
+            }
+            tapHold = KeyCapTapHold(
+                tap: KeyCapActionPart(
+                    legend: assignment.legend.primary,
+                    identities: tapIdentities,
+                    // A countable tap can still need a caveat: Caps Lock is
+                    // counted through flags-changed rather than keyDown.
+                    exclusion: assignment.exclusion
+                ),
+                hold: KeyCapActionPart(
+                    legend: hold.legend,
+                    identities: holdIdentities,
+                    exclusion: hold.exclusion
+                )
+            )
+        } else {
+            tapHold = nil
+        }
+
+        return KeyCap(
             id: id,
-            identities: identities(for: assignment),
+            identities: allIdentities,
+            tapHold: tapHold,
             x: centreX - 0.5 + xOrigin,
             y: centreY - 0.5 + yOrigin,
             rotation: rotation,
