@@ -296,6 +296,12 @@ InputMethodKitなら `setMarkedText` 相当の経路で自前の未確定文字�
 - 合成出力は標準ローマ字の仮想キー列とし、Unicode直接注入経路は追加しなかった。
 - 実入力ソースのsource IDとmode IDは `--print-input-source` で現在のTISソースから取得し、起動引数で明示した2値との完全一致だけを有効条件にした。Apple日本語入力らしい文字列を推測する判定は入れていない。
 - `IsSecureEventInputEnabled()` はmain run loopのcommon mode Timer上で定期確認し、event tap callbackは共有済みのbooleanだけを参照する。JIS切替とアプリ切替の瞬間は先にcontextをinvalidにしてfail closedにする。
+- **Secure Event Input の保持プロセスと保持秒数をログに残す（2026-09-02追加）。** `IsSecureEventInputEnabled()` は「閉じている」ことしか言わず、誰が閉じたかで利用者の取るべき行動が変わる。保持者はIOKitの `IOConsoleUsers` にある `kCGSSessionSecureInputPID` から読む。
+  - **非公開キーなので報告専用にする。** 変換ゲートの判断は `IsSecureEventInputEnabled()` だけで行い、このキーは一切参照しない。将来のmacOSでキーが消えてもログが `holder=unknown` に落ちるだけで、変換の安全性は変わらない。キーの不在は「保持者不明」であって「Secure Event Input が無効」ではない。
+  - **PIDの生死を併記する。** 保持プロセスが終了してもカウントが解放されない事例を実測した（2026-09-02）。`holder=alive` と `holder=gone` は状態としては同じに見えて、対処が「そのアプリを終了する」と「ログアウトするしかない」に分かれる。生死は `kill(pid, 0)` で判定し、`EPERM` は他ユーザのプロセスなので生存として扱う。
+  - **プロセス名は出さない。** 出すのはPIDの数値と生死だけ。名前は利用者が他にどのアプリを使っているかの開示であり、ログは sysdiagnose に取り込まれる。切り分けはPIDを見た本人がその場で `ps` を引けば足りる。
+  - **IOKit照会は状態遷移時だけにする。** safety timerは10Hzでevent tapと同じrun loopに載っているため、毎tickの照会はcallback近傍に不要な仕事を増やす。取得した registry entry は send right を持つので必ず `IOObjectRelease` する。
+  - **保持秒数はスリープ中に進まない時計で測る。** `DispatchTime`（`mach_absolute_time`）を使う。壁時計だと一晩のスリープが数時間の閉塞として記録され、毎朝が病的ケースに見えてしまう。知りたいのは「その間どれだけ打てなかったか」である。起動時点で既に有効だった場合は下限値でしかないので `since=launch` を付けて区別する。
 - 合成イベントは `CGEventTapPostEvent` で同じtap位置に挿入し、Space／Return等の原イベントはコピーせず通す方式へ固定した。
 - 実行中の権限喪失、tap disable、合成イベント生成失敗は通常入力を失わせないため常駐プロセス終了とした。多重起動も拒否する。
 - 固定Bundle ID `io.github.yuhkis.wkr-macos`、`LSUIElement=true`、固定出力先 `build/WKRMacOS.app` を採用した。署名identityを明示した場合とad-hoc署名の両方を検証対象とする。
