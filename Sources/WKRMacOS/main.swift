@@ -17,6 +17,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var terminationSignalSource: DispatchSourceSignal?
     private var lastPermissionState: EventPermissionState?
     private var lastSecureInputState: Bool?
+    /// When the current Secure Event Input episode began, on a clock that stops
+    /// while the machine sleeps. Wall time would count an overnight sleep as
+    /// hours of a closed gate and make every morning look like the pathological
+    /// case; what matters is how long the user could have been typing into it.
+    private var secureInputSince: DispatchTime?
+    /// `true` when Secure Event Input was already on at the first observation,
+    /// which makes the reported duration a lower bound rather than a measurement.
+    private var secureInputHeldSinceLaunch = false
     private var lastInputSourceSnapshot: InputSourceSnapshot?
     private var lastInputSourceMatched: Bool?
     private var lastApplicationAllowed: Bool?
@@ -211,8 +219,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         if lastSecureInputState != secureInput {
+            let stateWasUnknown = lastSecureInputState == nil
             lastSecureInputState = secureInput
-            AppLog.logger.notice("secure-event-input enabled=\(secureInput, privacy: .public)")
+            logSecureInputChange(to: secureInput, stateWasUnknown: stateWasUnknown)
         }
 
         if snapshot != lastInputSourceSnapshot || matches != lastInputSourceMatched {
@@ -224,6 +233,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             AppLog.logger.notice("input-source id=\(snapshot.sourceID, privacy: .public) mode-id=\(snapshot.modeID ?? "none", privacy: .public) name=\(snapshot.localizedName ?? "none", privacy: .public) matches-target=\(matches, privacy: .public)")
         }
+    }
+
+    /// Records one Secure Event Input transition.
+    ///
+    /// The two edges carry different things because a later investigation needs
+    /// different things from them. The rising edge names the holder, which is
+    /// what decides the response and cannot be recovered afterwards — by the
+    /// time anyone reads the log the holder may be gone. The falling edge
+    /// carries the duration, which is what separates a password field from a
+    /// leak; deriving it by hand from two timestamps is what made the first two
+    /// investigations slow.
+    private func logSecureInputChange(to enabled: Bool, stateWasUnknown: Bool) {
+        precondition(Thread.isMainThread)
+
+        guard enabled else {
+            let heldSeconds = secureInputSince.map { start in
+                Double(DispatchTime.now().uptimeNanoseconds &- start.uptimeNanoseconds)
+                    / Double(NSEC_PER_SEC)
+            }
+            let fields = SecureInputLogFields.disabledFields(
+                heldSeconds: heldSeconds,
+                sinceLaunch: secureInputHeldSinceLaunch
+            )
+            secureInputSince = nil
+            secureInputHeldSinceLaunch = false
+            AppLog.logger.notice("secure-event-input enabled=false\(fields, privacy: .public)")
+            return
+        }
+
+        let holder = SecureInputHolder.current()
+        secureInputSince = .now()
+        secureInputHeldSinceLaunch = stateWasUnknown
+        let fields = SecureInputLogFields.enabledFields(
+            holderPID: holder.pid,
+            liveness: holder.liveness
+        )
+        AppLog.logger.notice("secure-event-input enabled=true\(fields, privacy: .public)")
     }
 
     private func terminateFailClosed(reason: String) {

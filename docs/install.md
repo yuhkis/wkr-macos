@@ -576,7 +576,7 @@ prefix モードでの期待値は次のとおりです。
 | 許可済みに見えるのに `listen=false` | 再ビルドや再配備で署名 identity が変わっている。既存エントリを `−` で削除してから追加し直す |
 | 変換されない。ログに `matches-target=false` | 現在の入力ソースが Apple日本語入力「ひらがな」ではない。他社IMEや「英字」では設計どおり素通しします |
 | パスワード欄で変換されない | 仕様です。Secure Event Input 中は全入力を素通しします |
-| パスワード欄ではないのに、しばらくの間まったく変換されない | セッションのどこかで Secure Event Input が有効になっています。パスワードマネージャのロック解除ダイアログが開いたまま、ターミナルの Secure Keyboard Entry が有効、認証ダイアログが背後に残っている、が代表例です。下の「変換が止まったときのログの見方」を参照 |
+| パスワード欄ではないのに、しばらくの間まったく変換されない | セッションのどこかで Secure Event Input が有効になっています。パスワードマネージャのロック解除ダイアログが開いたまま、画面共有アプリが起動中、ターミナルの Secure Keyboard Entry が有効、認証ダイアログが背後に残っている、ロック解除後にOSが解放し損ねた、が代表例です。**原因ごとに対処が違うので、まず保持プロセスを確かめてください。** 下の「変換が止まったときのログの見方」を参照 |
 | ログに `reason=duplicate-instance` | 既に常駐しています。`make stop` してから起動してください |
 | `reason=not-a-bundle` | `.app` bundle の外から実行しています。`make start` / `make start-installed` を使ってください |
 | ad-hoc署名で毎回再許可が必要 | 安定した署名 identity がない環境の既知の制約です。常用するなら `/Applications` へ配備した bundle を固定して使ってください |
@@ -593,7 +593,10 @@ prefix モードでの期待値は次のとおりです。
 
 | ログ | 意味 |
 | --- | --- |
-| `secure-event-input enabled=true` | Secure Event Input が有効。`enabled=false` が出るまで全入力を素通しします |
+| `secure-event-input enabled=true holder-pid=... holder=alive` | Secure Event Input が有効で、保持プロセスは生きています。そのPIDのアプリを終了するか、開いているパスワード欄・認証ダイアログを閉じれば戻ります |
+| `secure-event-input enabled=true ... holder=gone` | 保持プロセスは終了したのにカウントだけが残っています。アプリの終了も画面ロックも効きません。**ログアウトしてログインし直す以外に回収手段がありません** |
+| `secure-event-input enabled=true holder=unknown` | 保持者を読めませんでした。ゲートの判断自体は `IsSecureEventInputEnabled()` だけで行うので安全側の挙動は変わりません |
+| `secure-event-input enabled=false held-seconds=...` | 解除されました。閉じていた秒数です。パスワード欄なら1秒未満、数百秒以上なら異常です。`since=launch` が付く場合は起動時点で既に有効だったため下限値です |
 | `input-source ... matches-target=false` | 対象外の入力ソースです。他社IMEや「英字」に切り替わっています |
 | `frontmost-application ... excluded=true` | `--exclude-app` で除外したアプリが前面です |
 | `conversion-stopped` / `event-tap-disabled` | fail closed で終了しています。起動し直してください |
@@ -602,11 +605,34 @@ prefix モードでの期待値は次のとおりです。
 いずれも出ていなければ、変換ゲートは開いています。常駐しているかどうかは `pgrep WKRMacOS`
 で確認できます。
 
-`secure-event-input enabled=true` のまま戻らない場合は、パスワードマネージャのロック解除
-ダイアログが開いたままになっていないか、ターミナルの Secure Keyboard Entry が有効になって
-いないかを確認してください。**Secure Event Input はフィールド単位ではなくセッション全体に
-効く**ため、前面が普通のテキスト欄でも止まったままになります。メニューバー表示が未実装で、
+`secure-event-input enabled=true` のまま戻らない場合は、**まず保持プロセスを特定します。**
+ログの `holder-pid` / `holder` がそのまま処方箋になりますが、ログを見る前でも次の1行で分かります。
+
+```bash
+P=$(ioreg -l -w 0 | grep -oE 'kCGSSessionSecureInputPID"=[0-9]+' | head -1 | cut -d= -f2); if [ -z "$P" ]; then echo "解放済み"; elif ps -p "$P" >/dev/null 2>&1; then echo "保持中: PID $P → $(ps -p "$P" -o comm=)"; else echo "PID $P は終了済み → カウントが孤児化。ログアウトが必要"; fi
+```
+
+| 結果 | 対処 |
+| --- | --- |
+| 保持中（画面共有・リモート操作アプリ） | **仕様どおりの保持です。** そのアプリを終了してください |
+| 保持中（パスワードマネージャ等） | そのアプリのロック解除ダイアログを閉じるか、アプリを終了してください |
+| 保持中（`loginwindow`） | OSがロック解除後に解放し損ねた状態です。放置で戻ることがあります（実測 0.4秒〜約25分）。急ぐならログアウト |
+| 終了済み（孤児化） | アプリの終了も画面ロックも効きません。**ログアウトしてログインし直してください** |
+| 解放済み | Secure Event Input は原因ではありません。他の行を見てください |
+
+`kCGSSessionSecureInputPID` は**終了済みプロセスのPIDを返し続けることがあります**。必ず生死と
+セットで読んでください。またこのキーが無いことは「保持者が読めない」であって「Secure Event
+Input が無効」ではありません。`grep -i SecureInput` のような緩いパターンはNVRAMの統計情報に
+誤ヒットするので、上の厳密な形を使ってください。
+
+ターミナルの Secure Keyboard Entry も代表的な原因です（`defaults read com.apple.Terminal
+SecureKeyboardEntry` が `1` なら有効）。**Secure Event Input はフィールド単位ではなくセッション
+全体に効く**ため、前面が普通のテキスト欄でも止まったままになります。メニューバー表示が未実装で、
 止まっていることが画面から分からない点は [roadmap.md](./roadmap.md) の課題です。
+
+なお、どの原因でも**アプリの再起動は不要かつ無効**です。保持しているのは別プロセスで、
+`DisableSecureEventInput()` は自プロセスのカウントしか減らせません。解放されれば約0.1秒で
+自動的に変換が再開します。
 
 実測例は [verification.md](./verification.md) にあります。
 
