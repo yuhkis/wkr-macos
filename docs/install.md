@@ -612,6 +612,19 @@ prefix モードでの期待値は次のとおりです。
 P=$(ioreg -l -w 0 | grep -oE 'kCGSSessionSecureInputPID"=[0-9]+' | head -1 | cut -d= -f2); if [ -z "$P" ]; then echo "解放済み"; elif ps -p "$P" >/dev/null 2>&1; then echo "保持中: PID $P → $(ps -p "$P" -o comm=)"; else echo "PID $P は終了済み → カウントが孤児化。ログアウトが必要"; fi
 ```
 
+上は bash / zsh 用です。fish ではそのまま動かない（`Unsupported use of '='`）ので、こちらを使ってください。
+
+```fish
+set -l P (ioreg -l -w 0 | grep -oE 'kCGSSessionSecureInputPID"=[0-9]+' | head -1 | cut -d= -f2)
+if test -z "$P"
+    echo "解放済み"
+else if ps -p "$P" >/dev/null 2>&1
+    echo "保持中: PID $P → "(ps -p "$P" -o comm=)
+else
+    echo "PID $P は終了済み → カウントが孤児化。ログアウトが必要"
+end
+```
+
 | 結果 | 対処 |
 | --- | --- |
 | 保持中（画面共有・リモート操作アプリ） | **仕様どおりの保持です。** そのアプリを終了してください |
