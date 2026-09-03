@@ -277,9 +277,19 @@ final class ConversionStatusTests: XCTestCase {
 
     /// Every enabled menu title starts with a non-ASCII character, so a physical
     /// keystroke reaching the menu's type-select cannot match it.
-    func testQuitTitleCannotBeReachedByTypeSelect() {
-        let first = ConversionStatusText.quitTitle.unicodeScalars.first
-        XCTAssertNotNil(first)
-        XCTAssertFalse(first!.isASCII)
+    func testEnabledTitlesCannotBeReachedByTypeSelect() {
+        for title in [ConversionStatusText.quitTitle, ConversionStatusText.openHeatmapTitle] {
+            let first = title.unicodeScalars.first
+            XCTAssertNotNil(first, title)
+            XCTAssertFalse(first!.isASCII, title)
+        }
+    }
+
+    /// The heatmap entry is offered unconditionally. Counting being off today
+    /// says nothing about whether counts exist from before, so gating the entry
+    /// on the current setting would hide that history.
+    func testHeatmapTitleIsUnconditionalAndNonEmpty() {
+        XCTAssertFalse(ConversionStatusText.openHeatmapTitle.isEmpty)
+        XCTAssertNotEqual(ConversionStatusText.openHeatmapTitle, ConversionStatusText.quitTitle)
     }
 }

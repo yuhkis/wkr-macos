@@ -18,6 +18,9 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     /// Called with `true` while the menu tracks and `false` when it stops, so
     /// the gate can be shut for the duration.
     var menuOpenStateChanged: ((Bool) -> Void)?
+    /// Called when the user asks for the heatmap. Must return immediately: the
+    /// event tap source is on this run loop.
+    var openHeatmapRequested: (() -> Void)?
 
     private let statusItem: NSStatusItem
     private let menu = NSMenu()
@@ -75,6 +78,15 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             menu.addItem(item)
         }
         menu.addItem(.separator())
+
+        let heatmap = NSMenuItem(
+            title: ConversionStatusText.openHeatmapTitle,
+            action: #selector(openHeatmapChosen),
+            keyEquivalent: ""
+        )
+        heatmap.target = self
+        heatmap.isEnabled = true
+        menu.addItem(heatmap)
 
         let quit = NSMenuItem(
             title: ConversionStatusText.quitTitle,
@@ -150,6 +162,14 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     func menuDidClose(_ menu: NSMenu) {
         menuOpenStateChanged?(false)
+    }
+
+    @objc private func openHeatmapChosen() {
+        // Hop off the menu's own call so this returns before any work starts.
+        // The tap source shares this run loop.
+        DispatchQueue.main.async { [weak self] in
+            self?.openHeatmapRequested?()
+        }
     }
 
     @objc private func quitChosen() {
