@@ -25,7 +25,7 @@ public enum SecureInputHolderLiveness: String, Sendable, CaseIterable {
 /// Kept here, apart from the IOKit query, so the wording is covered by tests:
 /// this text is what a later investigation has to read, and it has already been
 /// wrong once. Only numbers and fixed keywords are ever produced, so the result
-/// is safe to log as public — see `docs/design.md`「6. macOS側コンポーネント」.
+/// is safe to log as public — see `docs/design.md`「7. 採否の記録」.
 public enum SecureInputLogFields {
     /// Fields appended to `secure-event-input enabled=true`.
     ///

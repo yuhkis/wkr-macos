@@ -72,7 +72,9 @@ Apple日本語入力へ打ち直します**。Apple日本語入力から見れ�
 - 基本動作は TextEdit・Notes・Safari・Terminal・VS Code・Slack・Discord・Notion・ChatGPT入力欄で確認しています。
   **Unicode直接注入を含むアプリ別の網羅的な互換性確認は未完了です。**
 - 署名済みの配布バイナリはありません。**ソースからビルドして使います。**
-- メニューバー表示はまだありません（[ロードマップ](./docs/roadmap.md)）。停止は `make stop` です。
+- メニューバーに状態と停止理由が出ます。アイコンが無い場合は変換が止まっているのではなく、常駐
+  していません。停止はメニューの「終了」か `make stop` です。詳細は
+  [install.md](./docs/install.md)。
 
 限界の全一覧は [docs/how-it-works.md](./docs/how-it-works.md#9-既知の限界) にあります。
 変換が急に効かなくなったときの切り分けは
@@ -109,7 +111,11 @@ Apple日本語入力の変換エンジンだけを公開APIで借りることは
 
 - **入力文字列、クリップボード、変換候補を、ログ・ファイル・ネットワークへ一切出しません。**
   ネットワーク機能を持ちません。ログに出るのは権限状態、モード、入力ソースID、状態コード、
-  エラー種別、集計件数だけです。
+  エラー種別、集計件数、変換ゲートが閉じていた秒数、Secure Event Input の保持プロセスID
+  （数値と生死のみ）だけです。
+- **メニューバー表示も、保持プロセスについてはPIDの数値と生死しか出しません。** プロセス名・
+  パス・バンドルIDは画面にも出しません。メニューバーは画面共有中に読まれ、スクリーンショットに
+  写り込む面だからです。
 - 打鍵頻度の記録（既定オフ）を明示的に有効にしたときだけ、キーごとの**累計回数**を暦日単位で
   ローカルに保存します。**打鍵の順序も、暦日より細かい時刻も、入力文字列も保存しません。**
   順序を落とした度数分布から入力文字列は復元できません。Secure Event Input・権限欠如・
@@ -128,8 +134,8 @@ Appleの案内: [Macで入力監視へのアクセスを制御する](https://su
 ```text
 Package.swift
 Sources/
-  WKRCore/       # AppKit/Core Graphics非依存の正規化全配列とTrie/FST
-  WKRMacOS/      # 権限、TIS、Secure Event Input、CGEventTap、イベント再送
+  WKRCore/       # AppKit/Core Graphics非依存の正規化全配列とTrie/FST、状態と停止理由の表示モデル
+  WKRMacOS/      # 権限、TIS、Secure Event Input、CGEventTap、イベント再送、メニューバー表示
 Tests/
   WKRCoreTests/  # テーブル駆動の状態遷移テスト
 Resources/
