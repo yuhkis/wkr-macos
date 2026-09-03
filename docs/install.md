@@ -577,7 +577,10 @@ prefix モードでの期待値は次のとおりです。
 | 変換されない。ログに `matches-target=false` | 現在の入力ソースが Apple日本語入力「ひらがな」ではない。他社IMEや「英字」では設計どおり素通しします |
 | パスワード欄で変換されない | 仕様です。Secure Event Input 中は全入力を素通しします |
 | パスワード欄ではないのに、しばらくの間まったく変換されない | セッションのどこかで Secure Event Input が有効になっています。パスワードマネージャのロック解除ダイアログが開いたまま、画面共有アプリが起動中、ターミナルの Secure Keyboard Entry が有効、認証ダイアログが背後に残っている、ロック解除後にOSが解放し損ねた、が代表例です。**原因ごとに対処が違うので、まず保持プロセスを確かめてください。** 下の「変換が止まったときのログの見方」を参照 |
-| ログに `reason=duplicate-instance` | 既に常駐しています。`make stop` してから起動してください |
+| メニューバーにアイコンが無い | まず `pgrep WKRMacOS` を確認してください。プロセスが無ければ常駐していません（起動できなかった場合はログに `conversion-not-started reason=...`、動作中に落ちた場合は `conversion-stopped` / `event-tap-disabled`）。プロセスがあるのにアイコンだけ無い場合は、メニューバー管理アプリ（Bartender 等）が隠しているか、メニューバーが埋まって macOS が項目を落としています。生成自体はログの `status-item created=` 行で確認できます |
+| メニューバーに「停止中：Secure Event Input」と出ている | メニューを開くと保持PID・生死・経過時間と対処が出ます。「動作中」なら解放を待つかそのプロセスを終了、「終了済み」ならログアウト。下の「変換が止まったときのログの見方」も参照 |
+| メニューバーに「待機中：…」と出ている | 設計どおりの素通しです（対象外の入力ソース、`--exclude-app` の除外アプリ）。対処は不要です |
+| ログに `reason=duplicate-instance` | 既に常駐しています。`make stop` するか、メニューバーの「終了」を選んでから起動してください |
 | `reason=not-a-bundle` | `.app` bundle の外から実行しています。`make start` / `make start-installed` を使ってください |
 | ad-hoc署名で毎回再許可が必要 | 安定した署名 identity がない環境の既知の制約です。常用するなら `/Applications` へ配備した bundle を固定して使ってください |
 | `make start` 系が `_LSOpenURLsWithCompletionHandler() failed with error -600` | 配備直後に Launch Services の登録が移動前のバンドルを指したままの一過性の失敗です。`start-app.sh` が自動でリトライします（リトライしない旧版では、数秒おいて再実行してください） |
@@ -601,9 +604,13 @@ prefix モードでの期待値は次のとおりです。
 | `frontmost-application ... excluded=true` | `--exclude-app` で除外したアプリが前面です |
 | `conversion-stopped` / `event-tap-disabled` | fail closed で終了しています。起動し直してください |
 | `unicode-injection-skipped reason=pre-edit-open` | 未確定文字列があったため記号を送りませんでした（下記） |
+| `status-item created=true glyph=symbol` / `glyph=title` | メニューバー表示を作りました。`title` はSF Symbolを読めずテキストで描いている状態です |
+| `status-item created=false reason=no-button` | メニューバー表示を作れませんでした。変換自体は続きます |
+| `status-menu open=true` / `open=false` | メニューを開いている間は変換を止めています（メニューのタイプセレクトへ変換結果が入るのを防ぐため）。同時刻の `state=reset reason=applicationChanged` はこれが原因で、アプリの切替ではありません |
 
-いずれも出ていなければ、変換ゲートは開いています。常駐しているかどうかは `pgrep WKRMacOS`
-で確認できます。
+いずれも出ていなければ、変換ゲートは開いています。状態はメニューバーのアイコンでも分かります。
+常駐しているかどうかは、アイコンの有無と `pgrep WKRMacOS` の両方で確認してください（アイコンが
+無い理由はプロセス停止だけとは限りません。上のトラブルシュート表を参照）。
 
 `secure-event-input enabled=true` のまま戻らない場合は、**まず保持プロセスを特定します。**
 ログの `holder-pid` / `holder` がそのまま処方箋になりますが、ログを見る前でも次の1行で分かります。
@@ -640,8 +647,12 @@ Input が無効」ではありません。`grep -i SecureInput` のような緩�
 
 ターミナルの Secure Keyboard Entry も代表的な原因です（`defaults read com.apple.Terminal
 SecureKeyboardEntry` が `1` なら有効）。**Secure Event Input はフィールド単位ではなくセッション
-全体に効く**ため、前面が普通のテキスト欄でも止まったままになります。メニューバー表示が未実装で、
-止まっていることが画面から分からない点は [roadmap.md](./roadmap.md) の課題です。
+全体に効く**ため、前面が普通のテキスト欄でも止まったままになります。
+
+**メニューバーのアイコンが鍵の形になっていれば Secure Event Input です。** メニューを開くと、
+保持プロセスのPIDと生死、経過時間、そして対処が出ます。「動作中」なら解放を待つかそのプロセスを
+終了、「終了済み」ならログアウトが必要です。**アイコンが消えている場合は変換が止まっているのでは
+なく、プロセスが動いていません**（あるいはメニューバー管理アプリに隠されています）。
 
 なお、どの原因でも**アプリの再起動は不要かつ無効**です。保持しているのは別プロセスで、
 `DisableSecureEventInput()` は自プロセスのカウントしか減らせません。解放されれば約0.1秒で

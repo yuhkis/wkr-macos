@@ -30,6 +30,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var lastApplicationAllowed: Bool?
     private var isTerminatingFailClosed = false
     private var frequencyRecorder: KeyFrequencyRecorder?
+    private var statusItemController: StatusItemController?
+    /// True while this app's own status menu is tracking. The gate is shut for
+    /// the duration so converted romaji cannot land in the menu's type-select.
+    private var statusMenuIsOpen = false
+    private var lastPublishedStatus: ConversionStatus?
 
     init(configuration: AppConfiguration) {
         self.configuration = configuration
@@ -111,6 +116,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         safetyTimer = timer
         RunLoop.main.add(timer, forMode: .common)
         installTerminationSignalHandler()
+        installStatusItem()
         refreshConversionContext()
 
         AppLog.logger.notice(
@@ -207,10 +213,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let applicationAllowed = configuration.excludedApplications.isEmpty
             || !(frontmost.map(configuration.excludedApplications.contains) ?? false)
 
+        // Our own menu shuts the gate while it tracks: an open NSMenu takes
+        // key input, and converted romaji would land in its type-select.
+        // Narrowing an existing input at the call site can only close the gate
+        // further, which is why this is done here rather than by adding an
+        // eighth condition to `isConverting`.
         eventTapController?.applyContext(
             inputSourceMatches: matches,
-            applicationAllowed: applicationAllowed,
+            applicationAllowed: applicationAllowed && !statusMenuIsOpen,
             secureInputEnabled: secureInput
+        )
+
+        publishStatus(
+            secureInput: secureInput,
+            applicationAllowed: applicationAllowed,
+            inputSourceMatches: matches
         )
 
         if lastApplicationAllowed != applicationAllowed {
@@ -233,6 +250,106 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             AppLog.logger.notice("input-source id=\(snapshot.sourceID, privacy: .public) mode-id=\(snapshot.modeID ?? "none", privacy: .public) name=\(snapshot.localizedName ?? "none", privacy: .public) matches-target=\(matches, privacy: .public)")
         }
+    }
+
+    /// Works out what the menu bar should show and hands it to the status item.
+    ///
+    /// Takes the three reasons as arguments rather than reading them back from
+    /// the controller. `invalidateContext` clears `inputSourceMatches` and
+    /// `applicationAllowed` together with `contextIsCurrent` on every app switch
+    /// and every かな / 英数 press, so a read-back would show a *wrong* reason —
+    /// "除外アプリが前面" for an application that is not excluded — many times an
+    /// hour. The values passed here are the ones just measured, and were just
+    /// handed to `applyContext`, so they agree with the gate by construction.
+    ///
+    /// The gate itself arrives as `isConverting`, untouched. This function never
+    /// re-derives it.
+    private func publishStatus(
+        secureInput: Bool,
+        applicationAllowed: Bool,
+        inputSourceMatches: Bool
+    ) {
+        precondition(Thread.isMainThread)
+        guard let statusItemController else { return }
+        let status = ConversionStatus.resolve(
+            gateOpen: eventTapController?.isConverting ?? false,
+            secureInputEnabled: secureInput,
+            applicationAllowed: applicationAllowed,
+            inputSourceMatches: inputSourceMatches,
+            statusMenuOpen: statusMenuIsOpen
+        )
+        guard lastPublishedStatus != status else { return }
+        lastPublishedStatus = status
+        statusItemController.apply(status)
+    }
+
+    /// Creates the menu bar item.
+    ///
+    /// Placed after every startup refusal so a process that is about to die
+    /// never flashes an icon, and before the first `refreshConversionContext()`
+    /// so the first thing drawn is a real measurement rather than a guess.
+    ///
+    /// A failure here is logged and otherwise ignored. The indicator is worth
+    /// strictly less than conversion, and refusing to start over a missing
+    /// status item would trade the whole app for its status line.
+    private func installStatusItem() {
+        precondition(Thread.isMainThread)
+        let controller = StatusItemController()
+        guard controller.isUsable else {
+            AppLog.logger.error("status-item created=false reason=no-button")
+            controller.removeFromStatusBar()
+            return
+        }
+        controller.menuContentProvider = { [weak self] in
+            self?.currentMenuContent() ?? ConversionMenuContent(status: .stopping)
+        }
+        controller.menuOpenStateChanged = { [weak self] isOpen in
+            guard let self else { return }
+            self.statusMenuIsOpen = isOpen
+            AppLog.logger.notice("status-menu open=\(isOpen, privacy: .public)")
+            // Apply the narrowed gate now rather than waiting up to 0.10 s for
+            // the next tick, so the first keystroke after the menu opens is
+            // already covered.
+            self.refreshConversionContext()
+        }
+        statusItemController = controller
+        AppLog.logger.notice(
+            "status-item created=true glyph=\(controller.usesSymbols ? "symbol" : "title", privacy: .public)"
+        )
+    }
+
+    /// Gathers what the menu shows, at the moment it opens.
+    ///
+    /// The holder is re-queried here rather than reused from the rising edge.
+    /// Orphaning produces no falling edge — `IsSecureEventInputEnabled()` simply
+    /// stays true — so a liveness captured when the gate closed can still read
+    /// `alive` long after the holder exited. That is precisely the case where
+    /// the remedy differs, so it has to be fresh. One query per menu open is
+    /// well clear of the 10 Hz path this must never touch.
+    private func currentMenuContent() -> ConversionMenuContent {
+        precondition(Thread.isMainThread)
+        let status = lastPublishedStatus ?? .stopping
+        guard status == .secureInput else {
+            return ConversionMenuContent(
+                status: status,
+                inputSourceName: lastInputSourceSnapshot?.localizedName
+            )
+        }
+        let holder = SecureInputHolder.current()
+        let heldSeconds = secureInputSince.map { start in
+            Double(DispatchTime.now().uptimeNanoseconds &- start.uptimeNanoseconds)
+                / Double(NSEC_PER_SEC)
+        }
+        return ConversionMenuContent(
+            status: status,
+            inputSourceName: lastInputSourceSnapshot?.localizedName,
+            secureInput: SecureInputDetail(
+                holderPID: holder.pid,
+                liveness: holder.liveness,
+                heldSeconds: heldSeconds,
+                heldSinceLaunch: secureInputHeldSinceLaunch
+            )
+        )
     }
 
     /// Records one Secure Event Input transition.

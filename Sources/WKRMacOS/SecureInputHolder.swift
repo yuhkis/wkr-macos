@@ -18,10 +18,17 @@ import WKRCore
 enum SecureInputHolder {
     /// The current holder, queried fresh.
     ///
-    /// Call this only when the state actually changes. The safety timer runs at
-    /// 10 Hz on the same run loop the event tap is attached to, and an IOKit
-    /// round trip on every tick would be work in exactly the place
-    /// `docs/design.md` says to keep clear.
+    /// Two call sites are permitted: a Secure Event Input state transition, and
+    /// the user opening the status menu. Never the 0.10 s safety timer or any
+    /// paint path — that timer shares the main run loop with the event tap
+    /// source, and an IOKit round trip per tick is work in exactly the place
+    /// `docs/design.md`「7. 採否の記録」says to keep clear.
+    ///
+    /// The menu re-queries rather than reusing the value captured at the rising
+    /// edge, because liveness goes stale inside an episode: an orphaned count
+    /// produces no falling edge, so a holder that exited an hour ago still reads
+    /// `alive` from the cached value. That is the one case where the remedy
+    /// differs, so the menu pays for a fresh query each time it opens.
     static func current() -> (pid: Int32?, liveness: SecureInputHolderLiveness) {
         guard let pid = holderPID() else { return (nil, .unknown) }
         return (pid, isRunning(pid) ? .alive : .gone)
