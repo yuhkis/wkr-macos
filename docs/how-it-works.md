@@ -308,6 +308,11 @@ Cornix の `.vil` に tap / hold 兼用キーがある場合、キートップ�
 system-defined イベントなので keyDown を見ているこの event tap には来ません。
 図ではこれらを「押されていない」ではなく「数えられない」として描き分けます。
 
+レポートは**メニューバーのメニューから開けます**。ただし生成は常駐プロセスの中では行わず、
+同じバイナリを `--key-frequency-report` で**別プロセスとして起動**します。集計全体を読んで
+HTMLを組み立てる処理を main run loop でやると、event tap が timeout で無効化され、
+fail closed でプロセスごと終了してしまうためです。
+
 手順は [install.md](./install.md#打鍵頻度の記録とヒートマップ)、設計判断は
 [design.md](./design.md) の9節にあります。
 

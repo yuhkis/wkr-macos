@@ -235,6 +235,14 @@ public enum ConversionStatusText {
         }
     }
 
+    /// Opens the key-frequency heatmap.
+    ///
+    /// Always offered, never conditioned on whether counting is currently on:
+    /// counting being off today says nothing about whether counts were recorded
+    /// before, and hiding the entry would hide that history. An empty report is
+    /// a truthful answer to "show me the counts".
+    public static let openHeatmapTitle = "打鍵頻度のヒートマップを開く"
+
     /// The one enabled item. Named so the consequence is visible before it is
     /// chosen: under the login agent, `KeepAlive` is false.
     public static let quitTitle = "終了（次のログインまで変換は止まります）"

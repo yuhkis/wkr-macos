@@ -303,6 +303,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         controller.menuContentProvider = { [weak self] in
             self?.currentMenuContent() ?? ConversionMenuContent(status: .stopping)
         }
+        controller.openHeatmapRequested = { [weak self] in
+            self?.openKeyFrequencyReport()
+        }
         controller.menuOpenStateChanged = { [weak self] isOpen in
             guard let self else { return }
             self.statusMenuIsOpen = isOpen
@@ -316,6 +319,54 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         AppLog.logger.notice(
             "status-item created=true glyph=\(controller.usesSymbols ? "symbol" : "title", privacy: .public)"
         )
+    }
+
+    /// Renders and opens the key-frequency heatmap.
+    ///
+    /// Runs as a **separate process**, never in this one. Rendering reads the
+    /// whole store, builds the HTML for every keyboard and layer, and writes a
+    /// file; doing that here would block the main run loop, which is where the
+    /// event tap source lives, and a long enough stall means
+    /// `tapDisabledByTimeout` and a fail-closed exit. The resident process must
+    /// survive looking at a report.
+    ///
+    /// The child is this same binary with `--key-frequency-report`, which exits
+    /// before `NSApplication` is ever created — so it neither asks for Input
+    /// Monitoring nor trips the duplicate-instance guard, which only runs on the
+    /// `.run` path. Launching the executable directly rather than through
+    /// `open` matters: Launch Services would otherwise just activate the
+    /// already-running instance instead of starting the one-shot.
+    ///
+    /// The store and keymap paths are forwarded when this process was given
+    /// them explicitly. When they were not, the child resolves the same user
+    /// defaults this process did, so the menu and `make key-frequency-report`
+    /// produce the same report.
+    private func openKeyFrequencyReport() {
+        precondition(Thread.isMainThread)
+        guard let executable = Bundle.main.executableURL else {
+            AppLog.logger.error("key-frequency-report launch=failed reason=no-executable")
+            return
+        }
+
+        var arguments = ["--key-frequency-report", "--open"]
+        if let storePath = configuration.keyFrequencyStorePath {
+            arguments += ["--key-frequency-store", storePath]
+        }
+        if let keymapPath = configuration.vialKeymapPath {
+            arguments += ["--vil", keymapPath]
+        }
+
+        let process = Process()
+        process.executableURL = executable
+        process.arguments = arguments
+        do {
+            // Returns as soon as the child is spawned; nothing here waits on it.
+            try process.run()
+            AppLog.logger.notice("key-frequency-report launch=ok")
+        } catch {
+            // A report that will not open is not a reason to stop converting.
+            AppLog.logger.error("key-frequency-report launch=failed reason=spawn")
+        }
     }
 
     /// Gathers what the menu shows, at the moment it opens.
