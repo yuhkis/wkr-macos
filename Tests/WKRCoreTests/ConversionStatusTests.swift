@@ -292,4 +292,53 @@ final class ConversionStatusTests: XCTestCase {
         XCTAssertFalse(ConversionStatusText.openHeatmapTitle.isEmpty)
         XCTAssertNotEqual(ConversionStatusText.openHeatmapTitle, ConversionStatusText.quitTitle)
     }
+
+    // MARK: - Keymap line
+
+    func testKeymapLineNamesTheFileOrTheBuiltInLayout() {
+        XCTAssertEqual(
+            ConversionStatusText.keymapLine(fileName: "cornix.vil"),
+            "キーマップ：cornix.vil"
+        )
+        XCTAssertEqual(
+            ConversionStatusText.keymapLine(fileName: nil),
+            "キーマップ：組み込みの配列"
+        )
+        XCTAssertEqual(
+            ConversionStatusText.keymapLine(fileName: ""),
+            "キーマップ：組み込みの配列"
+        )
+    }
+
+    /// The caller passes a file name, and this line must not turn one back into
+    /// a path. A directory would put a home folder, a cloud-storage folder, and
+    /// often an account name onto a surface read during screen sharing.
+    func testKeymapLineAddsNoPathOfItsOwn() {
+        let produced = ConversionStatusText.keymapLine(fileName: "export.vil")
+        XCTAssertFalse(produced.contains("/"))
+        XCTAssertFalse(produced.contains("~"))
+        XCTAssertTrue(produced.hasSuffix("export.vil"))
+    }
+
+    func testKeymapMenuTitlesAreDistinctAndTypeSelectSafe() {
+        let titles = [
+            ConversionStatusText.chooseKeymapTitle,
+            ConversionStatusText.clearKeymapTitle,
+            ConversionStatusText.openHeatmapTitle,
+            ConversionStatusText.quitTitle,
+        ]
+        XCTAssertEqual(Set(titles).count, titles.count, "menu titles must be distinct")
+        for title in titles {
+            XCTAssertFalse(title.isEmpty)
+            XCTAssertFalse(title.unicodeScalars.first!.isASCII, title)
+        }
+    }
+
+    /// The ellipsis is the platform's promise that choosing this asks something
+    /// before it acts. Losing it would make the picker look like it fires
+    /// immediately.
+    func testChooseKeymapTitleKeepsItsEllipsis() {
+        XCTAssertTrue(ConversionStatusText.chooseKeymapTitle.hasSuffix("…"))
+        XCTAssertFalse(ConversionStatusText.clearKeymapTitle.hasSuffix("…"))
+    }
 }

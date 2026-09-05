@@ -21,12 +21,21 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     /// Called when the user asks for the heatmap. Must return immediately: the
     /// event tap source is on this run loop.
     var openHeatmapRequested: (() -> Void)?
+    /// Called when the user asks to pick a keymap for the heatmap.
+    var chooseKeymapRequested: (() -> Void)?
+    /// Called when the user asks to go back to the built-in layout.
+    var clearKeymapRequested: (() -> Void)?
+    /// Supplies the current keymap's file name, or `nil` for the built-in
+    /// layout. Read when the menu opens, so a change made elsewhere shows up.
+    var keymapFileNameProvider: (() -> String?)?
 
     private let statusItem: NSStatusItem
     private let menu = NSMenu()
     private let titleItem = NSMenuItem()
     private let detailItems: [NSMenuItem]
     private let remedyItem = NSMenuItem()
+    private let keymapItem = NSMenuItem()
+    private let clearKeymapItem = NSMenuItem()
     private var images: [ConversionStatus: NSImage] = [:]
     private var lastApplied: ConversionStatus?
 
@@ -87,6 +96,28 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         heatmap.target = self
         heatmap.isEnabled = true
         menu.addItem(heatmap)
+
+        keymapItem.isEnabled = false
+        keymapItem.target = nil
+        keymapItem.action = nil
+        menu.addItem(keymapItem)
+
+        let choose = NSMenuItem(
+            title: ConversionStatusText.chooseKeymapTitle,
+            action: #selector(chooseKeymapChosen),
+            keyEquivalent: ""
+        )
+        choose.target = self
+        choose.isEnabled = true
+        menu.addItem(choose)
+
+        clearKeymapItem.title = ConversionStatusText.clearKeymapTitle
+        clearKeymapItem.action = #selector(clearKeymapChosen)
+        clearKeymapItem.target = self
+        clearKeymapItem.isEnabled = true
+        menu.addItem(clearKeymapItem)
+
+        menu.addItem(.separator())
 
         let quit = NSMenuItem(
             title: ConversionStatusText.quitTitle,
@@ -154,6 +185,12 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             remedyItem.title = ""
             remedyItem.isHidden = true
         }
+
+        // Read fresh: the CLI, `make`, and a second machine all write the same
+        // user default, so the value can change without this process acting.
+        let keymapFileName = keymapFileNameProvider?()
+        keymapItem.title = ConversionStatusText.keymapLine(fileName: keymapFileName)
+        clearKeymapItem.isHidden = keymapFileName == nil
     }
 
     func menuWillOpen(_ menu: NSMenu) {
@@ -169,6 +206,18 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         // The tap source shares this run loop.
         DispatchQueue.main.async { [weak self] in
             self?.openHeatmapRequested?()
+        }
+    }
+
+    @objc private func chooseKeymapChosen() {
+        DispatchQueue.main.async { [weak self] in
+            self?.chooseKeymapRequested?()
+        }
+    }
+
+    @objc private func clearKeymapChosen() {
+        DispatchQueue.main.async { [weak self] in
+            self?.clearKeymapRequested?()
         }
     }
 
