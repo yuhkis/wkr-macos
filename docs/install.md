@@ -594,13 +594,36 @@ prefix モードでの期待値は次のとおりです。
 | 変換されない。ログに `matches-target=false` | 現在の入力ソースが Apple日本語入力「ひらがな」ではない。他社IMEや「英字」では設計どおり素通しします |
 | パスワード欄で変換されない | 仕様です。Secure Event Input 中は全入力を素通しします |
 | パスワード欄ではないのに、しばらくの間まったく変換されない | セッションのどこかで Secure Event Input が有効になっています。パスワードマネージャのロック解除ダイアログが開いたまま、画面共有アプリが起動中、ターミナルの Secure Keyboard Entry が有効、認証ダイアログが背後に残っている、ロック解除後にOSが解放し損ねた、が代表例です。**原因ごとに対処が違うので、まず保持プロセスを確かめてください。** 下の「変換が止まったときのログの見方」を参照 |
-| メニューバーにアイコンが無い | まず `pgrep WKRMacOS` を確認してください。プロセスが無ければ常駐していません（起動できなかった場合はログに `conversion-not-started reason=...`、動作中に落ちた場合は `conversion-stopped` / `event-tap-disabled`）。プロセスがあるのにアイコンだけ無い場合は、メニューバー管理アプリ（Bartender 等）が隠しているか、メニューバーが埋まって macOS が項目を落としています。生成自体はログの `status-item created=` 行で確認できます |
+| メニューバーにアイコンが無い | 原因が3通りあり、**ステータス項目の座標で区別できます**。下の「アイコンが見えないときの切り分け」を参照 |
 | メニューバーに「停止中：Secure Event Input」と出ている | メニューを開くと保持PID・生死・経過時間と対処が出ます。「動作中」なら解放を待つかそのプロセスを終了、「終了済み」ならログアウト。下の「変換が止まったときのログの見方」も参照 |
 | メニューバーに「待機中：…」と出ている | 設計どおりの素通しです（対象外の入力ソース、`--exclude-app` の除外アプリ）。対処は不要です |
 | ログに `reason=duplicate-instance` | 既に常駐しています。`make stop` するか、メニューバーの「終了」を選んでから起動してください |
 | `reason=not-a-bundle` | `.app` bundle の外から実行しています。`make start` / `make start-installed` を使ってください |
 | ad-hoc署名で毎回再許可が必要 | 安定した署名 identity がない環境の既知の制約です。常用するなら `/Applications` へ配備した bundle を固定して使ってください |
 | `make start` 系が `_LSOpenURLsWithCompletionHandler() failed with error -600` | 配備直後に Launch Services の登録が移動前のバンドルを指したままの一過性の失敗です。`start-app.sh` が自動でリトライします（リトライしない旧版では、数秒おいて再実行してください） |
+
+### アイコンが見えないときの切り分け
+
+ログに `status-item created=true` と出ているのに画面に見えない場合、原因は3通りあります。
+**ステータス項目の座標を見れば区別できます。**
+
+```bash
+osascript -e 'tell application "System Events" to tell process "WKRMacOS" to get position of every menu bar item of menu bar 1'
+```
+
+| 結果 | 原因 | 対処 |
+| --- | --- | --- |
+| 何も返らない | 常駐していない、または項目を作れていない | `pgrep WKRMacOS` と、ログの `status-item` / `conversion-not-started` / `conversion-stopped` を見る |
+| 座標がノッチの範囲内 | メニューバーが混雑してノッチ下に落ちている | 他のメニューバー項目を減らす |
+| 座標が大きな負の値 | メニューバー管理アプリ（Bartender 等）が画面外へ退避させている | その管理アプリの設定で表示に戻す |
+| 座標がノッチの右側 | 見えている | — |
+
+ノッチの範囲は機種によります。内蔵ディスプレイの左右の使用可能領域は
+`NSScreen.main?.auxiliaryTopLeftArea` の右端と `auxiliaryTopRightArea` の左端で、
+その間がノッチです。
+
+**アイコンが消えていること自体は「変換が止まった」ではなく「常駐していない」の合図**ですが、
+上のとおり見えない理由は他にもあるので、`pgrep` と併せて確認してください。
 
 ### 変換が止まったときのログの見方
 
