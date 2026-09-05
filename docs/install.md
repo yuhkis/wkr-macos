@@ -510,11 +510,21 @@ make key-frequency-report VIL=~/path/to/your-keymap.vil
 汎用配列。下段グリッドの6キーは空白）を描きます。**`.vil` はキートップの表示を決めるだけで、
 その下の集計値は同じです。** 読めなかった場合は標準エラーへ1行出して既定配列で続行します。
 
-毎回指定するのが面倒なら、ユーザーデフォルトに置けます。
+**メニューバーから選ぶのが一番簡単です。** アイコンをクリックして「キーマップを選ぶ…」で
+`.vil` を指定すると、その場でヒートマップが開き直し、次回以降も同じキーマップが使われます。
+いま何が選ばれているかはメニューの「キーマップ：…」行に出ます（ファイル名だけで、置き場所の
+パスは表示しません）。組み込みの配列へ戻すときは「キーマップの指定を解除」です。
+
+メニューで選んだ内容は下のユーザーデフォルトと同じ場所に保存されるので、`make` や CLI から
+生成しても同じキーマップが使われます。コマンドで直接置くこともできます。
 
 ```bash
 defaults write io.github.yuhkis.wkr-macos VialKeymapPath ~/path/to/your-keymap.vil
 ```
+
+なお `--vil` を明示して常駐させている場合、その起動引数がユーザーデフォルトより優先されます。
+メニューで選び直すと、**その常駐プロセスではメニューの選択が優先**され、保存先のユーザー
+デフォルトも更新されます。
 
 ### macOS から見えないキー
 
@@ -611,6 +621,7 @@ prefix モードでの期待値は次のとおりです。
 | `frontmost-application ... excluded=true` | `--exclude-app` で除外したアプリが前面です |
 | `conversion-stopped` / `event-tap-disabled` | fail closed で終了しています。起動し直してください |
 | `unicode-injection-skipped reason=pre-edit-open` | 未確定文字列があったため記号を送りませんでした（下記） |
+| `heatmap-keymap selected=true` / `selected=false` | メニューからヒートマップのキーマップを選び直しました。**パスは記録しません**（指定の有無だけ） |
 | `status-item created=true glyph=symbol` / `glyph=title` | メニューバー表示を作りました。`title` はSF Symbolを読めずテキストで描いている状態です |
 | `status-item created=false reason=no-button` | メニューバー表示を作れませんでした。変換自体は続きます |
 | `status-menu open=true` / `open=false` | メニューを開いている間は変換を止めています（メニューのタイプセレクトへ変換結果が入るのを防ぐため）。同時刻の `state=reset reason=applicationChanged` はこれが原因で、アプリの切替ではありません |

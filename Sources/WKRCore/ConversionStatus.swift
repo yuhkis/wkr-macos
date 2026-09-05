@@ -243,6 +243,27 @@ public enum ConversionStatusText {
     /// a truthful answer to "show me the counts".
     public static let openHeatmapTitle = "打鍵頻度のヒートマップを開く"
 
+    /// Which keymap the heatmap will be drawn against.
+    ///
+    /// Shows the file's name and never its directory. The name is what the user
+    /// picked and needs in order to tell one export from another; the path it
+    /// came from would put a home directory, a cloud-storage folder, and often
+    /// an account name onto a surface that is read during screen sharing and
+    /// ends up in screenshots.
+    public static func keymapLine(fileName: String?) -> String {
+        guard let fileName, !fileName.isEmpty else {
+            return "キーマップ：組み込みの配列"
+        }
+        return "キーマップ：\(fileName)"
+    }
+
+    /// Opens a file picker. The ellipsis is the platform's promise that
+    /// choosing this asks something before it does anything.
+    public static let chooseKeymapTitle = "キーマップを選ぶ…"
+
+    /// Shown only while a keymap is set. Returns to the built-in layout.
+    public static let clearKeymapTitle = "キーマップの指定を解除"
+
     /// The one enabled item. Named so the consequence is visible before it is
     /// chosen: under the login agent, `KeepAlive` is false.
     public static let quitTitle = "終了（次のログインまで変換は止まります）"

@@ -2,6 +2,7 @@ import AppKit
 import Carbon.HIToolbox
 import Darwin
 import Foundation
+import UniformTypeIdentifiers
 import WKRCore
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -35,6 +36,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// the duration so converted romaji cannot land in the menu's type-select.
     private var statusMenuIsOpen = false
     private var lastPublishedStatus: ConversionStatus?
+    /// The keymap the heatmap is drawn against, for this session.
+    ///
+    /// Held separately from `configuration.vialKeymapPath` because a `--vil`
+    /// argument outranks the user default at parse time. Without this, picking a
+    /// keymap from the menu would write the default and then be overruled by the
+    /// launch argument every time the report ran.
+    private var selectedKeymapPath: String?
 
     init(configuration: AppConfiguration) {
         self.configuration = configuration
@@ -303,8 +311,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         controller.menuContentProvider = { [weak self] in
             self?.currentMenuContent() ?? ConversionMenuContent(status: .stopping)
         }
+        selectedKeymapPath = configuration.vialKeymapPath
         controller.openHeatmapRequested = { [weak self] in
             self?.openKeyFrequencyReport()
+        }
+        controller.chooseKeymapRequested = { [weak self] in
+            self?.chooseKeymap()
+        }
+        controller.clearKeymapRequested = { [weak self] in
+            self?.clearKeymap()
+        }
+        controller.keymapFileNameProvider = { [weak self] in
+            self?.selectedKeymapPath.map { ($0 as NSString).lastPathComponent }
         }
         controller.menuOpenStateChanged = { [weak self] isOpen in
             guard let self else { return }
@@ -319,6 +337,66 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         AppLog.logger.notice(
             "status-item created=true glyph=\(controller.usesSymbols ? "symbol" : "title", privacy: .public)"
         )
+    }
+
+    /// Asks for a Vial export to draw the heatmap against.
+    ///
+    /// Uses `begin` rather than `runModal`: a modal session would sit inside
+    /// this call while the user browses, and the event tap source is on this
+    /// same run loop. `begin` puts the panel up and returns, so nothing here
+    /// holds the loop for however long the file browser stays open.
+    ///
+    /// The app is `LSUIElement`, so it is never the active application and the
+    /// panel would open behind whatever is in front. Activating first is what
+    /// makes it reachable.
+    private func chooseKeymap() {
+        precondition(Thread.isMainThread)
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.message = "ヒートマップに使う Vial のキーマップ（.vil）を選んでください"
+        panel.prompt = "選ぶ"
+        if let vil = UTType(filenameExtension: "vil") {
+            panel.allowedContentTypes = [vil, .json]
+        }
+        // `.vil` is JSON, and a system without the type registered would
+        // otherwise show nothing selectable.
+        panel.allowsOtherFileTypes = true
+
+        NSApp.activate()
+        panel.begin { [weak self] response in
+            guard let self, response == .OK, let url = panel.url else { return }
+            self.applyKeymap(path: url.path)
+        }
+    }
+
+    /// Goes back to the built-in layout.
+    private func clearKeymap() {
+        precondition(Thread.isMainThread)
+        applyKeymap(path: nil)
+    }
+
+    /// Records the choice for this session and for the next launch.
+    ///
+    /// Writes the same user default the CLI reads, so `make key-frequency-report`
+    /// and a later launch of this app agree with what the menu shows. The
+    /// session copy is what the report subprocess is actually given, because a
+    /// `--vil` launch argument would otherwise keep winning.
+    private func applyKeymap(path: String?) {
+        precondition(Thread.isMainThread)
+        selectedKeymapPath = path
+        let defaults = UserDefaults.standard
+        if let path {
+            defaults.set(path, forKey: AppConfiguration.vialKeymapPathDefaultsKey)
+        } else {
+            defaults.removeObject(forKey: AppConfiguration.vialKeymapPathDefaultsKey)
+        }
+        // The path is the user's own file and can name a home directory or a
+        // cloud folder, so it is not logged. Whether one is set is enough to
+        // tell the two states apart afterwards.
+        AppLog.logger.notice("heatmap-keymap selected=\(path != nil, privacy: .public)")
+        openKeyFrequencyReport()
     }
 
     /// Renders and opens the key-frequency heatmap.
@@ -352,7 +430,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let storePath = configuration.keyFrequencyStorePath {
             arguments += ["--key-frequency-store", storePath]
         }
-        if let keymapPath = configuration.vialKeymapPath {
+        if let keymapPath = selectedKeymapPath {
             arguments += ["--vil", keymapPath]
         }
 

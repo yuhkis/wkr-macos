@@ -60,7 +60,8 @@ Apple日本語入力へ打ち直します**。Apple日本語入力から見れ�
   **Apple日本語入力のローマ字入力で打てるかな206種はすべて入力できます**（[docs/layout-coverage.md](./docs/layout-coverage.md)）。
 - 常用方式は **prefix-romaji**（ログイン時起動もこれ）。CLI の既定値は最も安全な deferred-romaji です。
 - **打鍵頻度のヒートマップ**を出せます（既定オフ）。`--key-frequency on` で数え、
-  **メニューバーの「打鍵頻度のヒートマップを開く」**または `--key-frequency-report` で
+  **メニューバーの「打鍵頻度のヒートマップを開く」**（キーマップの `.vil` もメニューから
+  選べます）または `--key-frequency-report` で
   JIS・US・Cornix の3配列（Cornix はレイヤーごとのタブ付き）に
   描き分けた HTML を1枚書き出します。tap / hold 兼用キーは上半分の **HOLD** と下半分の
   **TAP** を別々に表示し、同じ論理キーを複数の動作が送る場合は共有合計を `◇` 付きで示します。
