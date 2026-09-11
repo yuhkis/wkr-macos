@@ -14,14 +14,17 @@ import Foundation
 /// and the per-finger totals for four windows across three keyboards, and
 /// re-deriving them in the page is both far smaller than emitting twelve
 /// pre-drawn boards and the only way the file keeps answering questions after the
-/// day it was written.
+/// day it was written. The わから配列 legend switch follows the same argument:
+/// relabelling in the page takes one short table of names, where drawing every
+/// board a second time would double the file for a change of text.
 public enum KeyFrequencyReportRenderer {
     /// A complete, standalone HTML document. No network references of any kind.
     public static func html(
         store: KeyFrequencyStore,
         geometries: [KeyboardGeometry],
         generatedAt: Date,
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        wakaraLegends: [WakaraKeyLegend] = WakaraKeyLegends.all
     ) -> String {
         let payload = Payload(
             generatedAt: isoTimestamp(generatedAt, calendar: calendar),
@@ -34,6 +37,10 @@ public enum KeyFrequencyReportRenderer {
                 uniqueKeysWithValues: KeyCap.Finger.allCases.map { ($0.rawValue, $0.displayName) }
             ),
             exclusionNames: exclusionReasons,
+            wakara: Payload.Wakara(
+                sourceRevision: WKRLayout.sourceRevision,
+                legends: wakaraLegends
+            ),
             store: store,
             geometries: geometries
         )
@@ -75,11 +82,24 @@ extension KeyFrequencyReportRenderer {
             let recent30: [String]
         }
 
+        /// The わから配列 legend mode's labels, keyed by key code in the page.
+        ///
+        /// Sent as data rather than applied to the geometries here, so that
+        /// switching modes is a redraw instead of a second set of boards, and
+        /// so that one table relabels every board and layer alike. The revision
+        /// travels with it because the labels are only as current as the rule
+        /// table they were read from.
+        struct Wakara: Encodable {
+            let sourceRevision: String
+            let legends: [WakaraKeyLegend]
+        }
+
         let generatedAt: String
         let windows: Windows
         let fingerOrder: [String]
         let fingerNames: [String: String]
         let exclusionNames: [String: String]
+        let wakara: Wakara
         let store: KeyFrequencyStore
         let geometries: [KeyboardGeometry]
     }
@@ -223,7 +243,7 @@ extension KeyFrequencyReportRenderer {
           <noscript><p class="empty">この報告書の作図には JavaScript を使っています。</p></noscript>
         </header>
 
-        <section class="controls" aria-label="集計期間">
+        <section class="controls" aria-label="表示の設定">
           <div class="segmented" id="period" role="group" aria-label="集計期間の選択">
             <button type="button" data-period="all">全期間</button>
             <button type="button" data-period="w7">直近7日</button>
@@ -231,7 +251,15 @@ extension KeyFrequencyReportRenderer {
             <button type="button" data-period="day">単日</button>
           </div>
           <label class="daypick" id="daypick-label" hidden>対象日 <select id="daypick"></select></label>
+          <div class="legend-mode">
+            <span class="control-label" id="legend-mode-label">キートップ</span>
+            <div class="segmented" id="legend-mode" role="group" aria-labelledby="legend-mode-label">
+              <button type="button" data-legend="print">刻印</button>
+              <button type="button" data-legend="wakara">わから配列</button>
+            </div>
+          </div>
           <p class="period-note" id="period-note"></p>
+          <p class="period-note" id="legend-note" hidden></p>
         </section>
 
         <div class="tabs" id="tabs" role="tablist" aria-label="キーボード"></div>
@@ -411,7 +439,13 @@ h2 { margin: 0 0 8px; font-size: 13px; font-weight: 600; letter-spacing: .06em; 
   border: 1px solid var(--rule-strong); border-radius: 5px; padding: 4px 6px;
 }
 
+/* Pushed to the far end of the row so the two selectors read as separate
+   questions: which days, and what the caps say. */
+.legend-mode { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; }
+.control-label { font-size: 12px; color: var(--fg-muted); letter-spacing: .06em; }
+
 .period-note { flex-basis: 100%; margin: 0; font-size: 12px; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
+#legend-note { margin-top: -8px; }
 
 .tabs { display: flex; flex-wrap: wrap; gap: 2px; margin: 20px 0 0; border-bottom: 1px solid var(--rule); }
 .tab {
@@ -544,6 +578,16 @@ extension KeyFrequencyReportRenderer {
   var dayNames = days.map(function (d) { return d.date; });
   var geometries = DATA.geometries || [];
 
+  // わから配列 legends by key code. Swift reads them off the live rule table;
+  // the page only decides whether to show them. A key code rather than a cap
+  // is the key because that is what the transducer sees: every position that
+  // sends kVK_ANSI_E, on any board or layer, is the か行 key.
+  var WAKARA = {};
+  ((DATA.wakara && DATA.wakara.legends) || []).forEach(function (entry) {
+    WAKARA[entry.keyCode] = entry;
+  });
+  var wakaraKeyCount = Object.keys(WAKARA).length;
+
   // Caps grouped by model. The Cornix layer boards are separate tabs of one
   // physical keyboard, so "how many caps send this identity" has to be asked
   // across the whole family: a keycode drawn on layer 0 and layer 2 is one
@@ -597,10 +641,46 @@ extension KeyFrequencyReportRenderer {
   var state = {
     period: 'all',
     day: dayNames.length ? dayNames[dayNames.length - 1] : null,
-    tab: 0
+    tab: 0,
+    legend: 'print'
   };
 
   function idKey(identity) { return identity.keyCode + (identity.isShifted ? 's' : 'u'); }
+
+  // ---- legend mode -----------------------------------------------------------
+  // Only the unshifted identity names a わから配列 key. Shift+E reaches Apple
+  // Japanese Input as a switch to English, not as the か行 key, so a cap that
+  // carries nothing but a shifted code (a Corne `LSFT(KC_E)`) keeps its
+  // engraving.
+  function wakaraFor(part) {
+    for (var i = 0; i < part.identities.length; i++) {
+      var identity = part.identities[i];
+      if (!identity.isShifted && WAKARA[identity.keyCode]) { return WAKARA[identity.keyCode]; }
+    }
+    return null;
+  }
+
+  function wakaraForKey(key) {
+    if (key.charAt(key.length - 1) !== 'u') { return null; }
+    return WAKARA[parseInt(key.slice(0, -1), 10)] || null;
+  }
+
+  // What a cap face shows. In the わから配列 mode the layout's name for the key
+  // takes the centre and the engraving moves to the small upper line, which is
+  // the upstream README's own diagram: the QWERTY key, and under it what it
+  // does. A hold or wrap label that already sat on that line is kept after the
+  // engraving rather than dropped. A shifted legend (JIS `+` over `;`) is not:
+  // it names a different identity, which the わから配列 label does not. A
+  // tap/hold half has no upper line, so drawBoard puts the engraving on its
+  // role line instead.
+  function faceOf(part) {
+    var wakara = state.legend === 'wakara' ? wakaraFor(part) : null;
+    if (!wakara) {
+      return { primary: part.legend, secondary: part.secondary, wakara: null };
+    }
+    var kept = part.secondary && !part.secondaryIsShifted ? ' ' + part.secondary : '';
+    return { primary: wakara.label, secondary: part.legend + kept, wakara: wakara };
+  }
 
   function hex(code) {
     var text = code.toString(16).toUpperCase();
@@ -830,21 +910,40 @@ extension KeyFrequencyReportRenderer {
     return part.legend + (part.secondary ? ' / ' + part.secondary : '');
   }
 
+  // The name read out for a cap face. It follows the legend mode so that a
+  // screen reader hears what a sighted reader sees on the cap.
+  function faceName(part) {
+    var face = faceOf(part);
+    if (!face.wakara) { return actionName(part); }
+    var role = part.role === 'hold' ? 'HOLD · ' : (part.role === 'tap' ? 'TAP · ' : '');
+    return role + face.primary + '（' + part.legend + '）';
+  }
+
   function tipLines(geo, part, count, shared, agg) {
     var lines = [];
+    // The engraving stays the first line in both modes: in the わから配列 mode it
+    // is the one thing the cap face no longer shows at full size.
     lines.push({
       k: part.role === 'key' ? '刻印' : '動作',
       v: actionName(part)
     });
+    var wakara = state.legend === 'wakara' ? wakaraFor(part) : null;
+    if (wakara) { lines.push({ k: 'わから配列', v: wakara.label }); }
     part.identities.forEach(function (identity) {
       lines.push({
         k: 'キーコード',
+        // Each identity's own count, which is the Shift split the caveats
+        // promise the details carry. Under the わから配列 legend it also
+        // separates the key's layout role (unshifted) from its shifted presses
+        // (a switch to English on a letter key, a symbol such as `+` on `;`).
         v: hex(identity.keyCode) + (identity.isShifted ? '（Shiftあり）' : '（Shiftなし）')
+          + ' ' + num(agg.counts[idKey(identity)] || 0) + '回'
       });
     });
     if (part.identities.length) {
       lines.push({ k: '打鍵数', v: num(count) });
       lines.push({ k: '割合', v: share(count, agg.total) });
+      if (wakara) { lines.push({ v: wakara.detail }); }
       if (shared > 1) {
         var shiftInfo = shiftSharingForPart(geo, part);
         lines.push({
@@ -929,7 +1028,7 @@ extension KeyFrequencyReportRenderer {
         var partGroup = svgEl('g', {
           'class': 'cap-part' + partState,
           role: 'img',
-          'aria-label': actionName(part) + '、' + (countable ? num(count) + '回' : '計測不可')
+          'aria-label': faceName(part) + '、' + (countable ? num(count) + '回' : '計測不可')
             + (claimed > 1 ? '、同じ合計値を共有' : '') + exclusionNote
         });
         if (split) { partGroup.setAttribute('clip-path', 'url(#' + clipID + ')'); }
@@ -945,19 +1044,24 @@ extension KeyFrequencyReportRenderer {
         }
         partGroup.appendChild(rect);
 
-        var primary = part.legend;
-        var secondary = part.secondary;
+        var face = faceOf(part);
+        var primary = face.primary;
+        var secondary = face.secondary;
         var primarySize = primary.length <= 1 ? 17 : (primary.length <= 3 ? 12.5 : 10);
         var showCount = countable && count > 0;
         var countText = (claimed > 1 ? '◇ ' : '') + num(count);
 
         if (split) {
+          // A half face has no upper line of its own, so under the わから配列
+          // legend the engraving rides on the role line (TAP · A) rather than
+          // leaving the face.
+          var roleText = part.role.toUpperCase() + (face.wakara ? ' · ' + part.legend : '');
           if (showCount) {
-            partGroup.appendChild(capText(part.role.toUpperCase(), 6.5, 'role', -8, cx, partCy, ink));
+            partGroup.appendChild(capText(roleText, 6.5, 'role', -8, cx, partCy, ink));
             partGroup.appendChild(capText(primary, Math.min(primarySize, 9.5), 'pri', 0, cx, partCy, ink));
             partGroup.appendChild(capText(countText, 8.5, 'cnt', 9, cx, partCy, ink));
           } else {
-            partGroup.appendChild(capText(part.role.toUpperCase(), 6.5, 'role', -5, cx, partCy, ink));
+            partGroup.appendChild(capText(roleText, 6.5, 'role', -5, cx, partCy, ink));
             partGroup.appendChild(capText(primary, Math.min(primarySize, 9.5), 'pri', 5, cx, partCy, ink));
           }
         } else if (showCount) {
@@ -1133,15 +1237,12 @@ extension KeyFrequencyReportRenderer {
 
       tr.appendChild(cell(String(index + 1), 'rank'));
       var borrowed = label === null ? borrowedLabel(geo, row.key) : null;
-      tr.appendChild(cell(
-        label !== null
-          ? label
-          : (borrowed !== null
-              ? borrowed
-              : (FALLBACK_NAMES[code] || hex(code)) + (shifted ? ' + Shift' : ''))
-            + '（この図に無いキー）',
-        label !== null ? '' : 'absent'
-      ));
+      var name = label !== null
+        ? label
+        : (borrowed !== null
+            ? borrowed
+            : (FALLBACK_NAMES[code] || hex(code)) + (shifted ? ' + Shift' : ''));
+      tr.appendChild(cell(rankingName(row.key, name, label === null), label !== null ? '' : 'absent'));
       tr.appendChild(cell(num(row.count), 'num'));
       tr.appendChild(cell(share(row.count, agg.total), 'num'));
 
@@ -1157,6 +1258,18 @@ extension KeyFrequencyReportRenderer {
 
       body.appendChild(tr);
     });
+  }
+
+  // A ranking row's key name. The わから配列 label leads and the engraving
+  // follows in brackets, so the row still says which physical key it was.
+  // Shifted rows keep the engraving alone, for the same reason `wakaraFor`
+  // ignores shifted codes.
+  function rankingName(key, name, absent) {
+    var wakara = state.legend === 'wakara' ? wakaraForKey(key) : null;
+    if (wakara) {
+      return wakara.label + '（' + name + (absent ? '・この図に無いキー' : '') + '）';
+    }
+    return name + (absent ? '（この図に無いキー）' : '');
   }
 
   function cell(text, cls) {
@@ -1265,6 +1378,10 @@ extension KeyFrequencyReportRenderer {
   // ---- chrome --------------------------------------------------------------
   var periodBox = document.getElementById('period');
   var periodButtons = Array.prototype.slice.call(periodBox.querySelectorAll('button'));
+  var legendButtons = Array.prototype.slice.call(
+    document.getElementById('legend-mode').querySelectorAll('button')
+  );
+  var legendNote = document.getElementById('legend-note');
   var daySelect = document.getElementById('daypick');
   var dayLabel = document.getElementById('daypick-label');
   var tabBox = document.getElementById('tabs');
@@ -1278,6 +1395,8 @@ extension KeyFrequencyReportRenderer {
     if (day && dayNames.indexOf(day) >= 0) { state.day = day; }
     var tab = parseInt(recall('tab'), 10);
     if (tab >= 0 && tab < geometries.length) { state.tab = tab; }
+    var legend = recall('legend');
+    if (legend === 'print' || (legend === 'wakara' && wakaraKeyCount)) { state.legend = legend; }
   }
 
   function buildChrome() {
@@ -1286,6 +1405,15 @@ extension KeyFrequencyReportRenderer {
       button.addEventListener('click', function () {
         state.period = button.dataset.period;
         remember('period', state.period);
+        render();
+      });
+    });
+
+    legendButtons.forEach(function (button) {
+      if (button.dataset.legend === 'wakara' && !wakaraKeyCount) { button.disabled = true; }
+      button.addEventListener('click', function () {
+        state.legend = button.dataset.legend;
+        remember('legend', state.legend);
         render();
       });
     });
@@ -1341,6 +1469,21 @@ extension KeyFrequencyReportRenderer {
       button.classList.toggle('on', on);
       button.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
+    legendButtons.forEach(function (button) {
+      var on = button.dataset.legend === state.legend;
+      button.classList.toggle('on', on);
+      button.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    // Said next to the switch rather than under the board: it explains what
+    // the caps now say, not something the figure cannot know.
+    legendNote.hidden = state.legend !== 'wakara';
+    legendNote.textContent = state.legend === 'wakara'
+      ? 'わから配列：規則を持つ' + wakaraKeyCount + 'キーを、わから配列での役割（か行・あ・□ など）で表示し、'
+        + '元の刻印を上に小さく残しています。色と数値は刻印表示と同じで、Shift付きの打鍵（英字キーでは英字への'
+        + '切り替え、「;」では「+」などの記号）も同じキーに合算しています（内訳はキーの詳細に出ます）。「,」「.」「/」や数字・括弧は IME へそのまま'
+        + '通すため刻印のままです。役割は規則表（wkr-layout '
+        + String((DATA.wakara && DATA.wakara.sourceRevision) || '').slice(0, 7) + '）から生成しています。'
+      : '';
     Array.prototype.forEach.call(tabBox.children, function (button, index) {
       var on = index === state.tab;
       button.classList.toggle('on', on);
