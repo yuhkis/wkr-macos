@@ -1,6 +1,6 @@
 # WKR macOS
 
-**わから配列を、macOS標準のApple日本語入力（Kotoeri）の前段で解釈する常駐アプリです。**
+**わから配列を、macOS標準のApple日本語入力（Kotoeri）の前段で通訳する常駐アプリです。**
 
 > **English summary.** `wkr-macos` lets you type Japanese with the
 > [Wakara layout](https://github.com/yuhkis/wkr-layout) (wkr) on macOS, without giving up
