@@ -125,13 +125,19 @@ final class KeyFrequencyRecorder {
     init?(
         enabled: Bool,
         storeURL: URL? = nil,
-        retainedDays: Int? = KeyFrequencyTally.defaultRetainedDays
+        retainedDays: Int? = KeyFrequencyTally.defaultRetainedDays,
+        layout: String = WKRLayout.layoutIdentifier
     ) {
         guard enabled else { return nil }
         guard let url = storeURL ?? Self.defaultStoreURL() else { return nil }
         self.storeURL = url
         self.retainedDays = retainedDays
+        self.layoutIdentifier = layout
     }
+
+    /// Filed with every count, so the heatmap can tell which rule table a
+    /// day's numbers were typed under. See `KeyFrequencyStore.Day.layouts`.
+    private let layoutIdentifier: String
 
     /// `~/Library/Application Support/io.github.yuhkis.wkr-macos/key-frequency.json`.
     ///
@@ -172,7 +178,8 @@ final class KeyFrequencyRecorder {
         guard flags.intersection(Self.uncountableFlags).isEmpty else { return }
         tally.record(
             KeyIdentity(keyCode: UInt16(keyCode), isShifted: flags.contains(.maskShift)),
-            on: currentDay()
+            on: currentDay(),
+            layout: layoutIdentifier
         )
     }
 
@@ -213,7 +220,7 @@ final class KeyFrequencyRecorder {
         // and a name invented here would land on a cap in the picture.
         guard let mask = Self.modifierMasks[keyCode] else { return }
         guard flags.contains(mask), !previous.contains(mask) else { return }
-        tally.record(KeyIdentity(keyCode: UInt16(keyCode)), on: currentDay())
+        tally.record(KeyIdentity(keyCode: UInt16(keyCode)), on: currentDay(), layout: layoutIdentifier)
     }
 
     /// Forget which modifiers were down.
@@ -405,7 +412,7 @@ final class KeyFrequencyRecorder {
         // later version may decode into today's fields and mean something else,
         // and a report drawn from it would be wrong in a picture no one can
         // check against the source.
-        guard store.schemaVersion == KeyFrequencyStore.currentSchemaVersion else { return nil }
+        guard KeyFrequencyStore.readableSchemaVersions.contains(store.schemaVersion) else { return nil }
         return store
     }
 

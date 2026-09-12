@@ -24,8 +24,12 @@ public enum KeyFrequencyReportRenderer {
         geometries: [KeyboardGeometry],
         generatedAt: Date,
         calendar: Calendar = .current,
-        wakaraLegends: [WakaraKeyLegend] = WakaraKeyLegends.all
+        wakaraLegends: [WakaraKeyLegend] = WakaraKeyLegends.all,
+        layoutIdentifier: String = WKRLayout.layoutIdentifier,
+        historicalLegends: [String: [WakaraKeyLegend]] = WakaraKeyLegends.historical
     ) -> String {
+        var legendsByLayout = historicalLegends
+        legendsByLayout[layoutIdentifier] = wakaraLegends
         let payload = Payload(
             generatedAt: isoTimestamp(generatedAt, calendar: calendar),
             windows: Payload.Windows(
@@ -39,7 +43,10 @@ public enum KeyFrequencyReportRenderer {
             exclusionNames: exclusionReasons,
             wakara: Payload.Wakara(
                 sourceRevision: WKRLayout.sourceRevision,
-                legends: wakaraLegends
+                layout: layoutIdentifier,
+                legacyLayout: KeyFrequencyStore.layoutBeforeSchema2,
+                legends: wakaraLegends,
+                legendsByLayout: legendsByLayout
             ),
             store: store,
             geometries: geometries
@@ -91,7 +98,17 @@ extension KeyFrequencyReportRenderer {
         /// table they were read from.
         struct Wakara: Encodable {
             let sourceRevision: String
+            /// The rule table this build counts under, and the name a day
+            /// with no `layouts` (schema 1) was counted under.
+            let layout: String
+            let legacyLayout: String
+            /// The live table's legends, kept under this key for pages that
+            /// read the older payload shape.
             let legends: [WakaraKeyLegend]
+            /// One legend table per rule table the page may meet in the days,
+            /// so a day counted under an earlier table is labelled with that
+            /// table's names rather than today's.
+            let legendsByLayout: [String: [WakaraKeyLegend]]
         }
 
         let generatedAt: String
@@ -248,6 +265,7 @@ extension KeyFrequencyReportRenderer {
             <button type="button" data-period="all">全期間</button>
             <button type="button" data-period="w7">直近7日</button>
             <button type="button" data-period="w30">直近30日</button>
+            <button type="button" data-period="since" hidden>切替以降</button>
             <button type="button" data-period="day">単日</button>
           </div>
           <label class="daypick" id="daypick-label" hidden>対象日 <select id="daypick"></select></label>
@@ -558,7 +576,7 @@ extension KeyFrequencyReportRenderer {
   // the geometry having to carry gaps in its coordinates.
   var INSET = 3;
 
-  var PERIOD_LABELS = { all: '全期間', w7: '直近7日', w30: '直近30日', day: '単日' };
+  var PERIOD_LABELS = { all: '全期間', w7: '直近7日', w30: '直近30日', since: '切替以降', day: '単日' };
 
   // ---- storage -------------------------------------------------------------
   // Every access is guarded: a thumbnail or preview context can throw on the mere
@@ -578,15 +596,60 @@ extension KeyFrequencyReportRenderer {
   var dayNames = days.map(function (d) { return d.date; });
   var geometries = DATA.geometries || [];
 
-  // わから配列 legends by key code. Swift reads them off the live rule table;
-  // the page only decides whether to show them. A key code rather than a cap
-  // is the key because that is what the transducer sees: every position that
-  // sends kVK_ANSI_E, on any board or layer, is the か行 key.
-  var WAKARA = {};
-  ((DATA.wakara && DATA.wakara.legends) || []).forEach(function (entry) {
-    WAKARA[entry.keyCode] = entry;
+  // わから配列 legends by key code, one table per rule table the tally was
+  // counted under. Swift reads the live one off the rule table and carries the
+  // earlier ones it still knows the names of; the page picks the table that
+  // matches the days on screen. A key code rather than a cap is the key
+  // because that is what the transducer sees: every position that sends
+  // kVK_ANSI_E, on any board or layer, is the か行 key.
+  var LAYOUT = (DATA.wakara && DATA.wakara.layout) || '';
+  var LEGACY_LAYOUT = (DATA.wakara && DATA.wakara.legacyLayout) || LAYOUT;
+  var LEGEND_TABLES = {};
+  var legendsByLayout = (DATA.wakara && DATA.wakara.legendsByLayout) || {};
+  Object.keys(legendsByLayout).forEach(function (id) {
+    var table = {};
+    legendsByLayout[id].forEach(function (entry) { table[entry.keyCode] = entry; });
+    LEGEND_TABLES[id] = table;
   });
+  if (!LEGEND_TABLES[LAYOUT]) {
+    var live = {};
+    ((DATA.wakara && DATA.wakara.legends) || []).forEach(function (entry) { live[entry.keyCode] = entry; });
+    LEGEND_TABLES[LAYOUT] = live;
+  }
+  // The table the boards are drawn with. render() points it at the table of
+  // the days on screen before anything is drawn.
+  var WAKARA = LEGEND_TABLES[LAYOUT];
   var wakaraKeyCount = Object.keys(WAKARA).length;
+
+  // Which rule tables counted into a day. A day from a schema 1 file carries
+  // no names and was counted under the only table that existed then.
+  function layoutsOf(day) {
+    return day.layouts && day.layouts.length ? day.layouts : [LEGACY_LAYOUT];
+  }
+  function layoutsAcross(chosen) {
+    var seen = [];
+    chosen.forEach(function (day) {
+      layoutsOf(day).forEach(function (id) { if (seen.indexOf(id) < 0) { seen.push(id); } });
+    });
+    return seen;
+  }
+  function mixedDays(chosen) {
+    return chosen.filter(function (day) { return layoutsOf(day).length > 1; })
+      .map(function (day) { return day.date; });
+  }
+  var allLayouts = layoutsAcross(days);
+  var latestLayout = days.length ? layoutsOf(days[days.length - 1]).slice(-1)[0] : LAYOUT;
+  // 切替以降 starts on the first day the newest table counted into. When the
+  // change landed mid-day that is a mixed day, and it is kept rather than
+  // dropped, flagged as mixed: a report opened on the afternoon of the change
+  // should show the afternoon. The window exists only once two tables have
+  // counted.
+  var sinceStart = null;
+  if (allLayouts.length > 1) {
+    for (var d = 0; d < days.length; d++) {
+      if (layoutsOf(days[d]).indexOf(latestLayout) >= 0) { sinceStart = days[d].date; break; }
+    }
+  }
 
   // Caps grouped by model. The Cornix layer boards are separate tabs of one
   // physical keyboard, so "how many caps send this identity" has to be asked
@@ -710,6 +773,9 @@ extension KeyFrequencyReportRenderer {
     if (state.period === 'all') { return days; }
     if (state.period === 'day') {
       return days.filter(function (d) { return d.date === state.day; });
+    }
+    if (state.period === 'since') {
+      return sinceStart ? days.filter(function (d) { return d.date >= sinceStart; }) : [];
     }
     var windows = DATA.windows || { recent7: [], recent30: [] };
     var window_ = state.period === 'w7' ? windows.recent7 : windows.recent30;
@@ -1388,7 +1454,8 @@ extension KeyFrequencyReportRenderer {
 
   function restore() {
     var period = recall('period');
-    if (period === 'all' || period === 'w7' || period === 'w30' || (period === 'day' && dayNames.length)) {
+    if (period === 'all' || period === 'w7' || period === 'w30'
+        || (period === 'day' && dayNames.length) || (period === 'since' && sinceStart)) {
       state.period = period;
     }
     var day = recall('day');
@@ -1402,6 +1469,7 @@ extension KeyFrequencyReportRenderer {
   function buildChrome() {
     periodButtons.forEach(function (button) {
       if (button.dataset.period === 'day' && !dayNames.length) { button.disabled = true; }
+      if (button.dataset.period === 'since') { button.hidden = !sinceStart; }
       button.addEventListener('click', function () {
         state.period = button.dataset.period;
         remember('period', state.period);
@@ -1460,6 +1528,33 @@ extension KeyFrequencyReportRenderer {
     document.getElementById('empty-note').hidden = dayNames.length > 0;
   }
 
+  // What the わから配列 note adds when the days on screen were not all counted
+  // under the table the caps are named by.
+  function layoutCaveat(chosen, chosenLayouts, drawnLayout) {
+    if (chosenLayouts.length > 1) {
+      var mixed = mixedDays(chosen);
+      // Only the switch day itself mixes: every other day was counted under
+      // the table the caps are named by, so the names hold and the note need
+      // only say what that one day contains.
+      var earlier = chosen.filter(function (day) {
+        return layoutsOf(day).length === 1 && layoutsOf(day)[0] !== drawnLayout;
+      });
+      if (!earlier.length && mixed.length) {
+        return '切替日（' + mixed.join('、') + '）の打鍵には切替前の配列で打った分が混ざります。'
+          + '名前はいまの配列のものです。';
+      }
+      return 'この期間は配列の切替' + (mixed.length ? '（' + mixed.join('、') + '）' : '')
+        + 'をまたいでいます。名前はいまの配列のもので、切替前の日には当てはまらないキーがあります。'
+        + '前後を比べるには刻印表示か「切替以降」を使ってください。';
+    }
+    if (chosenLayouts.length === 1 && chosenLayouts[0] !== LAYOUT) {
+      return drawnLayout === chosenLayouts[0]
+        ? 'この期間は以前の配列（' + drawnLayout + '）で数えたもので、その配列での名前を表示しています。'
+        : 'この期間の配列（' + chosenLayouts[0] + '）の名前は持っていないため、いまの配列の名前で表示しています。';
+    }
+    return '';
+  }
+
   function render() {
     hideTip();
     var geo = geometries[state.tab];
@@ -1474,6 +1569,16 @@ extension KeyFrequencyReportRenderer {
       button.classList.toggle('on', on);
       button.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
+    var chosen = selectedDays();
+    // Label the caps with the table these days were counted under. A window
+    // that mixes two tables is drawn with the current one and says so, because
+    // the alternative, a cap that says two things, is no picture at all.
+    var chosenLayouts = layoutsAcross(chosen);
+    var drawnLayout = chosenLayouts.length === 1 && LEGEND_TABLES[chosenLayouts[0]]
+      ? chosenLayouts[0] : LAYOUT;
+    WAKARA = LEGEND_TABLES[drawnLayout];
+    wakaraKeyCount = Object.keys(WAKARA).length;
+
     // Said next to the switch rather than under the board: it explains what
     // the caps now say, not something the figure cannot know.
     legendNote.hidden = state.legend !== 'wakara';
@@ -1481,8 +1586,8 @@ extension KeyFrequencyReportRenderer {
       ? 'わから配列：規則を持つ' + wakaraKeyCount + 'キーを、わから配列での役割（か行・あ・□ など）で表示し、'
         + '元の刻印を上に小さく残しています。色と数値は刻印表示と同じで、Shift付きの打鍵（英字キーでは英字への'
         + '切り替え、「;」では「+」などの記号）も同じキーに合算しています（内訳はキーの詳細に出ます）。「,」「.」「/」や数字・括弧は IME へそのまま'
-        + '通すため刻印のままです。役割は規則表（wkr-layout '
-        + String((DATA.wakara && DATA.wakara.sourceRevision) || '').slice(0, 7) + '）から生成しています。'
+        + '通すため刻印のままです。役割は規則表（' + drawnLayout + '）から生成しています。'
+        + layoutCaveat(chosen, chosenLayouts, drawnLayout)
       : '';
     Array.prototype.forEach.call(tabBox.children, function (button, index) {
       var on = index === state.tab;
@@ -1491,14 +1596,15 @@ extension KeyFrequencyReportRenderer {
     });
     dayLabel.hidden = state.period !== 'day';
 
-    var chosen = selectedDays();
     var agg = aggregate(chosen);
 
     var label = PERIOD_LABELS[state.period];
+    var mixed = mixedDays(chosen);
     document.getElementById('period-note').textContent = chosen.length
       ? label + '：' + chosen[0].date
         + (chosen[0].date === chosen[chosen.length - 1].date ? '' : ' 〜 ' + chosen[chosen.length - 1].date)
         + ' の ' + chosen.length + '日、' + num(agg.total) + ' 打鍵'
+        + (mixed.length ? '（' + mixed.join('、') + ' は配列の切替日で、前後の打鍵が混ざります）' : '')
       : label + '：この期間の記録はありません。';
 
     if (!geo) { return; }

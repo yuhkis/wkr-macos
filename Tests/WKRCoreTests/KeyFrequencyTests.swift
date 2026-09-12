@@ -75,6 +75,54 @@ final class KeyFrequencyTests: XCTestCase {
         XCTAssertTrue(KeyFrequencyTally(store: store).isEmpty)
     }
 
+    /// A schema 1 file has no `layouts`; every day in it was counted under the
+    /// one table that existed then, and reading it must say so rather than
+    /// leave the days unnamed.
+    func testSchemaOneDaysAreFiledUnderTheTableThatWroteThem() {
+        let store = KeyFrequencyStore(
+            schemaVersion: 1,
+            days: [.init(date: day1.rawValue, entries: [.init(keyCode: 0x00, isShifted: false, count: 3)])]
+        )
+        let tally = KeyFrequencyTally(store: store)
+        XCTAssertEqual(tally.count(of: a, on: day1), 3)
+        XCTAssertEqual(tally.layouts(on: day1), [KeyFrequencyStore.layoutBeforeSchema2])
+        XCTAssertEqual(tally.layouts(on: day2), [])
+    }
+
+    /// A schema 1 file decodes without the field, and a schema 2 file with it.
+    func testDayLayoutsDecodeWhetherOrNotTheFieldIsPresent() throws {
+        let decoder = JSONDecoder()
+        let old = try decoder.decode(
+            KeyFrequencyStore.self,
+            from: Data(#"{"schemaVersion":1,"days":[{"date":"2026-08-25","entries":[]}]}"#.utf8)
+        )
+        XCTAssertEqual(old.days.first?.layouts, [])
+        let new = try decoder.decode(
+            KeyFrequencyStore.self,
+            from: Data(#"{"schemaVersion":2,"days":[{"date":"2026-08-25","entries":[],"layouts":["x"]}]}"#.utf8)
+        )
+        XCTAssertEqual(new.days.first?.layouts, ["x"])
+    }
+
+    /// The day a layout change is installed is counted under both tables, in
+    /// the order they wrote, and stays that way through a merge with the file.
+    func testADayRemembersEveryTableThatCountedIntoIt() {
+        var onDisk = KeyFrequencyTally()
+        onDisk.record(a, on: day1, layout: "old")
+        var sinceLaunch = KeyFrequencyTally()
+        sinceLaunch.record(a, on: day1, layout: "new")
+        sinceLaunch.record(a, on: day2, layout: "new")
+
+        var merged = onDisk
+        merged.merge(sinceLaunch)
+        XCTAssertEqual(merged.layouts(on: day1), ["old", "new"])
+        XCTAssertEqual(merged.layouts(on: day2), ["new"])
+
+        let reread = KeyFrequencyTally(store: merged.snapshot())
+        XCTAssertEqual(reread, merged)
+        XCTAssertEqual(reread.snapshot().days.map(\.layouts), [["old", "new"], ["new"]])
+    }
+
     func testMergeAddsRatherThanReplaces() {
         var onDisk = KeyFrequencyTally()
         onDisk.record(a, on: day1)
@@ -193,8 +241,11 @@ final class KeyFrequencyTests: XCTestCase {
 
         let days = try XCTUnwrap(object["days"] as? [[String: Any]])
         let day = try XCTUnwrap(days.first)
-        XCTAssertEqual(Set(day.keys), ["date", "entries"])
+        XCTAssertEqual(Set(day.keys), ["date", "entries", "layouts"])
         XCTAssertEqual(day["date"] as? String, "2026-08-25")
+        // The one field that is not a count names a rule table, and nothing
+        // about a keystroke.
+        XCTAssertEqual(day["layouts"] as? [String], [WKRLayout.layoutIdentifier])
 
         let entries = try XCTUnwrap(day["entries"] as? [[String: Any]])
         for entry in entries {
