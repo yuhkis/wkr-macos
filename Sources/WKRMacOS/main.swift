@@ -400,23 +400,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.allowsMultipleSelection = false
         panel.message = "過去の集計ファイルを選んでください"
         panel.prompt = "開く"
+        // `allowsOtherFileTypes` is a save-panel setting and does nothing
+        // here, so it is not set: the archives this offers are ours and are
+        // always `.json`.
         panel.allowedContentTypes = [.json]
-        panel.allowsOtherFileTypes = true
-        if let storeURL = KeyFrequencyReportCommand.storeURL(for: configuration) {
-            let archive = KeyFrequencyRecorder.archiveDirectory(for: storeURL)
-            panel.directoryURL = FileManager.default.fileExists(atPath: archive.path)
-                ? archive
-                : storeURL.deletingLastPathComponent()
+        let storeURL = KeyFrequencyReportCommand.storeURL(for: configuration)
+        let archiveDirectory = storeURL.map(KeyFrequencyRecorder.archiveDirectory(for:))
+        if let storeURL {
+            panel.directoryURL = archiveDirectory.flatMap {
+                FileManager.default.fileExists(atPath: $0.path) ? $0 : nil
+            } ?? storeURL.deletingLastPathComponent()
         }
 
         NSApp.activate()
         panel.begin { [weak self] response in
             guard let self, response == .OK, let url = panel.url else { return }
             // Not read here. Opening a file is I/O, this is the run loop the
-            // tap is on, and the child already draws an unreadable file as a
-            // failure rather than as an empty picture.
+            // tap is on, and the child draws an unreadable file as a page that
+            // says so rather than as an empty picture.
             AppLog.logger.notice("key-frequency-archive opened=true")
-            self.openKeyFrequencyReport(storePathOverride: url.path)
+            // The page goes in our own archive folder rather than beside
+            // whatever was picked. A file chosen from a read-only disk, or from
+            // a folder this app may not write to, would otherwise fail at the
+            // last step with nowhere to say so — and a picked file named like
+            // the live tally would land its report on top of the live one.
+            let output = archiveDirectory?
+                .appendingPathComponent(url.deletingPathExtension().lastPathComponent + ".html")
+                .path
+            self.openKeyFrequencyReport(storePathOverride: url.path, reportPathOverride: output)
         }
     }
 
@@ -468,7 +479,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// them explicitly. When they were not, the child resolves the same user
     /// defaults this process did, so the menu and `make key-frequency-report`
     /// produce the same report.
-    private func openKeyFrequencyReport(storePathOverride: String? = nil) {
+    private func openKeyFrequencyReport(
+        storePathOverride: String? = nil,
+        reportPathOverride: String? = nil
+    ) {
         precondition(Thread.isMainThread)
         guard let executable = Bundle.main.executableURL else {
             AppLog.logger.error("key-frequency-report launch=failed reason=no-executable")
@@ -482,6 +496,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // child otherwise resolves the same defaults.
         if let storePath = storePathOverride ?? configuration.keyFrequencyStorePath {
             arguments += ["--key-frequency-store", storePath]
+        }
+        if let reportPath = reportPathOverride {
+            arguments += ["--output", reportPath]
         }
         if let keymapPath = selectedKeymapPath {
             arguments += ["--vil", keymapPath]

@@ -46,6 +46,7 @@ enum KeyFrequencyReportCommand {
         // answering an unreadable file with an empty picture looks like the
         // file was read and found empty.
         let store: KeyFrequencyStore
+        var problem: String?
         if let loaded = KeyFrequencyRecorder.loadStore(at: storeURL) {
             store = loaded
         } else if configuration.keyFrequencyStorePath != nil {
@@ -53,7 +54,14 @@ enum KeyFrequencyReportCommand {
                 "key-frequency-report: could not read \(storeURL.lastPathComponent) as a tally\n",
                 stderr
             )
-            return EXIT_FAILURE
+            // Still drawn, and still a failure. The menu's picker launches this
+            // with `--open` and has nowhere to show an error: an alert would
+            // sit modally on the run loop the event tap is on, which is the one
+            // thing the resident process cannot afford. A page that says why is
+            // feedback that costs nothing, and the exit code stays honest for
+            // anyone running this from a shell.
+            problem = "\(storeURL.lastPathComponent) は集計ファイルとして読めませんでした。"
+            store = .empty
         } else {
             store = .empty
         }
@@ -71,7 +79,8 @@ enum KeyFrequencyReportCommand {
             // to be keepable and sendable, and the directory above it carries a
             // home directory, often a cloud folder, frequently an account name.
             // The same rule the menu bar follows.
-            sourceFileName: storeURL.lastPathComponent
+            sourceFileName: storeURL.lastPathComponent,
+            problem: problem
         )
 
         let outputURL: URL
@@ -103,7 +112,7 @@ enum KeyFrequencyReportCommand {
         if configuration.openReport {
             NSWorkspace.shared.open(outputURL)
         }
-        return EXIT_SUCCESS
+        return problem == nil ? EXIT_SUCCESS : EXIT_FAILURE
     }
 
     /// Move the tally aside and start a new one, keeping every count.

@@ -70,6 +70,9 @@ uninstall-login-agent:
 # so this works from the build directory even when the bundle is not installed.
 # VIL points at a Vial .vil export so the Cornix picture carries the keymap that
 # is actually flashed to the keyboard; without it the built-in layout is drawn.
+# STORE points at a tally other than the live one — an archived tally, which the
+# app sets aside whenever the layout changes — and the HTML is then written
+# beside that file under its own name.
 key-frequency-report:
 	@test -x "$(EXECUTABLE)" || (echo 'App is not built; run make app first.' >&2; exit 2)
 	$(EXECUTABLE) --key-frequency-report --open $(if $(STORE),--key-frequency-store "$(STORE)",) $(if $(VIL),--vil "$(VIL)",) $(if $(OUTPUT),--output "$(OUTPUT)",)
@@ -78,8 +81,8 @@ key-frequency-report-installed:
 	@test -x "$(INSTALLED_EXECUTABLE)" || (echo 'Installed app was not found at $(INSTALLED_APP).' >&2; exit 2)
 	$(INSTALLED_EXECUTABLE) --key-frequency-report --open $(if $(STORE),--key-frequency-store "$(STORE)",) $(if $(VIL),--vil "$(VIL)",) $(if $(OUTPUT),--output "$(OUTPUT)",)
 
-# STORE points at a tally file other than the live one, which is how an archived
-# tally — the app sets one aside whenever the layout changes — is drawn.
+# Moves the current tally into archive/ and starts a new one, which is what the
+# app does by itself whenever the layout changes.
 key-frequency-archive:
 	@test -x "$(EXECUTABLE)" || (echo 'App is not built; run make app first.' >&2; exit 2)
 	$(EXECUTABLE) --key-frequency-archive

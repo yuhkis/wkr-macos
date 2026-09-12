@@ -27,7 +27,8 @@ public enum KeyFrequencyReportRenderer {
         wakaraLegends: [WakaraKeyLegend] = WakaraKeyLegends.all,
         layoutIdentifier: String = WKRLayout.layoutIdentifier,
         historicalLegends: [String: [WakaraKeyLegend]] = WakaraKeyLegends.historical,
-        sourceFileName: String? = nil
+        sourceFileName: String? = nil,
+        problem: String? = nil
     ) -> String {
         var legendsByLayout = historicalLegends
         legendsByLayout[layoutIdentifier] = wakaraLegends
@@ -65,6 +66,7 @@ public enum KeyFrequencyReportRenderer {
             timestamp: displayTimestamp(generatedAt, calendar: calendar),
             isoTimestamp: payload.generatedAt,
             sourceFileName: sourceFileName,
+            problem: problem,
             payload: blob
         )
     }
@@ -243,10 +245,18 @@ extension KeyFrequencyReportRenderer {
         timestamp: String,
         isoTimestamp: String,
         sourceFileName: String?,
+        problem: String?,
         payload: String
     ) -> String {
         let sourceRow = sourceFileName.map {
             #"<div><dt>集計ファイル</dt><dd>\#(escaped($0))</dd></div>"#
+        } ?? ""
+        // Shown instead of the empty note, and not hidden, because this one is
+        // known before the page runs: the file the reader asked for could not
+        // be read. Without it the page is indistinguishable from a tally that
+        // happens to be empty.
+        let problemNote = problem.map {
+            #"<p class="empty">\#(escaped($0))</p>"#
         } ?? ""
 
         return #"""
@@ -270,6 +280,7 @@ extension KeyFrequencyReportRenderer {
             <div><dt>記録期間</dt><dd id="fact-range">—</dd></div>
             \#(sourceRow)
           </dl>
+          \#(problemNote)
           <p class="empty" id="empty-note" hidden>まだ記録がありません。</p>
           <noscript><p class="empty">この報告書の作図には JavaScript を使っています。</p></noscript>
         </header>

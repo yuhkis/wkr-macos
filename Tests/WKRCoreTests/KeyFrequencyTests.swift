@@ -189,6 +189,19 @@ final class KeyFrequencyTests: XCTestCase {
         XCTAssertNil(KeyFrequencyRotation.archiveBaseName(for: store([("2026-09-12", ["a"], 0)])))
     }
 
+    /// The dates come out of a file and the name becomes a path, so a `date`
+    /// that is not a calendar day is never used as one.
+    func testArchiveNameRefusesDatesThatAreNotCalendarDays() {
+        XCTAssertNil(KeyFrequencyRotation.archiveBaseName(for: store([("../../escape", ["a"], 1)])))
+        XCTAssertNil(KeyFrequencyRotation.archiveBaseName(for: store([("2026-9-1", ["a"], 1)])))
+        XCTAssertNil(KeyFrequencyRotation.archiveBaseName(for: store([("20xx-09-01", ["a"], 1)])))
+        // A good day among bad ones still names the file after itself.
+        XCTAssertEqual(
+            KeyFrequencyRotation.archiveBaseName(for: store([("../x", ["a"], 1), ("2026-09-01", ["a"], 1)])),
+            "key-frequency-2026-09-01"
+        )
+    }
+
     /// An archive written over an older archive would destroy the one copy of
     /// those counts, so a taken name is never reused and "no free name" is an
     /// answer the caller has to handle.

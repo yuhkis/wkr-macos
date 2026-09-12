@@ -21,9 +21,10 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     /// Called when the user asks for the heatmap. Must return immediately: the
     /// event tap source is on this run loop.
     var openHeatmapRequested: (() -> Void)?
-    /// Called when the user asks to pick a keymap for the heatmap.
+    /// Called when the user asks for a tally the app set aside when the layout
+    /// changed. Must return immediately, for the reason above.
     var openArchivedHeatmapRequested: (() -> Void)?
-
+    /// Called when the user asks to pick a keymap for the heatmap.
     var chooseKeymapRequested: (() -> Void)?
     /// Called when the user asks to go back to the built-in layout.
     var clearKeymapRequested: (() -> Void)?

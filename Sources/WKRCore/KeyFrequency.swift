@@ -364,14 +364,34 @@ public enum KeyFrequencyRotation {
     /// these reads as a timeline without opening any of them. `nil` when there
     /// is nothing to name.
     public static func archiveBaseName(for store: KeyFrequencyStore) -> String? {
-        let dates = store.days.filter { !$0.entries.isEmpty }.map(\.date).sorted()
+        // The dates come out of a file, and this name becomes a path. A `date`
+        // of "../../elsewhere" would otherwise put the archive outside the
+        // folder meant to hold it, so anything that is not a plain calendar day
+        // is not used as a name at all.
+        let dates = store.days
+            .filter { !$0.entries.isEmpty && isCalendarDay($0.date) }
+            .map(\.date)
+            .sorted()
         guard let first = dates.first, let last = dates.last else { return nil }
         return "key-frequency-" + (first == last ? first : "\(first)_\(last)")
+    }
+
+    /// `2026-09-12`, and nothing else.
+    static func isCalendarDay(_ text: String) -> Bool {
+        let parts = text.split(separator: "-", omittingEmptySubsequences: false)
+        guard parts.count == 3, parts[0].count == 4, parts[1].count == 2, parts[2].count == 2 else {
+            return false
+        }
+        return parts.allSatisfy { $0.allSatisfy(\.isNumber) }
     }
 
     /// What a file that could not be read as a tally is moved aside as. It has
     /// no days to be named after, and it is still not something to overwrite.
     public static let unreadableBaseName = "key-frequency-unreadable"
+
+    /// For a tally that reads but whose days are not calendar days. Rare enough
+    /// to mean the file was edited by hand, and still counts someone kept.
+    public static let undatedBaseName = "key-frequency-undated"
 
     /// `base.json`, or `base-2.json`, `base-3.json` … when taken.
     ///

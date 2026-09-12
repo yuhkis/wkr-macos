@@ -31,12 +31,14 @@
 - 権限状態、モード、入力ソースID、エラー種別、集計件数、変換ゲートが閉じていた秒数。
 - Secure Event Input の保持 PID の数値と生死。プロセス名・パス・バンドルIDはログにも画面にも出さない。画面共有・スクリーンショットへの写り込みを考慮する。理由は [design.md](design.md) 7節。
 - メニューバー生成結果 `status-item created= glyph= reason=`、メニュー開閉 `status-menu open=`。
-- キーマップ指定の有無 `heatmap-keymap selected=`。ログへパスを出さない。メニューのキーマップ表示はファイル名だけにする。
-- 打鍵頻度は `key-frequency flush=ok days=3` のような処理結果だけ。キー別集計そのものはログへ出さない。
+- キーマップ指定の有無 `heatmap-keymap selected=`、過去の集計を開いたこと `key-frequency-archive opened=`。ログへパスを出さない。メニューのキーマップ表示はファイル名だけにする。
+- 打鍵頻度は `key-frequency flush=ok days=3`、退避 `key-frequency rotate=ok days=16` / `rotate=ok reason=unreadable` / `rotate=failed`、退避できず書き出しを見送った `key-frequency flush=failed stage=archive` のような処理結果だけ。キー別集計そのものはログへ出さない。退避ファイル名もログへ出さない。
 
 頻度の保存・計数・保持条件は [design.md](design.md) 9節に集約する。既定無効で明示的な
 `--key-frequency on` のときだけ動かし、保存は 0600、保持期間の既定上限は設けない。
-必要な上限は `--key-frequency-retention <日数>` で指定する。これらの設定を変える場合は
+必要な上限は `--key-frequency-retention <日数>` で指定する。規則表が変わったら起動時に
+`archive/` へ退避してから数え直す（9.6.1）。**退避と「読めないファイル」の扱いでは、
+元のファイルを削除・上書きしない方を必ず選ぶ。** これらの設定を変える場合は
 [install.md](install.md) も更新する。
 
 ## 検証と記録

@@ -330,13 +330,25 @@ final class KeyFrequencyRecorder {
         case .unusable:
             // Present but not decodable *by this build*, which is not the same
             // as empty: a file from a later build reads this way too. Move it
-            // aside before writing, so going forward and then back does not
-            // cost someone their tally. If it cannot be moved, the old
-            // behaviour stands — refusing forever would mean never writing
-            // again, and the bytes are not counts this build can add to.
-            if Self.moveIntoArchive(storeURL: storeURL, base: KeyFrequencyRotation.unreadableBaseName) != nil {
-                AppLog.logger.notice("key-frequency rotate=ok reason=unreadable")
+            // aside before writing, so going forward to a newer build and back
+            // does not cost someone their tally.
+            //
+            // If it cannot be moved, **this write does not happen**. The
+            // earlier reasoning here — that refusing forever would mean never
+            // writing again — weighed the wrong pair: what is refused is one
+            // flush, retried two minutes later and kept in memory meanwhile,
+            // while what would be overwritten may be months of counts that
+            // cannot be collected a second time. The failure is loud in the
+            // log, and `--key-frequency-reset` clears a file that really is
+            // rubbish.
+            guard Self.moveIntoArchive(
+                storeURL: storeURL,
+                base: KeyFrequencyRotation.unreadableBaseName
+            ) != nil else {
+                AppLog.logger.error("key-frequency flush=failed stage=archive")
+                return false
             }
+            AppLog.logger.notice("key-frequency rotate=ok reason=unreadable")
             existing = KeyFrequencyTally()
         case .unreadable:
             // Present, and it may well hold counts. Overwriting it blind would
@@ -447,6 +459,10 @@ final class KeyFrequencyRecorder {
     /// `KeyFrequencyRotation` for why a file may not span two layouts.
     @discardableResult
     func rotateIfLayoutChanged() -> Rotation {
+        // File I/O, so it belongs to the same set of entry points that are
+        // allowed to be slow as the flush path: the main thread, at startup,
+        // never the per-keystroke path.
+        dispatchPrecondition(condition: .onQueue(.main))
         let outcome = Self.rotate(storeURL: storeURL, layout: layoutIdentifier, force: false)
         switch outcome {
         case .notNeeded:
@@ -468,14 +484,41 @@ final class KeyFrequencyRecorder {
     /// `force` moves the tally aside whatever wrote it, for the CLI's
     /// `--key-frequency-archive`.
     static func rotate(storeURL: URL, layout: String, force: Bool) -> Rotation {
-        // Only a file this build can read is moved: a rotation is meant to
-        // preserve counts, and a file whose counts cannot be seen is handled by
-        // the flush path instead, at the moment it would have been overwritten.
-        guard case let .decoded(store) = readStore(at: storeURL) else { return .notNeeded }
-        guard force || KeyFrequencyRotation.isNeeded(for: store, layout: layout) else { return .notNeeded }
-        guard let base = KeyFrequencyRotation.archiveBaseName(for: store) else { return .notNeeded }
-        guard let name = moveIntoArchive(storeURL: storeURL, base: base) else { return .failed }
-        return .rotated(fileName: name, days: store.days.count)
+        // A tally that already lives in the archive is not rotated again. It is
+        // there because it was set aside once; moving it into an archive folder
+        // of its own would bury it a level deeper every launch.
+        guard !isArchived(storeURL) else { return .notNeeded }
+
+        switch readStore(at: storeURL) {
+        case .absent, .unreadable:
+            // Nothing there, or bytes that cannot be obtained at all. Either
+            // way there is nothing to move and nothing to lose by waiting.
+            return .notNeeded
+        case .unusable:
+            // Present, and not a tally this build understands — a file from a
+            // later build reads exactly this way. Asked to archive explicitly,
+            // move it aside under a name that says so; it cannot be named after
+            // days that cannot be read. Left alone otherwise, because the flush
+            // path handles it at the moment it would have been overwritten.
+            guard force else { return .notNeeded }
+            guard let name = moveIntoArchive(
+                storeURL: storeURL,
+                base: KeyFrequencyRotation.unreadableBaseName
+            ) else { return .failed }
+            return .rotated(fileName: name, days: 0)
+        case let .decoded(store):
+            guard force || KeyFrequencyRotation.isNeeded(for: store, layout: layout) else {
+                return .notNeeded
+            }
+            // A tally whose days are not calendar days cannot be named after
+            // them. Asked to archive explicitly, it still moves — "nothing to
+            // archive" would be false about a file that holds counts.
+            let base = KeyFrequencyRotation.archiveBaseName(for: store)
+                ?? (force && !store.days.isEmpty ? KeyFrequencyRotation.undatedBaseName : nil)
+            guard let base else { return .notNeeded }
+            guard let name = moveIntoArchive(storeURL: storeURL, base: base) else { return .failed }
+            return .rotated(fileName: name, days: store.days.count)
+        }
     }
 
     /// Move the store into the archive folder under a free name, and answer
