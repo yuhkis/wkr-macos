@@ -7,7 +7,7 @@
 
 - 配列仕様を変える前に [yuhkis/wkr-layout](https://github.com/yuhkis/wkr-layout) と
   [Scrapbox「わから配列」](https://scrapbox.io/yuhkis/%E3%82%8F%E3%81%8B%E3%82%89%E9%85%8D%E5%88%97) の該当箇所を確認する。上流ファイルを無断で書き換えない。
-- 取り込みには URL、commit SHA、取り込み日を残す。submodule は使わず、正規化したスナップショットと検証テストを用いる。同期スクリプトを追加する場合は README に使い方も書く。
+- 取り込みには URL、commit SHA、取り込み日を残す。現行の上流同期は submodule を使わず、正規化したスナップショットと検証テストを用いる。同期スクリプトを追加する場合は README に使い方も書く。
 - 配列のピンは [layout-reference.md](layout-reference.md) 末尾と `WKRLayout.sourceRevision` を参照し、更新時はそれを固定するテストも同時に更新する。仕様解釈の変更には根拠となる上流行とテストケースを記録する。
 - ヒートマップの役割名は規則表から導出する。`WakaraKeyLegendTests` の上流 README 対照表を、中核10列の図と照合する。規則表と README の revision が異なる点は [design.md](design.md) 9.11節を参照する。
 - かな規則と記号レイヤーは分けて検証する。過去の件数や実測範囲は [verification.md](verification.md) の日付付き記録で確認し、現在の検証済み範囲と混同しない。
