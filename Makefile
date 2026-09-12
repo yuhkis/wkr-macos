@@ -21,7 +21,7 @@ export DEVELOPER_DIR := /Applications/Xcode.app/Contents/Developer
 endif
 endif
 
-.PHONY: test build app input-source input-source-installed start start-installed stop install-login-agent uninstall-login-agent key-frequency-report key-frequency-report-installed key-frequency-reset
+.PHONY: test build app input-source input-source-installed start start-installed stop install-login-agent uninstall-login-agent key-frequency-report key-frequency-report-installed key-frequency-archive key-frequency-reset
 
 test:
 	swift test
@@ -72,11 +72,17 @@ uninstall-login-agent:
 # is actually flashed to the keyboard; without it the built-in layout is drawn.
 key-frequency-report:
 	@test -x "$(EXECUTABLE)" || (echo 'App is not built; run make app first.' >&2; exit 2)
-	$(EXECUTABLE) --key-frequency-report --open $(if $(VIL),--vil "$(VIL)",) $(if $(OUTPUT),--output "$(OUTPUT)",)
+	$(EXECUTABLE) --key-frequency-report --open $(if $(STORE),--key-frequency-store "$(STORE)",) $(if $(VIL),--vil "$(VIL)",) $(if $(OUTPUT),--output "$(OUTPUT)",)
 
 key-frequency-report-installed:
 	@test -x "$(INSTALLED_EXECUTABLE)" || (echo 'Installed app was not found at $(INSTALLED_APP).' >&2; exit 2)
-	$(INSTALLED_EXECUTABLE) --key-frequency-report --open $(if $(VIL),--vil "$(VIL)",) $(if $(OUTPUT),--output "$(OUTPUT)",)
+	$(INSTALLED_EXECUTABLE) --key-frequency-report --open $(if $(STORE),--key-frequency-store "$(STORE)",) $(if $(VIL),--vil "$(VIL)",) $(if $(OUTPUT),--output "$(OUTPUT)",)
+
+# STORE points at a tally file other than the live one, which is how an archived
+# tally — the app sets one aside whenever the layout changes — is drawn.
+key-frequency-archive:
+	@test -x "$(EXECUTABLE)" || (echo 'App is not built; run make app first.' >&2; exit 2)
+	$(EXECUTABLE) --key-frequency-archive
 
 key-frequency-reset:
 	@test -x "$(EXECUTABLE)" || (echo 'App is not built; run make app first.' >&2; exit 2)

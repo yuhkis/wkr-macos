@@ -26,7 +26,8 @@ public enum KeyFrequencyReportRenderer {
         calendar: Calendar = .current,
         wakaraLegends: [WakaraKeyLegend] = WakaraKeyLegends.all,
         layoutIdentifier: String = WKRLayout.layoutIdentifier,
-        historicalLegends: [String: [WakaraKeyLegend]] = WakaraKeyLegends.historical
+        historicalLegends: [String: [WakaraKeyLegend]] = WakaraKeyLegends.historical,
+        sourceFileName: String? = nil
     ) -> String {
         var legendsByLayout = historicalLegends
         legendsByLayout[layoutIdentifier] = wakaraLegends
@@ -44,7 +45,7 @@ public enum KeyFrequencyReportRenderer {
             wakara: Payload.Wakara(
                 sourceRevision: WKRLayout.sourceRevision,
                 layout: layoutIdentifier,
-                legacyLayout: KeyFrequencyStore.layoutBeforeSchema2,
+                legacyLayout: KeyFrequencyStore.layoutBeforeMarking,
                 legends: wakaraLegends,
                 legendsByLayout: legendsByLayout
             ),
@@ -63,6 +64,7 @@ public enum KeyFrequencyReportRenderer {
         return document(
             timestamp: displayTimestamp(generatedAt, calendar: calendar),
             isoTimestamp: payload.generatedAt,
+            sourceFileName: sourceFileName,
             payload: blob
         )
     }
@@ -231,12 +233,23 @@ extension KeyFrequencyReportRenderer {
 // MARK: - Document
 
 extension KeyFrequencyReportRenderer {
+    /// `sourceFileName` names the tally the figures came from. More than one
+    /// can exist — the live one and the archives a layout change leaves behind
+    /// — and a page that does not say which it is drawn from cannot be told
+    /// apart from another once it is saved or sent. The name only, never the
+    /// path: the directory above it carries a home directory and often an
+    /// account name, and this file is meant to be keepable.
     private static func document(
         timestamp: String,
         isoTimestamp: String,
+        sourceFileName: String?,
         payload: String
     ) -> String {
-        #"""
+        let sourceRow = sourceFileName.map {
+            #"<div><dt>集計ファイル</dt><dd>\#(escaped($0))</dd></div>"#
+        } ?? ""
+
+        return #"""
         <!doctype html>
         <html lang="ja">
         <head>
@@ -255,6 +268,7 @@ extension KeyFrequencyReportRenderer {
             <div><dt>作成</dt><dd><time datetime="\#(escaped(isoTimestamp))">\#(escaped(timestamp))</time></dd></div>
             <div><dt>総打鍵数</dt><dd id="fact-total">—</dd></div>
             <div><dt>記録期間</dt><dd id="fact-range">—</dd></div>
+            \#(sourceRow)
           </dl>
           <p class="empty" id="empty-note" hidden>まだ記録がありません。</p>
           <noscript><p class="empty">この報告書の作図には JavaScript を使っています。</p></noscript>

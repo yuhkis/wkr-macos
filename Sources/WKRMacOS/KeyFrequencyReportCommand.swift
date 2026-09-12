@@ -2,7 +2,8 @@ import AppKit
 import Foundation
 import WKRCore
 
-/// The `--key-frequency-report` and `--key-frequency-reset` launches.
+/// The `--key-frequency-report`, `--key-frequency-archive` and
+/// `--key-frequency-reset` launches.
 ///
 /// Both finish and exit without creating an event tap, so neither asks for
 /// Input Monitoring or Accessibility. Reading counts the app already wrote is
@@ -10,11 +11,20 @@ import WKRCore
 /// mean the report could not be looked at on a machine where the permission had
 /// been revoked.
 enum KeyFrequencyReportCommand {
-    /// Written next to the store rather than somewhere in the user's documents.
-    /// The report is derived data that can be regenerated at any time, so it
-    /// belongs beside its source instead of in a place that gets backed up and
-    /// synced.
-    static let defaultReportFileName = "key-frequency.html"
+    /// Written next to the store, and named after it.
+    ///
+    /// Beside its source rather than in the user's documents because the report
+    /// is derived data that can be regenerated at any time, and named after the
+    /// file it was drawn from because more than one tally can exist: the live
+    /// one and any number of archived ones. A fixed name would mean opening an
+    /// archive silently replaced the report of the current tally — same path,
+    /// atomic write, no warning. The live store keeps producing
+    /// `key-frequency.html`, which is what it was called before.
+    static func defaultReportURL(for storeURL: URL) -> URL {
+        storeURL
+            .deletingLastPathComponent()
+            .appendingPathComponent(storeURL.deletingPathExtension().lastPathComponent + ".html")
+    }
 
     static func storeURL(for configuration: AppConfiguration) -> URL? {
         if let path = configuration.keyFrequencyStorePath {
@@ -29,10 +39,24 @@ enum KeyFrequencyReportCommand {
             return EXIT_FAILURE
         }
 
-        // A missing file is not an error. It is what a first run looks like,
-        // and the report still draws the three keyboards so the user can see
-        // what they would be getting.
-        let store = KeyFrequencyRecorder.loadStore(at: storeURL) ?? .empty
+        // A missing file is not an error *for the default path*. It is what a
+        // first run looks like, and the report still draws the keyboards so the
+        // user can see what they would be getting. A path someone typed or
+        // picked is a different matter: it asserts that a tally is there, and
+        // answering an unreadable file with an empty picture looks like the
+        // file was read and found empty.
+        let store: KeyFrequencyStore
+        if let loaded = KeyFrequencyRecorder.loadStore(at: storeURL) {
+            store = loaded
+        } else if configuration.keyFrequencyStorePath != nil {
+            fputs(
+                "key-frequency-report: could not read \(storeURL.lastPathComponent) as a tally\n",
+                stderr
+            )
+            return EXIT_FAILURE
+        } else {
+            store = .empty
+        }
         if store.days.isEmpty {
             fputs("key-frequency-report: no counts recorded yet (start with --key-frequency on)\n", stderr)
         }
@@ -42,16 +66,19 @@ enum KeyFrequencyReportCommand {
         let html = KeyFrequencyReportRenderer.html(
             store: store,
             geometries: geometries,
-            generatedAt: Date()
+            generatedAt: Date(),
+            // The name only, never the path: the report is a single file meant
+            // to be keepable and sendable, and the directory above it carries a
+            // home directory, often a cloud folder, frequently an account name.
+            // The same rule the menu bar follows.
+            sourceFileName: storeURL.lastPathComponent
         )
 
         let outputURL: URL
         if let path = configuration.keyFrequencyReportPath {
             outputURL = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
         } else {
-            outputURL = storeURL
-                .deletingLastPathComponent()
-                .appendingPathComponent(defaultReportFileName)
+            outputURL = defaultReportURL(for: storeURL)
         }
 
         do {
@@ -79,9 +106,53 @@ enum KeyFrequencyReportCommand {
         return EXIT_SUCCESS
     }
 
+    /// Move the tally aside and start a new one, keeping every count.
+    ///
+    /// The app does this by itself when the rule table changes, which is the
+    /// case that matters; this is the same thing on demand, for anyone who
+    /// wants a clean picture from today without giving up the old one.
+    static func runArchive(_ configuration: AppConfiguration) -> Int32 {
+        guard let storeURL = storeURL(for: configuration) else {
+            fputs("key-frequency-archive: could not locate Application Support\n", stderr)
+            return EXIT_FAILURE
+        }
+        switch KeyFrequencyRecorder.rotate(
+            storeURL: storeURL,
+            layout: WKRLayout.layoutIdentifier,
+            force: true
+        ) {
+        case let .rotated(fileName, days):
+            let directory = KeyFrequencyRecorder.archiveDirectory(for: storeURL)
+            print("key-frequency-archive: moved \(days) day(s) to \(directory.appendingPathComponent(fileName).path)")
+            // The running app keeps its own counts since the last write and
+            // will put them in a fresh file at its next flush, so an archive
+            // taken while it is up starts the new tally two minutes late.
+            print("key-frequency-archive: stop the app first (make stop) if it is running.")
+            return EXIT_SUCCESS
+        case .notNeeded:
+            print("key-frequency-archive: nothing to archive at \(storeURL.path)")
+            return EXIT_SUCCESS
+        case .failed:
+            fputs("key-frequency-archive: could not move the tally aside; it was left alone\n", stderr)
+            return EXIT_FAILURE
+        }
+    }
+
     static func runReset(_ configuration: AppConfiguration) -> Int32 {
         guard let storeURL = storeURL(for: configuration) else {
             fputs("key-frequency-reset: could not locate Application Support\n", stderr)
+            return EXIT_FAILURE
+        }
+        // An archive is the only copy there is of a layout's counts, and this
+        // command deletes what it is pointed at. Refusing is not protecting the
+        // user from themselves: `rm` is right there, and typing it is a
+        // different act from running the command that clears today's tally.
+        guard !KeyFrequencyRecorder.isArchived(storeURL) else {
+            fputs(
+                "key-frequency-reset: \(storeURL.lastPathComponent) is an archived tally; "
+                    + "remove it yourself if that is what you mean\n",
+                stderr
+            )
             return EXIT_FAILURE
         }
         // Checked before the delete so the message says what actually happened.

@@ -278,7 +278,11 @@ final class ConversionStatusTests: XCTestCase {
     /// Every enabled menu title starts with a non-ASCII character, so a physical
     /// keystroke reaching the menu's type-select cannot match it.
     func testEnabledTitlesCannotBeReachedByTypeSelect() {
-        for title in [ConversionStatusText.quitTitle, ConversionStatusText.openHeatmapTitle] {
+        for title in [
+            ConversionStatusText.quitTitle,
+            ConversionStatusText.openHeatmapTitle,
+            ConversionStatusText.openArchivedHeatmapTitle,
+        ] {
             let first = title.unicodeScalars.first
             XCTAssertNotNil(first, title)
             XCTAssertFalse(first!.isASCII, title)
@@ -325,6 +329,7 @@ final class ConversionStatusTests: XCTestCase {
             ConversionStatusText.chooseKeymapTitle,
             ConversionStatusText.clearKeymapTitle,
             ConversionStatusText.openHeatmapTitle,
+            ConversionStatusText.openArchivedHeatmapTitle,
             ConversionStatusText.quitTitle,
         ]
         XCTAssertEqual(Set(titles).count, titles.count, "menu titles must be distinct")
@@ -340,5 +345,12 @@ final class ConversionStatusTests: XCTestCase {
     func testChooseKeymapTitleKeepsItsEllipsis() {
         XCTAssertTrue(ConversionStatusText.chooseKeymapTitle.hasSuffix("…"))
         XCTAssertFalse(ConversionStatusText.clearKeymapTitle.hasSuffix("…"))
+    }
+
+    /// The archived-tally entry opens a picker, so it carries the ellipsis too,
+    /// and it must read as a different question from the live heatmap.
+    func testArchivedHeatmapTitleAsksBeforeItActs() {
+        XCTAssertTrue(ConversionStatusText.openArchivedHeatmapTitle.hasSuffix("…"))
+        XCTAssertFalse(ConversionStatusText.openHeatmapTitle.hasSuffix("…"))
     }
 }

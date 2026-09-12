@@ -441,6 +441,12 @@ defaults write io.github.yuhkis.wkr-macos KeyFrequencyRetentionDays 180
 コマンドラインなら `--key-frequency-retention 180`（`all` で無制限に戻します）。指定すると
 書き出しのたびに窓の外が捨てられます。全部消すのは `make key-frequency-reset` です。
 
+**配列を変えると、その時点で集計が切り替わります。** それまでの分は
+`~/Library/Application Support/io.github.yuhkis.wkr-macos/archive/` へ
+`key-frequency-2026-08-28_2026-09-12.json` のように日付範囲の名前で退避され、新しい集計が
+その場から始まります（暦日の境切りを待ちません）。**退避であって削除ではありません。**
+自分の好きなタイミングで切り替えたいときは `make key-frequency-archive` です。
+
 根拠と AGENTS.md との関係は [design.md](./design.md) の9節にあります。
 
 ### 記録を有効にする
@@ -481,7 +487,20 @@ make key-frequency-report
 ```
 
 自己完結した HTML を1枚書き出してブラウザで開きます。**この操作に入力監視権限は要りません。**
-出力先は既定で集計ファイルの隣（`key-frequency.html`）です。`OUTPUT=…` で変えられます。
+出力先は既定で集計ファイルの隣、名前も集計ファイルから作ります（`key-frequency.json` なら
+`key-frequency.html`）。`OUTPUT=…` で変えられます。
+
+### 過去の集計を見る
+
+配列を変えたときに退避された集計は、**メニューバーの「過去の集計を開く…」**で選べます
+（退避フォルダが開いた状態でパネルが出ます）。コマンドラインからは集計ファイルを指定します。
+
+```bash
+make key-frequency-report STORE=~/Library/Application\ Support/io.github.yuhkis.wkr-macos/archive/key-frequency-2026-08-28_2026-09-12.json
+```
+
+レポートのヘッダーに「集計ファイル」として、どのファイルから描いたかが出ます。HTML は
+その集計ファイルの隣に、同じ名前で書かれます（現行のレポートを上書きしません）。
 
 `/Applications` へ配備した bundle の集計を見るときは `make key-frequency-report-installed`
 を使ってください。
@@ -570,7 +589,9 @@ macOSは左右のShiftを別のキーコードで数えるので、**ラップ�
 make key-frequency-reset
 ```
 
-集計ファイルごと削除します。
+集計ファイルごと削除します。`archive/` の中の退避ファイルは対象外で、指定しても拒否されます
+（消したいときは自分で `rm` してください）。消さずに新しく数え直したいだけなら
+`make key-frequency-archive` を使います。
 
 ## 動作確認
 

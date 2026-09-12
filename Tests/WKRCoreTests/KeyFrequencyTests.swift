@@ -63,9 +63,14 @@ final class KeyFrequencyTests: XCTestCase {
 
     /// A file written by a future version must be discarded, not guessed at. A
     /// misread tally is wrong in a picture the user cannot check.
+    ///
+    /// Discarding it is only half the answer, and the reader is the wrong place
+    /// for the other half: the file still has to survive. The recorder refuses
+    /// such a file at the point it reads it and moves it aside rather than
+    /// writing over what it could not understand.
     func testUnknownSchemaVersionIsDiscarded() {
         let store = KeyFrequencyStore(
-            schemaVersion: KeyFrequencyStore.currentSchemaVersion + 1,
+            schemaVersion: KeyFrequencyStore.readableSchemaVersions.upperBound + 1,
             days: [
                 .init(date: day1.rawValue, entries: [
                     .init(keyCode: 0x00, isShifted: false, count: 99),
@@ -75,21 +80,22 @@ final class KeyFrequencyTests: XCTestCase {
         XCTAssertTrue(KeyFrequencyTally(store: store).isEmpty)
     }
 
-    /// A schema 1 file has no `layouts`; every day in it was counted under the
-    /// one table that existed then, and reading it must say so rather than
-    /// leave the days unnamed.
-    func testSchemaOneDaysAreFiledUnderTheTableThatWroteThem() {
+    /// A file written before the field existed has no `layouts`; every day in
+    /// it was counted under the one table that existed then, and reading it
+    /// must say so rather than leave the days unnamed.
+    func testUnmarkedDaysAreFiledUnderTheTableThatWroteThem() {
         let store = KeyFrequencyStore(
             schemaVersion: 1,
             days: [.init(date: day1.rawValue, entries: [.init(keyCode: 0x00, isShifted: false, count: 3)])]
         )
         let tally = KeyFrequencyTally(store: store)
         XCTAssertEqual(tally.count(of: a, on: day1), 3)
-        XCTAssertEqual(tally.layouts(on: day1), [KeyFrequencyStore.layoutBeforeSchema2])
+        XCTAssertEqual(tally.layouts(on: day1), [KeyFrequencyStore.layoutBeforeMarking])
         XCTAssertEqual(tally.layouts(on: day2), [])
     }
 
-    /// A schema 1 file decodes without the field, and a schema 2 file with it.
+    /// The field decodes whether or not it is there, and the version a single
+    /// build stamped is read rather than discarded.
     func testDayLayoutsDecodeWhetherOrNotTheFieldIsPresent() throws {
         let decoder = JSONDecoder()
         let old = try decoder.decode(
@@ -121,6 +127,82 @@ final class KeyFrequencyTests: XCTestCase {
         let reread = KeyFrequencyTally(store: merged.snapshot())
         XCTAssertEqual(reread, merged)
         XCTAssertEqual(reread.snapshot().days.map(\.layouts), [["old", "new"], ["new"]])
+    }
+
+    // MARK: - Rotation
+
+    private func store(_ days: [(String, [String], Int)]) -> KeyFrequencyStore {
+        KeyFrequencyStore(days: days.map { date, layouts, count in
+            .init(
+                date: date,
+                entries: count > 0 ? [.init(keyCode: 0x00, isShifted: false, count: count)] : [],
+                layouts: layouts
+            )
+        })
+    }
+
+    /// A tally holds one layout's counts. Anything else is moved aside, and the
+    /// day a change lands — which carries both names — is exactly the day that
+    /// has to move.
+    func testRotationIsNeededOnlyWhenAnotherTableCounted() {
+        XCTAssertFalse(KeyFrequencyRotation.isNeeded(for: store([("2026-09-11", ["new"], 5)]), layout: "new"))
+        XCTAssertTrue(KeyFrequencyRotation.isNeeded(for: store([("2026-09-11", ["old"], 5)]), layout: "new"))
+        XCTAssertTrue(
+            KeyFrequencyRotation.isNeeded(
+                for: store([("2026-09-11", ["new"], 5), ("2026-09-12", ["old", "new"], 5)]),
+                layout: "new"
+            )
+        )
+        XCTAssertFalse(KeyFrequencyRotation.isNeeded(for: .empty, layout: "new"))
+    }
+
+    /// A day with no counts names nothing worth keeping, so an empty shell of a
+    /// file must not send the tally to the archive on every launch.
+    func testRotationIgnoresDaysWithNoCounts() {
+        XCTAssertFalse(KeyFrequencyRotation.isNeeded(for: store([("2026-09-11", ["old"], 0)]), layout: "new"))
+    }
+
+    /// Days written before the field existed are not unnamed: they were counted
+    /// under the one table in existence then, which is a different table now.
+    func testRotationTreatsUnmarkedDaysAsTheTableBeforeMarking() {
+        XCTAssertTrue(KeyFrequencyRotation.isNeeded(for: store([("2026-09-11", [], 5)]), layout: "new"))
+        XCTAssertFalse(
+            KeyFrequencyRotation.isNeeded(
+                for: store([("2026-09-11", [], 5)]),
+                layout: KeyFrequencyStore.layoutBeforeMarking
+            )
+        )
+    }
+
+    /// The name says which days are inside, so a folder of archives reads as a
+    /// timeline without opening any of them.
+    func testArchiveNameCarriesTheDaysItCovers() {
+        XCTAssertEqual(
+            KeyFrequencyRotation.archiveBaseName(for: store([("2026-08-28", ["a"], 1), ("2026-09-12", ["a"], 1)])),
+            "key-frequency-2026-08-28_2026-09-12"
+        )
+        XCTAssertEqual(
+            KeyFrequencyRotation.archiveBaseName(for: store([("2026-09-12", ["a"], 1)])),
+            "key-frequency-2026-09-12"
+        )
+        XCTAssertNil(KeyFrequencyRotation.archiveBaseName(for: .empty))
+        XCTAssertNil(KeyFrequencyRotation.archiveBaseName(for: store([("2026-09-12", ["a"], 0)])))
+    }
+
+    /// An archive written over an older archive would destroy the one copy of
+    /// those counts, so a taken name is never reused and "no free name" is an
+    /// answer the caller has to handle.
+    func testFreeFileNameStepsAsideAndGivesUpRatherThanOverwrite() {
+        XCTAssertEqual(KeyFrequencyRotation.freeFileName(base: "t", isTaken: { _ in false }), "t.json")
+        XCTAssertEqual(
+            KeyFrequencyRotation.freeFileName(base: "t", isTaken: { $0 == "t.json" }),
+            "t-2.json"
+        )
+        XCTAssertEqual(
+            KeyFrequencyRotation.freeFileName(base: "t", isTaken: { $0 == "t.json" || $0 == "t-2.json" }),
+            "t-3.json"
+        )
+        XCTAssertNil(KeyFrequencyRotation.freeFileName(base: "t", isTaken: { _ in true }))
     }
 
     func testMergeAddsRatherThanReplaces() {
