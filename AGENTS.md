@@ -1,7 +1,10 @@
 # wkr-macos の作業方針
 
 `wkr-layout` が配列の意図・配列表の上流、ここは macOS 上の実装です。
-端末固有の指示は、存在する場合に `AGENTS.local.md` も参照します。
+端末固有の指示は、この worktree の `AGENTS.local.md` を参照します。無ければ
+`git worktree list --porcelain` の先頭にある主 worktree が通常の checkout（`bare` でない）かを確認し、
+そこに `AGENTS.local.md` があれば読みます。主 worktree は `main` ブランチの所在という意味ではありません。
+どちらにも無ければローカル指示の適用対象はありません。本文や端末固有のパスは追跡ファイルへコピーしません。
 
 ## 常に守る境界
 
