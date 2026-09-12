@@ -9,11 +9,12 @@ final class WakaraKeyLegendTests: XCTestCase {
     /// between, and the pinned README's older 配列図 draws the same 27 names.
     /// The legends are derived from the rules rather than copied from here, so
     /// this is the check that the derivation reads the rules the way upstream
-    /// names them.
+    /// names them. `q` and `a` are swapped here ahead of the upstream ver 2.0
+    /// revision of that diagram (trial of the が行 / ぱ行 swap).
     private let upstreamCoreDiagram: [String: String] = [
-        "q": "が行", "w": "わ行", "e": "か行", "r": "ら行", "t": "□",
+        "q": "ぱ行", "w": "わ行", "e": "か行", "r": "ら行", "t": "□",
         "y": "■", "u": "や", "i": "ゆ", "o": "よ", "p": "ー",
-        "a": "ぱ行", "s": "さ行", "d": "な行", "f": "た行", "g": "は行",
+        "a": "が行", "s": "さ行", "d": "な行", "f": "た行", "g": "は行",
         "h": "あ", "j": "う", "k": "い", "l": "お", ";": "え",
         "z": "ざ行", "x": "ふぁ行", "c": "だ行", "v": "ま行", "b": "ば行",
         "n": "ん", "m": "っ",

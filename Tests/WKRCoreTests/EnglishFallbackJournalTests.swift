@@ -58,7 +58,7 @@ final class EnglishFallbackJournalTests: XCTestCase {
             // `k` is taken back and `lke` sent, so the screen holds `lke`.
             ("EY", [.e, .y], 3, "ey"),
             ("EYWY", [.e, .y, .w, .y], 6, "eywy"),  // `lke` + `lwa`
-            ("QY", [.q, .y], 3, "qy"),  // `g` taken back, `lka` sent
+            ("AY", [.a, .y], 3, "ay"),  // `g` taken back, `lka` sent
             // The X row keeps `f` for ふぁ and rolls it back for てぃ.
             ("XU", [.x, .u], 4, "xu"),  // `teli`
         ]

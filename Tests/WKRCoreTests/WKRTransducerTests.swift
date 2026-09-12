@@ -358,10 +358,11 @@ final class WKRTransducerTests: XCTestCase {
 
     /// `ヵ` has no hiragana form, so no base kana plus a small kana can build
     /// it. It needed a key of its own, and the が row's `Y` slot was free.
+    /// The が row now sits on `A`, so this is `AY`.
     func testSmallKaHasItsOwnKey() {
         let engine = WKRTransducer(mode: .deferredRomaji)
         var actions: [SyntheticAction] = []
-        for key in [PhysicalKey.q, .y] {
+        for key in [PhysicalKey.a, .y] {
             actions.append(contentsOf: engine.process(.physical(key)).actions)
         }
 
@@ -492,10 +493,10 @@ final class WKRTransducerTests: XCTestCase {
         _ = engine.process(.physical(.y))
 
         // `Y` `A` was ※. With the layer off there is no such rule, so `A`
-        // is reprocessed at the root as ぱ and the streamed `z` stays put.
+        // is reprocessed at the root as が and the streamed `z` stays put.
         let result = engine.process(.physical(.a))
 
-        XCTAssertEqual(result.actions, [.romaji("p")])
+        XCTAssertEqual(result.actions, [.romaji("g")])
     }
 
     func testDisabledSymbolLayerKeepsRulesWhereYIsTheSecondKey() {
@@ -781,7 +782,7 @@ final class WKRTransducerTests: XCTestCase {
             // `ヴ` and the full-width punctuation are Unicode, while `ヶ` and
             // `ゎ` are romaji that starts with `l` rather than the row letter.
             // `ゐ` and `ゑ` continue `w`, so they cost nothing.
-            "ey-small-ke", "wj-vu", "wy-small-wa", "qy-small-ka",
+            "ey-small-ke", "wj-vu", "wy-small-wa", "ay-small-ka",
             "tcomma-fullwidth-comma", "tperiod-fullwidth-period", "tslash-fullwidth-slash",
         ]
         // The `Y` symbol layer streams `z` and every symbol has to take it
@@ -851,7 +852,7 @@ final class WKRTransducerTests: XCTestCase {
             ("XH", [.x, .h], [.romaji("f"), .romaji("a")]),
             ("XU", [.x, .u], [.romaji("f"), .backspace(count: 1), .romaji("teli")]),
             ("WJ", [.w, .j], [.romaji("w"), .backspace(count: 1), .romaji("vu")]),
-            ("QY", [.q, .y], [.romaji("g"), .backspace(count: 1), .romaji("lka")]),
+            ("AY", [.a, .y], [.romaji("g"), .backspace(count: 1), .romaji("lka")]),
         ]
 
         for testCase in cases {

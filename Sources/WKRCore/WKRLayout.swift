@@ -5,6 +5,11 @@ public enum WKRLayout {
     /// sent to Apple Japanese Input differ (see `docs/layout-reference.md`).
     public static let sourceRevision = "03cba20a62c6d27bc90e6bc5572f89a13f14108a"
     public static let sourceImportedOn = "2026-08-16"
+    /// Trial ahead of upstream ver 2.0: the が row sits on `A` and the ぱ row
+    /// on `Q`, the only change to the core ten columns. The pin above still
+    /// names ver 1.1 because upstream has not been revised yet; re-pin when
+    /// the ver 2.0 tag exists.
+    public static let coreColumnsTrial = "ga-pa-swap"
 
     /// The name a key-frequency tally files each day under, so the heatmap can
     /// tell which rule table a day's counts belong to: the upstream pin, plus
@@ -66,11 +71,11 @@ public enum WKRLayout {
             "v-ma": 1,
             "r-ra": 1,
             "w-wa": 1,
-            "q-ga": 1,
+            "a-ga": 1,
             "z-za": 1,
             "c-da": 1,
             "b-ba": 1,
-            "a-pa": 1,
+            "q-pa": 1,
             // 「ふぁ」は二つのかな文字として削除する実験値。
             "x-fa": 2,
             "h-a": 1,
@@ -265,19 +270,20 @@ private extension WKRLayout {
             .init("wo-who", .o, "うぉ", "who"),
             .init("wy-small-wa", .y, "ゎ", "lwa"),
         ]),
-        .init(rootID: "q-ga", key: .q, rootKana: "が", rootRomaji: "ga", variants: [
-            .init("qh-ga", .h, "が", "ga"),
-            .init("qk-gi", .k, "ぎ", "gi"),
-            .init("qj-gu", .j, "ぐ", "gu"),
-            .init("qsemicolon-ge", .semicolon, "げ", "ge"),
-            .init("ql-go", .l, "ご", "go"),
-            .init("qu-gya", .u, "ぎゃ", "gya"),
-            .init("qi-gyu", .i, "ぎゅ", "gyu"),
-            .init("qo-gyo", .o, "ぎょ", "gyo"),
+        .init(rootID: "a-ga", key: .a, rootKana: "が", rootRomaji: "ga", variants: [
+            .init("ah-ga", .h, "が", "ga"),
+            .init("ak-gi", .k, "ぎ", "gi"),
+            .init("aj-gu", .j, "ぐ", "gu"),
+            .init("asemicolon-ge", .semicolon, "げ", "ge"),
+            .init("al-go", .l, "ご", "go"),
+            .init("au-gya", .u, "ぎゃ", "gya"),
+            .init("ai-gyu", .i, "ぎゅ", "gyu"),
+            .init("ao-gyo", .o, "ぎょ", "gyo"),
             // `ヵ` had no key at all while `ヶ` sat on `EY`, and neither can be
             // built from a base kana because they have no hiragana form. This
             // row's `Y` slot was free. Upstream carries this from ver 1.1.
-            .init("qy-small-ka", .y, "ヵ", "lka"),
+            // It is a row variant, so it moved to `AY` with the row.
+            .init("ay-small-ka", .y, "ヵ", "lka"),
         ]),
         .init(rootID: "z-za", key: .z, rootKana: "ざ", rootRomaji: "za", variants: [
             .init("zh-za", .h, "ざ", "za"),
@@ -311,15 +317,15 @@ private extension WKRLayout {
             .init("bi-byu", .i, "びゅ", "byu"),
             .init("bo-byo", .o, "びょ", "byo"),
         ]),
-        .init(rootID: "a-pa", key: .a, rootKana: "ぱ", rootRomaji: "pa", variants: [
-            .init("ah-pa", .h, "ぱ", "pa"),
-            .init("ak-pi", .k, "ぴ", "pi"),
-            .init("aj-pu", .j, "ぷ", "pu"),
-            .init("asemicolon-pe", .semicolon, "ぺ", "pe"),
-            .init("al-po", .l, "ぽ", "po"),
-            .init("au-pya", .u, "ぴゃ", "pya"),
-            .init("ai-pyu", .i, "ぴゅ", "pyu"),
-            .init("ao-pyo", .o, "ぴょ", "pyo"),
+        .init(rootID: "q-pa", key: .q, rootKana: "ぱ", rootRomaji: "pa", variants: [
+            .init("qh-pa", .h, "ぱ", "pa"),
+            .init("qk-pi", .k, "ぴ", "pi"),
+            .init("qj-pu", .j, "ぷ", "pu"),
+            .init("qsemicolon-pe", .semicolon, "ぺ", "pe"),
+            .init("ql-po", .l, "ぽ", "po"),
+            .init("qu-pya", .u, "ぴゃ", "pya"),
+            .init("qi-pyu", .i, "ぴゅ", "pyu"),
+            .init("qo-pyo", .o, "ぴょ", "pyo"),
         ]),
         // `ふぁ` 系はApple日本語入力が受理する短い綴りを使い、合成キーイベント数
         // を減らす。`て` / `で` 系の小書き部分は他の小書きと同じ `l` に揃える。
