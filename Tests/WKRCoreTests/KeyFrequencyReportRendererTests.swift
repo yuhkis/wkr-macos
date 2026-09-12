@@ -32,6 +32,52 @@ final class KeyFrequencyReportRendererTests: XCTestCase {
         XCTAssertEqual(e["role"] as? String, "consonantRow")
     }
 
+    /// Days carry the table they were counted under, and the payload carries a
+    /// legend table for each one the page may meet, so a day counted under an
+    /// earlier layout is not relabelled with today's names.
+    func testPayloadNamesTheTableEachDayWasCountedUnder() throws {
+        let store = KeyFrequencyStore(days: [
+            .init(date: "2026-09-11", entries: [.init(keyCode: 0x0C, isShifted: false, count: 5)], layouts: ["old"]),
+            .init(date: "2026-09-12", entries: [.init(keyCode: 0x0C, isShifted: false, count: 5)], layouts: ["old", "new"]),
+        ])
+        let oldLegends = [WakaraKeyLegend(keyCode: 0x0C, key: "q", label: "が行", role: .consonantRow, detail: "")]
+        let html = KeyFrequencyReportRenderer.html(
+            store: store,
+            geometries: [.jis],
+            generatedAt: Date(timeIntervalSince1970: 0),
+            layoutIdentifier: "new",
+            historicalLegends: ["old": oldLegends]
+        )
+        let payload = try Self.payload(of: html)
+        let wakara = try XCTUnwrap(payload["wakara"] as? [String: Any])
+        XCTAssertEqual(wakara["layout"] as? String, "new")
+        XCTAssertEqual(wakara["legacyLayout"] as? String, KeyFrequencyStore.layoutBeforeSchema2)
+        let tables = try XCTUnwrap(wakara["legendsByLayout"] as? [String: [[String: Any]]])
+        XCTAssertEqual(Set(tables.keys), ["old", "new"])
+        XCTAssertEqual(tables["old"]?.first?["label"] as? String, "が行")
+        XCTAssertEqual(tables["new"]?.count, WakaraKeyLegends.all.count)
+
+        let days = try XCTUnwrap((payload["store"] as? [String: Any])?["days"] as? [[String: Any]])
+        XCTAssertEqual(days.map { $0["layouts"] as? [String] }, [["old"], ["old", "new"]])
+
+        // The window that starts where the newest table did, and the note that
+        // flags the day both tables wrote.
+        XCTAssertTrue(html.contains(#"data-period="since""#))
+        XCTAssertTrue(html.contains("は配列の切替日で、前後の打鍵が混ざります"))
+    }
+
+    /// By default the payload names the live table, and only that table.
+    func testPayloadDefaultsToTheLiveTable() throws {
+        let wakara = try XCTUnwrap(try Self.payload(of: KeyFrequencyReportRenderer.html(
+            store: .empty, geometries: [.jis], generatedAt: Date(timeIntervalSince1970: 0)
+        ))["wakara"] as? [String: Any])
+        XCTAssertEqual(wakara["layout"] as? String, WKRLayout.layoutIdentifier)
+        XCTAssertEqual(
+            Set((wakara["legendsByLayout"] as? [String: Any])?.keys.map { $0 } ?? []),
+            [WKRLayout.layoutIdentifier]
+        )
+    }
+
     /// The switch is part of the page's own chrome, so a report written by an
     /// older build and one written now differ only in what the payload offers.
     func testPageOffersBothLegendModes() {

@@ -6,6 +6,12 @@ public enum WKRLayout {
     public static let sourceRevision = "03cba20a62c6d27bc90e6bc5572f89a13f14108a"
     public static let sourceImportedOn = "2026-08-16"
 
+    /// The name a key-frequency tally files each day under, so the heatmap can
+    /// tell which rule table a day's counts belong to: the upstream pin, plus
+    /// a suffix whenever a core-column change runs ahead of an upstream
+    /// revision. Compared as a string, so it changes only when the table does.
+    public static let layoutIdentifier = "wkr-layout@" + sourceRevision.prefix(7)
+
     /// Entries that cannot be mapped uniquely to a physical JIS key. They are
     /// retained here as an explicit quarantine instead of being guessed into
     /// the live table.

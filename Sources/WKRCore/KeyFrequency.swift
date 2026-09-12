@@ -80,17 +80,48 @@ public struct KeyFrequencyStore: Equatable, Sendable, Codable {
     public struct Day: Equatable, Sendable, Codable {
         public let date: String
         public let entries: [Entry]
+        /// Which rule tables counted into this day: the
+        /// `WKRLayout.layoutIdentifier` of every build that wrote to it, in
+        /// the order they first did. One name on almost every day; two on the
+        /// day a layout change was installed, which the heatmap then marks as
+        /// mixed instead of relabelling the morning with the afternoon's
+        /// names. It names a table, never a keystroke: nothing about what was
+        /// typed or when. Absent in schema 1, which means
+        /// `KeyFrequencyStore.layoutBeforeSchema2`.
+        public let layouts: [String]
 
-        public init(date: String, entries: [Entry]) {
+        public init(date: String, entries: [Entry], layouts: [String] = []) {
             self.date = date
             self.entries = entries
+            self.layouts = layouts
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case date, entries, layouts
+        }
+
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            date = try container.decode(String.self, forKey: .date)
+            entries = try container.decode([Entry].self, forKey: .entries)
+            layouts = try container.decodeIfPresent([String].self, forKey: .layouts) ?? []
         }
     }
 
     /// Bumped whenever the meaning of the fields changes. A reader that finds a
     /// version it does not know starts over rather than guessing, because a
     /// misread tally would be silently wrong in a picture.
-    public static let currentSchemaVersion = 1
+    ///
+    /// Schema 2 added `layouts` to each day. Schema 1 files are still read:
+    /// every field they have means the same thing, and the one they lack has a
+    /// known value, because only one rule table ever wrote a schema 1 file.
+    public static let currentSchemaVersion = 2
+    public static let readableSchemaVersions = 1...2
+
+    /// The rule table every schema 1 day was counted under: the upstream
+    /// wkr-layout ver 1.1 pin, the only table that existed before days carried
+    /// their own name.
+    public static let layoutBeforeSchema2 = "wkr-layout@03cba20"
 
     public let schemaVersion: Int
     public let days: [Day]
@@ -132,30 +163,49 @@ public struct KeyFrequencyTally: Equatable, Sendable {
     public static let maximumIdentitiesPerDay = 512
 
     private var days: [KeyFrequencyDay: [KeyIdentity: Int]]
+    /// The rule tables that counted into each day, first seen first. See
+    /// `KeyFrequencyStore.Day.layouts`.
+    private var layouts: [KeyFrequencyDay: [String]]
 
     public init() {
         self.days = [:]
+        self.layouts = [:]
     }
 
     public init(store: KeyFrequencyStore) {
-        guard store.schemaVersion == KeyFrequencyStore.currentSchemaVersion else {
+        guard KeyFrequencyStore.readableSchemaVersions.contains(store.schemaVersion) else {
             // An unknown schema is discarded rather than interpreted. Losing a
             // tally is a nuisance; drawing a wrong one is a bug the user cannot
             // see.
             self.days = [:]
+            self.layouts = [:]
             return
         }
         var days: [KeyFrequencyDay: [KeyIdentity: Int]] = [:]
+        var layouts: [KeyFrequencyDay: [String]] = [:]
         for day in store.days {
             var counts: [KeyIdentity: Int] = [:]
             for entry in day.entries where entry.count > 0 {
                 counts[entry.identity, default: 0] += entry.count
             }
             guard !counts.isEmpty else { continue }
-            days[KeyFrequencyDay(rawValue: day.date), default: [:]]
-                .merge(counts) { $0 + $1 }
+            let key = KeyFrequencyDay(rawValue: day.date)
+            days[key, default: [:]].merge(counts) { $0 + $1 }
+            let named = day.layouts.isEmpty ? [KeyFrequencyStore.layoutBeforeSchema2] : day.layouts
+            layouts[key] = Self.union(layouts[key] ?? [], named)
         }
         self.days = days
+        self.layouts = layouts
+    }
+
+    /// `base` followed by whatever in `more` it did not already have. Order is
+    /// kept because the last name on a day is the table that counts there now.
+    private static func union(_ base: [String], _ more: [String]) -> [String] {
+        var result = base
+        for name in more where !result.contains(name) {
+            result.append(name)
+        }
+        return result
     }
 
     public var isEmpty: Bool { days.isEmpty }
@@ -164,17 +214,29 @@ public struct KeyFrequencyTally: Equatable, Sendable {
         days.values.reduce(0) { $0 + $1.values.reduce(0, +) }
     }
 
-    public mutating func record(_ identity: KeyIdentity, on day: KeyFrequencyDay) {
+    /// Count one press, and note which rule table it was counted under.
+    public mutating func record(
+        _ identity: KeyIdentity,
+        on day: KeyFrequencyDay,
+        layout: String = WKRLayout.layoutIdentifier
+    ) {
         var counts = days[day] ?? [:]
         if counts[identity] == nil, counts.count >= Self.maximumIdentitiesPerDay {
             return
         }
         counts[identity, default: 0] += 1
         days[day] = counts
+        layouts[day] = Self.union(layouts[day] ?? [], [layout])
     }
 
     public func count(of identity: KeyIdentity, on day: KeyFrequencyDay) -> Int {
         days[day]?[identity] ?? 0
+    }
+
+    /// The rule tables that counted into `day`, first seen first. Empty for a
+    /// day with no counts.
+    public func layouts(on day: KeyFrequencyDay) -> [String] {
+        days[day] == nil ? [] : (layouts[day] ?? [KeyFrequencyStore.layoutBeforeSchema2])
     }
 
     public var recordedDays: [KeyFrequencyDay] {
@@ -186,6 +248,7 @@ public struct KeyFrequencyTally: Equatable, Sendable {
     public mutating func merge(_ other: KeyFrequencyTally) {
         for (day, counts) in other.days {
             days[day, default: [:]].merge(counts) { $0 + $1 }
+            layouts[day] = Self.union(layouts[day] ?? [], other.layouts(on: day))
         }
     }
 
@@ -201,10 +264,12 @@ public struct KeyFrequencyTally: Equatable, Sendable {
         guard let retainedDays else { return }
         guard retainedDays > 0 else {
             days.removeAll()
+            layouts.removeAll()
             return
         }
         let keep = Set(Self.days(endingOn: today, count: retainedDays))
         days = days.filter { keep.contains($0.key) }
+        layouts = layouts.filter { keep.contains($0.key) }
     }
 
     public func snapshot() -> KeyFrequencyStore {
@@ -223,7 +288,11 @@ public struct KeyFrequencyTally: Equatable, Sendable {
                         ? (!lhs.isShifted && rhs.isShifted)
                         : lhs.keyCode < rhs.keyCode
                 }
-            return KeyFrequencyStore.Day(date: day.rawValue, entries: entries)
+            return KeyFrequencyStore.Day(
+                date: day.rawValue,
+                entries: entries,
+                layouts: layouts(on: day)
+            )
         }
         return KeyFrequencyStore(days: sortedDays)
     }

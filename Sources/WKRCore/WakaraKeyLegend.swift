@@ -49,6 +49,13 @@ public enum WakaraKeyLegends {
     /// Every key that begins a rule in the live table, in `PhysicalKey` order.
     public static let all: [WakaraKeyLegend] = derive(from: WKRLayout.rules)
 
+    /// Legends for rule tables this build no longer runs, keyed by the
+    /// `WKRLayout.layoutIdentifier` they were derived from, so that days a
+    /// tally counted under an earlier table are labelled the way that table
+    /// named its keys. Empty until the core columns change for the first time;
+    /// each change adds the table it retired.
+    public static let historical: [String: [WakaraKeyLegend]] = [:]
+
     /// Read the legends off the rules instead of writing a second copy of the
     /// layout.
     ///
