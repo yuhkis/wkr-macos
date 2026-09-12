@@ -66,16 +66,18 @@ final class KeyFrequencyReportRendererTests: XCTestCase {
         XCTAssertTrue(html.contains("は配列の切替日で、前後の打鍵が混ざります"))
     }
 
-    /// By default the payload names the live table, and only that table.
-    func testPayloadDefaultsToTheLiveTable() throws {
+    /// By default the payload names the live table, plus the ver 1.1 core it
+    /// replaced, so days counted before the が行 / ぱ行 swap keep their names.
+    func testPayloadDefaultsToTheLiveTableAndTheOneItReplaced() throws {
         let wakara = try XCTUnwrap(try Self.payload(of: KeyFrequencyReportRenderer.html(
             store: .empty, geometries: [.jis], generatedAt: Date(timeIntervalSince1970: 0)
         ))["wakara"] as? [String: Any])
-        XCTAssertEqual(wakara["layout"] as? String, WKRLayout.layoutIdentifier)
-        XCTAssertEqual(
-            Set((wakara["legendsByLayout"] as? [String: Any])?.keys.map { $0 } ?? []),
-            [WKRLayout.layoutIdentifier]
-        )
+        XCTAssertEqual(wakara["layout"] as? String, "wkr-layout@03cba20+ga-pa-swap")
+        let tables = try XCTUnwrap(wakara["legendsByLayout"] as? [String: [[String: Any]]])
+        XCTAssertEqual(Set(tables.keys), ["wkr-layout@03cba20+ga-pa-swap", "wkr-layout@03cba20"])
+        XCTAssertEqual(tables["wkr-layout@03cba20"]?.first { $0["key"] as? String == "q" }?["label"] as? String, "が行")
+        XCTAssertEqual(tables["wkr-layout@03cba20"]?.first { $0["key"] as? String == "a" }?["label"] as? String, "ぱ行")
+        XCTAssertEqual(tables["wkr-layout@03cba20+ga-pa-swap"]?.first { $0["key"] as? String == "a" }?["label"] as? String, "が行")
     }
 
     /// More than one tally can exist once a layout change has archived the

@@ -54,7 +54,26 @@ public enum WakaraKeyLegends {
     /// tally counted under an earlier table are labelled the way that table
     /// named its keys. Empty until the core columns change for the first time;
     /// each change adds the table it retired.
-    public static let historical: [String: [WakaraKeyLegend]] = [:]
+    public static let historical: [String: [WakaraKeyLegend]] = [
+        // The ver 1.1 core, under which every day before 2026-09-12 was
+        // counted: が行 on `Q` and ぱ行 on `A`. The other 25 keys are unchanged,
+        // so the table is the live one with those two swapped back.
+        "wkr-layout@" + WKRLayout.sourceRevision.prefix(7): swappingQAndA(in: all),
+    ]
+
+    /// The live legends with the `Q` and `A` entries exchanged: each keeps its
+    /// key code and key name and takes the other's label, role and detail.
+    static func swappingQAndA(in legends: [WakaraKeyLegend]) -> [WakaraKeyLegend] {
+        guard let q = legends.first(where: { $0.key == "q" }),
+              let a = legends.first(where: { $0.key == "a" }) else { return legends }
+        return legends.map { legend in
+            switch legend.key {
+            case "q": return WakaraKeyLegend(keyCode: q.keyCode, key: q.key, label: a.label, role: a.role, detail: a.detail)
+            case "a": return WakaraKeyLegend(keyCode: a.keyCode, key: a.key, label: q.label, role: q.role, detail: q.detail)
+            default: return legend
+            }
+        }
+    }
 
     /// Read the legends off the rules instead of writing a second copy of the
     /// layout.

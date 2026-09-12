@@ -7,15 +7,16 @@ public enum WKRLayout {
     public static let sourceImportedOn = "2026-08-16"
     /// Trial ahead of upstream ver 2.0: the が row sits on `A` and the ぱ row
     /// on `Q`, the only change to the core ten columns. The pin above still
-    /// names ver 1.1 because upstream has not been revised yet; re-pin when
-    /// the ver 2.0 tag exists.
+    /// names ver 1.1 because upstream has not been revised yet, so this suffix
+    /// is what tells a tally's days apart; re-pin and drop it when the ver 2.0
+    /// tag exists.
     public static let coreColumnsTrial = "ga-pa-swap"
 
     /// The name a key-frequency tally files each day under, so the heatmap can
     /// tell which rule table a day's counts belong to: the upstream pin, plus
     /// a suffix whenever a core-column change runs ahead of an upstream
     /// revision. Compared as a string, so it changes only when the table does.
-    public static let layoutIdentifier = "wkr-layout@" + sourceRevision.prefix(7)
+    public static let layoutIdentifier = "wkr-layout@" + sourceRevision.prefix(7) + "+" + coreColumnsTrial
 
     /// Entries that cannot be mapped uniquely to a physical JIS key. They are
     /// retained here as an explicit quarantine instead of being guessed into
