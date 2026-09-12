@@ -1,87 +1,43 @@
-# AGENTS.md
+# wkr-macos の作業方針
 
-このファイルは `wkr-macos` 固有の作業方針です。ユーザーレベルのグローバル指示と併用し、矛盾する場合はユーザーの明示指示を優先してください。
+`wkr-layout` が配列の意図・配列表の上流、ここは macOS 上の実装です。
+端末固有の指示は、この worktree の `AGENTS.local.md` を参照します。無ければ
+`git worktree list --porcelain` の先頭にある主 worktree が通常の checkout（`bare` でない）かを確認し、
+そこに `AGENTS.local.md` があれば読みます。主 worktree は `main` ブランチの所在という意味ではありません。
+どちらにも無ければローカル指示の適用対象はありません。本文や端末固有のパスは追跡ファイルへコピーしません。
 
-## 作業開始時
+## 常に守る境界
 
-1. `README.md`、`docs/how-it-works.md`、`docs/design.md`、`docs/verification.md` を読む。
-2. `git status --short --branch` を確認し、既存変更を上書きしない。
-3. 配列仕様を変える作業では、先に上流の [`yuhkis/wkr-layout`](https://github.com/yuhkis/wkr-layout) と [Scrapbox「わから配列」](https://scrapbox.io/yuhkis/%E3%82%8F%E3%81%8B%E3%82%89%E9%85%8D%E5%88%97) を確認する。
-4. 実機入力を試す前に、対象アプリ、入力ソース、期待結果、停止方法を明記する。
+- 開始・完了時に branch、worktree、stage、変更パス、必要な remote との差分を確認し、既存の作業を上書きしない。commit 前に差分と生成物混入を確認する。
+- キー列、入力本文、クリップボード、変換候補をファイル、標準出力、解析サービスへ記録・送信しない。英字への打ち直し用履歴は、打鍵数と寿命を制限したメモリ内だけに保持する。
+- **例外は、明示的に有効にした打鍵頻度のローカル集計だけ。** 保存できるのは `(キーコード, Shiftの有無) → 回数` と暦日だけで、順序・暦日より細かい時刻・入力文字列は保存しない。ネットワークへ出さず、詳細条件は [design.md](docs/design.md) 9節に従う。
+- Secure Event Input の保持プロセスは、ログにも画面にも PID の数値と生死だけを出す。プロセス名・パス・バンドルIDを出さない。ログ・画面表示を変えるときは下表の許可範囲を確認する。
+- 安全条件を満たせないときは変換せず、仮状態を安全に破棄して通常入力に戻れることを優先する。対象外のキーを不必要に抑止しない。入力ソースを自動選択しない。
+- event tap callback 内で重い処理、ファイルI/O、ネットワークI/Oをしない。event tap と同じ main run loop の timer・表示・メニュー操作も長時間ブロックしない。
+- `origin` は公開 [yuhkis/wkr-macos](https://github.com/yuhkis/wkr-macos)。追跡ファイルへ個人の絶対パス、機体名、学内ホスト名、raw log、実キーマップを含めない。手順は `~` 起点か相対パスで書く。
+- `WORKLOG.md`、`docs/archive/`、`AGENTS.local.md` はローカル専用。`git add -f` で追跡しない。公開 `main` 以前の私的履歴を復元・接続・公開しない。
+- GitHubリポジトリ作成、push、release、署名証明書の作成・インストール・選択・変更、ログイン項目登録はユーザーの明示依頼の範囲内で行う。一括削除・移動・リネームも対象と内容の明示確認が必要。既に得た承認を同じ範囲で問い直さない。
+- `main` への直接pushは禁止。公開する変更は branch と PR を使い、CI `swift-test` 成功後、署名付き commit を保持する **merge commit**（`gh pr merge --merge`）で統合する。承認者は不要。force push、`--force-with-lease`、一括 tag push は別途明示依頼なしに行わない。
 
-## プロジェクト境界
+## 作業に応じて読む資料
 
-- `wkr-layout` は配列の意図・配列表の上流、`wkr-macos` はmacOS上の実装とする。
-- 上流ファイルを無断で書き換えない。取り込む場合はURL、commit SHA、取り込み日を記録する。
-- 初期段階ではsubmoduleを使わない。正規化したスナップショットと検証テストを用い、同期スクリプトを追加するときはREADMEに使い方も同時に書く。
-- 現在の上流ピンは wkr-layout ver 1.1（`03cba20a62c6d27bc90e6bc5572f89a13f14108a`、2026-08-16取得）。ver 1.0 にあった記号領域の重複・区切り欠落・制御文字混入は ver 1.1 で修正済みで、Google表・azooKey表・macOS実装の出力は一致している。張り替えるときは `WKRLayout.sourceRevision` とそれを固定しているテストを同時に更新する。ヒートマップのわから配列表示は役割名を規則表から導出しているので、`WakaraKeyLegendTests` の上流README対照表も上流READMEの中核10列の図と照合する（現在の対照元は README `e81658c`、2026-09-11参照。この図はピン `03cba20` より後に README だけの変更で加わった）。
-- 記号レイヤーは、かな規則とは別の確認項目として扱う。実機確認の状況が異なる。
+全資料を通読せず、変更する機能の行・節を読む。`README.md` は利用者向けの入口です。
 
-## 技術方針
+| 作業 | 参照先 |
+| --- | --- |
+| 配列仕様・上流の取り込み・キートップの役割表示 | [development.md](docs/development.md) の「上流との同期」、[layout-reference.md](docs/layout-reference.md)、[design.md](docs/design.md) 4節・9.11節 |
+| 変換・出力方式・入力監視・安全ゲート | [how-it-works.md](docs/how-it-works.md)、[design.md](docs/design.md) 4〜7節、[development.md](docs/development.md) の「入力処理を変えるとき」 |
+| 英字への打ち直し | [design.md](docs/design.md) 8節（保持上限・破棄・fail closed 条件） |
+| 打鍵頻度・ヒートマップ | [design.md](docs/design.md) 9節（既定無効・計数ゲート・0600・保持期間・非送信） |
+| 通常ログ・Secure Event Input 表示・メニューバー | [development.md](docs/development.md) の「ログと表示」、[design.md](docs/design.md) 7節 |
+| コマンド・設定・権限・署名・起動方法 | [install.md](docs/install.md)、[design.md](docs/design.md) 6節 |
+| 検証・実機入力・互換性判断 | [development.md](docs/development.md) の「検証と記録」、[verification.md](docs/verification.md) の該当記録、[roadmap.md](docs/roadmap.md) |
 
-- 設計判断の根拠は `docs/design.md` にある。変更前に該当節を読む。
-- 入力監視は原則として `CGEventTap` のsession-level active filterを使い、変換対象の原キーだけを抑止する。
-- 変換ロジックはAppKit/Core Graphicsから独立した純粋な有限状態トランスデューサ（FSTまたはTrie）として実装する。
-- Apple日本語入力への出力は、標準ローマ字キー列を再送する方式を第一候補とする。
-  - `deferred-romaji`: 曖昧な接頭辞を1キー分保留し、Backspaceを使わない安全方式。CLIの既定値。
-  - `prefix-romaji`: 到達可能な全出力が共有するローマ字を先に流し、取り消しが必要な枝をテストで固定する方式。
-    **常用方式**で、ログイン時起動は `--mode prefix`。
-  - `optimistic-romaji`: あ段を即時表示し、継続キーで直前の仮出力を削除して再送する実験方式。
-    `--allow-unverified-optimistic` が必要。
-  - Unicode文字列の直接注入は比較実験に限定し、既定方式にしない。
-- 合成イベントには識別マーカーを付け、自分が再送したイベントを再処理しない。
-- `かな` / `英数` キーの押下だけを真の状態にしない。キーは通過させ、TISの実入力ソースとその変更通知をもとに有効・無効を決める。
-- Apple日本語入力の「ローマ字入力」をユーザーが選択済みであることを前提にし、実際の入力ソースIDを取得して照合する。`TISSelectInputSource` による自動選択は行わない。
-- TCC権限の対象を安定させるため、固定Bundle ID `io.github.yuhkis.wkr-macos` と固定出力先の最小 `.app` bundleで実行する。署名は既定でad-hocとし、`CODESIGN_IDENTITY` で明示された場合だけその証明書を使う。キーチェーンの証明書を自動選択しない（本人が保有しない証明書で署名しないため）。署名証明書の作成・インストール・選択はユーザー確認なしに行わない。
-- InputMethodKitによる自前IMEはフォールバック候補だが、Apple日本語入力の変換エンジンを公開APIで連鎖利用できるとは仮定しない。
+## 変更の完了
 
-## 安全・プライバシー
-
-- キー列、入力本文、クリップボード、変換候補をファイル、標準出力、解析サービスへ記録・送信しない。
-- 英字への打ち直し用の打鍵履歴は、プロセスのメモリ内だけに、打鍵数の上限と寿命を付けて保持する。ファイル・標準出力・ログ・ネットワークへは出さない。上限、破棄条件、fail closedの条件は `docs/design.md` の「8. 英字への打ち直し」が持つ。条件を満たせないときは何もしない。
-- **打鍵頻度の集計だけは、上の「記録しない」原則の明示的な例外とする。** キーごとの累計回数を、暦日単位のバケットでローカルファイルへ保存してよい。ただし既定は無効で、`--key-frequency on` で明示的に有効化したときだけ動く。保存してよいのは (キーコード, Shiftの有無) → 回数 と暦日だけであり、**打鍵の順序、暦日より細かい時刻、入力文字列は保存しない**。Command / Control / Option を含むイベントは数えない。変換ゲートが閉じている間（Secure Event Input、権限欠如、除外アプリ、対象外の入力ソース）は数えない。保存先はパーミッション 0600。**保持期間の上限は既定で設けない**（有効にした人はデータを集めると決めており、内容を含まない集計値を黙って消すほうが害が大きいため）。上限が要るときは `--key-frequency-retention <日数>` で明示する。ネットワークへは出さない。条件と根拠は `docs/design.md` の「9. 打鍵頻度の記録とヒートマップ」が持つ。
-- 通常ログは権限状態、モード、入力ソースID、エラー種別、集計件数、変換ゲートが閉じていた秒数、Secure Event Input の保持プロセスID（PIDの数値と生死のみ）、メニューバー表示の生成結果（`status-item created= glyph= reason=`）、メニューの開閉（`status-menu open=`）、ヒートマップのキーマップ指定の有無（`heatmap-keymap selected=`。**パスは出さない**）までとする。診断ログを増やす場合も実文字を含めない。打鍵頻度の集計もログには出さない（ログに出るのは `key-frequency flush=ok days=3` のような結果だけ）。
-- **Secure Event Input の保持プロセスは、PIDの数値と生死だけを、ログにも画面表示にも出す。プロセス名・パス・バンドルIDはどちらにも出さない。** 名前は「利用者が他にどのアプリを使っているか」の開示である。ログは sysdiagnose に取り込まれ、**メニューバーは画面共有中に読まれるうえスクリーンショットに写り込みやすい**（実際、保持者として観測された4種類のうち2つは画面共有アプリとリモート会議アプリで、まさに画面が他人に送られている最中に読む状況である）。切り分けはPIDを見た本人がその場で `ps` を引けば足りる。根拠は `docs/design.md` の「7. 採否の記録」。
-- Command / Control / Optionを含むショートカット、未対応の修飾キー、セキュア入力、パスワード欄ではfail closedでバイパスし、内部状態を破棄する。
-- `IsSecureEventInputEnabled()` が真、入力監視／イベント送信権限がない、event tapが無効化された、入力ソースが対象外のいずれかでは変換しない。
-- `IsSecureEventInputEnabled()` は現行SDKヘッダ上thread-safeではない。event tap callbackから直接呼ばず、安全な実行コンテキストで確認した状態を参照する。
-- マウスクリック、フォーカス変更、アプリ切替、カーソル移動、入力ソース変更、Escape、Undo/Redo系操作では仮状態を安全にフラッシュまたは破棄する。
-- deferred方式で未出力の仮状態がある間のBackspaceをそのまま対象アプリへ送らない。まず内部の保留入力を取り消し、既存本文を誤って削除しない。
-- event tap callback内で重い処理、ファイルI/O、ネットワークI/Oをしない。timeoutで無効化された場合は状態を捨ててから再有効化する。
-- **main run loop 上のコード（safety timer、メニューバー表示、メニューのアクション）も同様に、即座に返す。** event tap の run loop source は main run loop に載っている（`.commonModes`）ため、ここを長時間ブロックすると `tapDisabledByTimeout` を招き、fail closed でプロセスが終了する。callback だけでなく main run loop 全体が対象である。
-- 変換対象外のキーを不必要に抑止しない。異常時は常に通常入力へ戻れることを優先する。
-
-## 検証
-
-- FST、曖昧接頭辞、未定義キーの再処理、リセット条件はユニットテストで固定する。
-- `E`、`EK`、`ESK`、`WER`、`HT`、`TH`、`EY`、`YJ` を最低限の代表ケースとする。記号レイヤー59件は2026-08-13に実機確認済み。Unicode直接注入のアプリ別互換性は、通常かなと分離して継続確認する。
-- 実機テストでは、表示文字だけでなくSpaceによるApple日本語入力の変換候補、Enter確定、Backspace、カーソル移動、アプリ切替後の状態も確認する。
-- 最低限TextEditで確認し、判定前にNotesとSafariの通常テキスト欄でも再現する。Terminal・VS Code・Slack・Discord・Notionは確認済み。新しいアプリで確認したら `docs/roadmap.md` の該当節を更新する。
-- 「ビルド成功」「画面に文字が見えた」だけで完了にしない。実際の入力ソース、対象アプリ、期待値と実測値を `docs/verification.md` に残す。
-- 実装変更後は関連テスト、ビルド、手動確認をリスクに応じて実施し、未実施項目を明記する。
-
-## ドキュメント
-
-- 新しいコマンド、設定、権限、起動方法を追加・変更したら、同じ変更で `docs/install.md` も更新する。
-- 仕組みの説明は `docs/how-it-works.md`、採否と根拠は `docs/design.md`、配列表と綴りは
-  `docs/layout-reference.md` が唯一の持ち主。同じ表を複数の場所に書かない。
-- 実測結果や判断を得たら、個人情報・端末固有情報・raw logを除いて `docs/verification.md` に追記する。過去エントリは書き換えない。
-- 個人情報・端末固有情報・raw logを含む生の実測ログは、追跡対象外の `WORKLOG.md`（ローカル専用、`.gitignore` 済み）に残す。公開できる形に要約してから `docs/verification.md` へ移す。
-- `README.md` は入口として保つ。手順の本文を書き戻さず、`docs/` へリンクする。
-- 配列仕様の解釈を変える場合は、根拠となる上流行とテストケースを記録する。
-
-## Gitと外部操作
-
-- ユーザーの明示依頼なしにGitHubリポジトリ作成、push、release、署名証明書変更、ログイン項目登録をしない。
-- コミット前に差分と生成物混入を確認する。破壊的な一括削除・移動・リネームは事前確認する。
-
-### 公開リポジトリ運用
-
-- `origin` は公開リポジトリ [`yuhkis/wkr-macos`](https://github.com/yuhkis/wkr-macos)。追跡ファイルに書いた内容はすべて公開されるものとして扱う。
-- 追跡ファイルに個人の絶対パス（`/Users/...`）、機体名、学内ホスト名、raw logを書かない。手順は `~` 起点か相対パスで書く。
-- `WORKLOG.md` と `docs/archive/` はローカル専用。`.gitignore` 済みで、`git add -f` で追加しない。
-- `git push --force` / `--force-with-lease` / `git push --tags` は、ユーザーの明示依頼なしに実行しない。
-- `main` への直接pushはリポジトリルールで禁止されている。変更はブランチを切ってPull Requestを作り、CI (`swift-test`) の成功を確認してからmergeする。承認者は不要。
-- **mergeはmerge commitで行う（`gh pr merge --merge`）。** GitHubのrebase mergeとsquash mergeはコミットを作り直すため、手元で付けたSSH署名が失われる。merge commitだけが元のコミットをSHAごと残すので、**自分の鍵で署名したことを`main`の履歴で示せる**。2026-08-16に実測し、rebase mergeでは`verified=false reason=unsigned`になることを確認した。この方針のため`required_linear_history`はrulesetから外してある。履歴の線形性より署名の追跡性を優先する判断である。
-- 公開 `main` は orphan コミットとして作り直した履歴で、それ以前の履歴は公開しない。復元・接続を試みない。
-- 端末固有の運用（ローカルの保全先、機体ごとの手順など）は、追跡対象外の `AGENTS.local.md` に置く。存在する場合は作業開始時に併せて読む。
+- 実装変更は関連テスト・ビルド・手動確認をリスクに応じて行い、実施範囲と未確認事項を記録する。文書だけの変更はリンク・差分・意味の保持を確認する。
+- 実機入力の確認前に対象アプリ・入力ソース・期待結果・停止方法を定める。ビルド成功や文字が見えたことだけで入力動作の完了としない。
+- 仕組みは `docs/how-it-works.md`、採否と根拠は `docs/design.md`、配列表と綴りは `docs/layout-reference.md` に集約する。同じ表を複製しない。
+- コマンド・設定・権限・起動方法を変えたら `docs/install.md` と必要な README の案内を同じ変更で更新する。README へ手順本文を書き戻さない。
+- 公開可能な実測は `docs/verification.md` に追記し、過去記録を上書きしない。個人情報・端末固有情報・raw log は非追跡の `WORKLOG.md` に置く。新しいアプリでの確認は `docs/roadmap.md` にも反映する。
+- ローカル編集・commit・公開 PR / merge・実機配備を区別して報告する。操作の成功応答だけで保存・公開・動作を確認済みにしない。
