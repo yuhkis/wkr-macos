@@ -51,7 +51,7 @@ final class KeyFrequencyReportRendererTests: XCTestCase {
         let payload = try Self.payload(of: html)
         let wakara = try XCTUnwrap(payload["wakara"] as? [String: Any])
         XCTAssertEqual(wakara["layout"] as? String, "new")
-        XCTAssertEqual(wakara["legacyLayout"] as? String, KeyFrequencyStore.layoutBeforeSchema2)
+        XCTAssertEqual(wakara["legacyLayout"] as? String, KeyFrequencyStore.layoutBeforeMarking)
         let tables = try XCTUnwrap(wakara["legendsByLayout"] as? [String: [[String: Any]]])
         XCTAssertEqual(Set(tables.keys), ["old", "new"])
         XCTAssertEqual(tables["old"]?.first?["label"] as? String, "が行")
@@ -76,6 +76,42 @@ final class KeyFrequencyReportRendererTests: XCTestCase {
             Set((wakara["legendsByLayout"] as? [String: Any])?.keys.map { $0 } ?? []),
             [WKRLayout.layoutIdentifier]
         )
+    }
+
+    /// More than one tally can exist once a layout change has archived the
+    /// earlier one, so a saved or forwarded page has to say which it is drawn
+    /// from. The name only: the directory above it carries a home folder and
+    /// often an account name.
+    func testHeaderNamesTheTallyItWasDrawnFrom() {
+        let html = KeyFrequencyReportRenderer.html(
+            store: .empty,
+            geometries: [.jis],
+            generatedAt: Date(timeIntervalSince1970: 0),
+            sourceFileName: "key-frequency-2026-08-28_2026-09-12.json"
+        )
+        XCTAssertTrue(html.contains("<dt>集計ファイル</dt>"))
+        XCTAssertTrue(html.contains("key-frequency-2026-08-28_2026-09-12.json"))
+
+        // Nothing is added when there is nothing to name, so a page rendered
+        // without one is the page it always was.
+        let unnamed = KeyFrequencyReportRenderer.html(
+            store: .empty,
+            geometries: [.jis],
+            generatedAt: Date(timeIntervalSince1970: 0)
+        )
+        XCTAssertFalse(unnamed.contains("集計ファイル"))
+    }
+
+    /// A file name reaches the page as text, not as markup.
+    func testTheTallyNameIsEscaped() {
+        let html = KeyFrequencyReportRenderer.html(
+            store: .empty,
+            geometries: [.jis],
+            generatedAt: Date(timeIntervalSince1970: 0),
+            sourceFileName: "<script>x</script>.json"
+        )
+        XCTAssertFalse(html.contains("<script>x</script>.json"))
+        XCTAssertTrue(html.contains("&lt;script&gt;x&lt;/script&gt;.json"))
     }
 
     /// The switch is part of the page's own chrome, so a report written by an

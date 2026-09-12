@@ -48,6 +48,7 @@ enum LaunchAction: Equatable {
     case printInputSource
     case keyFrequencyReport
     case keyFrequencyReset
+    case keyFrequencyArchive
 }
 
 struct AppConfiguration {
@@ -152,6 +153,8 @@ struct AppConfiguration {
                 action = .keyFrequencyReport
             case "--key-frequency-reset":
                 action = .keyFrequencyReset
+            case "--key-frequency-archive":
+                action = .keyFrequencyArchive
             case "--key-frequency":
                 index += 1
                 guard index < tokens.count else {

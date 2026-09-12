@@ -21,6 +21,9 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     /// Called when the user asks for the heatmap. Must return immediately: the
     /// event tap source is on this run loop.
     var openHeatmapRequested: (() -> Void)?
+    /// Called when the user asks for a tally the app set aside when the layout
+    /// changed. Must return immediately, for the reason above.
+    var openArchivedHeatmapRequested: (() -> Void)?
     /// Called when the user asks to pick a keymap for the heatmap.
     var chooseKeymapRequested: (() -> Void)?
     /// Called when the user asks to go back to the built-in layout.
@@ -96,6 +99,15 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         heatmap.target = self
         heatmap.isEnabled = true
         menu.addItem(heatmap)
+
+        let archived = NSMenuItem(
+            title: ConversionStatusText.openArchivedHeatmapTitle,
+            action: #selector(openArchivedHeatmapChosen),
+            keyEquivalent: ""
+        )
+        archived.target = self
+        archived.isEnabled = true
+        menu.addItem(archived)
 
         keymapItem.isEnabled = false
         keymapItem.target = nil
@@ -206,6 +218,12 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         // The tap source shares this run loop.
         DispatchQueue.main.async { [weak self] in
             self?.openHeatmapRequested?()
+        }
+    }
+
+    @objc private func openArchivedHeatmapChosen() {
+        DispatchQueue.main.async { [weak self] in
+            self?.openArchivedHeatmapRequested?()
         }
     }
 

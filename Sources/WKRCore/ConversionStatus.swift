@@ -243,6 +243,13 @@ public enum ConversionStatusText {
     /// a truthful answer to "show me the counts".
     public static let openHeatmapTitle = "打鍵頻度のヒートマップを開く"
 
+    /// Opens a picker for a tally the app set aside when the layout changed.
+    ///
+    /// Its own entry rather than a mode of the one above, because the two
+    /// answer different questions: what the current layout costs, and what the
+    /// previous one did. The ellipsis promises that choosing it asks first.
+    public static let openArchivedHeatmapTitle = "過去の集計を開く…"
+
     /// Which keymap the heatmap will be drawn against.
     ///
     /// Shows the file's name and never its directory. The name is what the user

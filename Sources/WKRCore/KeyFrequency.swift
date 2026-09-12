@@ -83,11 +83,15 @@ public struct KeyFrequencyStore: Equatable, Sendable, Codable {
         /// Which rule tables counted into this day: the
         /// `WKRLayout.layoutIdentifier` of every build that wrote to it, in
         /// the order they first did. One name on almost every day; two on the
-        /// day a layout change was installed, which the heatmap then marks as
-        /// mixed instead of relabelling the morning with the afternoon's
-        /// names. It names a table, never a keystroke: nothing about what was
-        /// typed or when. Absent in schema 1, which means
-        /// `KeyFrequencyStore.layoutBeforeSchema2`.
+        /// day a layout change was installed. It names a table, never a
+        /// keystroke: nothing about what was typed or when. Absent in a file
+        /// written before the field existed, which reads as
+        /// `KeyFrequencyStore.layoutBeforeMarking`.
+        ///
+        /// The live tally is kept to one name by `KeyFrequencyRotation`; two
+        /// on a day is what an archive from the moment of a change looks
+        /// like, and the heatmap marks that day as mixed rather than
+        /// relabelling the morning with the afternoon's names.
         public let layouts: [String]
 
         public init(date: String, entries: [Entry], layouts: [String] = []) {
@@ -112,16 +116,26 @@ public struct KeyFrequencyStore: Equatable, Sendable, Codable {
     /// version it does not know starts over rather than guessing, because a
     /// misread tally would be silently wrong in a picture.
     ///
-    /// Schema 2 added `layouts` to each day. Schema 1 files are still read:
-    /// every field they have means the same thing, and the one they lack has a
-    /// known value, because only one rule table ever wrote a schema 1 file.
-    public static let currentSchemaVersion = 2
+    /// **`layouts` did not bump it, and the version it briefly carried is read
+    /// but no longer written.** An added optional field changes the meaning of
+    /// nothing already there: a build that predates it decodes the file, keeps
+    /// every count, and drops only the marks. Bumping the version instead makes
+    /// that same build reject the file and then overwrite it, so the tally goes
+    /// silently missing during the one operation someone reaches for when they
+    /// want to go back to an earlier build. The version is for changes that
+    /// would otherwise be misread, and this is not one.
+    public static let currentSchemaVersion = 1
+    /// `2` is here because one build stamped it before the reasoning above was
+    /// followed through. Those files are ordinary tallies and are read as such;
+    /// the next write puts them back to `1`.
     public static let readableSchemaVersions = 1...2
 
-    /// The rule table every schema 1 day was counted under: the upstream
-    /// wkr-layout ver 1.1 pin, the only table that existed before days carried
-    /// their own name.
-    public static let layoutBeforeSchema2 = "wkr-layout@03cba20"
+    /// The rule table a day with no `layouts` was counted under: the upstream
+    /// wkr-layout ver 1.1 pin, the only table in existence before days began
+    /// carrying their own name. It is also what a day written by a build that
+    /// does not know the field reads as, which is the honest answer — such a
+    /// build could not have said which table it was running.
+    public static let layoutBeforeMarking = "wkr-layout@03cba20"
 
     public let schemaVersion: Int
     public let days: [Day]
@@ -191,7 +205,7 @@ public struct KeyFrequencyTally: Equatable, Sendable {
             guard !counts.isEmpty else { continue }
             let key = KeyFrequencyDay(rawValue: day.date)
             days[key, default: [:]].merge(counts) { $0 + $1 }
-            let named = day.layouts.isEmpty ? [KeyFrequencyStore.layoutBeforeSchema2] : day.layouts
+            let named = KeyFrequencyRotation.layouts(of: day)
             layouts[key] = Self.union(layouts[key] ?? [], named)
         }
         self.days = days
@@ -236,7 +250,7 @@ public struct KeyFrequencyTally: Equatable, Sendable {
     /// The rule tables that counted into `day`, first seen first. Empty for a
     /// day with no counts.
     public func layouts(on day: KeyFrequencyDay) -> [String] {
-        days[day] == nil ? [] : (layouts[day] ?? [KeyFrequencyStore.layoutBeforeSchema2])
+        days[day] == nil ? [] : (layouts[day] ?? [KeyFrequencyStore.layoutBeforeMarking])
     }
 
     public var recordedDays: [KeyFrequencyDay] {
@@ -312,5 +326,82 @@ public struct KeyFrequencyTally: Equatable, Sendable {
             calendar.date(byAdding: .day, value: -offset, to: end)
                 .map { KeyFrequencyDay(date: $0, calendar: calendar) }
         }
+    }
+}
+
+/// Moving a tally aside when the rule table under it changes.
+///
+/// The question this tally exists to answer is which keys a layout works
+/// hardest, and a file spanning a layout change cannot answer it. The day a
+/// change lands holds both layouts, and there is no finer time than the day to
+/// separate them by — deliberately, because sub-day timing is exactly what the
+/// format promises not to keep. Waiting for midnight would not fix it either:
+/// the reader wants to see the new layout now, not tomorrow.
+///
+/// So the live file holds one layout's counts and no others. When a different
+/// table is about to count into it, what is there is **moved** to a file named
+/// for the days it covers. Moved, never deleted: the old picture is the half of
+/// a before-and-after that cannot be collected a second time, and the report
+/// can be pointed straight at the file.
+public enum KeyFrequencyRotation {
+    /// The tables that counted into a day, with the absent case spelled out.
+    public static func layouts(of day: KeyFrequencyStore.Day) -> [String] {
+        day.layouts.isEmpty ? [KeyFrequencyStore.layoutBeforeMarking] : day.layouts
+    }
+
+    /// Whether `store` holds counts from any table other than `layout`.
+    ///
+    /// Any, not all: the day a change lands carries both names, and that day is
+    /// precisely the one worth moving aside. Days with no counts are ignored,
+    /// so an empty shell of a file never triggers a rotation.
+    public static func isNeeded(for store: KeyFrequencyStore, layout: String) -> Bool {
+        store.days.contains { day in
+            !day.entries.isEmpty && layouts(of: day).contains { $0 != layout }
+        }
+    }
+
+    /// `key-frequency-2026-08-28_2026-09-12`: the days inside, so a folder of
+    /// these reads as a timeline without opening any of them. `nil` when there
+    /// is nothing to name.
+    public static func archiveBaseName(for store: KeyFrequencyStore) -> String? {
+        // The dates come out of a file, and this name becomes a path. A `date`
+        // of "../../elsewhere" would otherwise put the archive outside the
+        // folder meant to hold it, so anything that is not a plain calendar day
+        // is not used as a name at all.
+        let dates = store.days
+            .filter { !$0.entries.isEmpty && isCalendarDay($0.date) }
+            .map(\.date)
+            .sorted()
+        guard let first = dates.first, let last = dates.last else { return nil }
+        return "key-frequency-" + (first == last ? first : "\(first)_\(last)")
+    }
+
+    /// `2026-09-12`, and nothing else.
+    static func isCalendarDay(_ text: String) -> Bool {
+        let parts = text.split(separator: "-", omittingEmptySubsequences: false)
+        guard parts.count == 3, parts[0].count == 4, parts[1].count == 2, parts[2].count == 2 else {
+            return false
+        }
+        return parts.allSatisfy { $0.allSatisfy(\.isNumber) }
+    }
+
+    /// What a file that could not be read as a tally is moved aside as. It has
+    /// no days to be named after, and it is still not something to overwrite.
+    public static let unreadableBaseName = "key-frequency-unreadable"
+
+    /// For a tally that reads but whose days are not calendar days. Rare enough
+    /// to mean the file was edited by hand, and still counts someone kept.
+    public static let undatedBaseName = "key-frequency-undated"
+
+    /// `base.json`, or `base-2.json`, `base-3.json` … when taken.
+    ///
+    /// `nil` means no free name was found, and the caller must then leave the
+    /// file where it is: an archive written over an older archive would destroy
+    /// the thing this mechanism exists to keep.
+    public static func freeFileName(base: String, isTaken: (String) -> Bool) -> String? {
+        if !isTaken(base + ".json") { return base + ".json" }
+        return (2...99).lazy
+            .map { "\(base)-\($0).json" }
+            .first { !isTaken($0) }
     }
 }

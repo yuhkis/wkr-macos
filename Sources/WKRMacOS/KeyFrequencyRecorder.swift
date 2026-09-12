@@ -328,8 +328,27 @@ final class KeyFrequencyRecorder {
         case let .decoded(store):
             existing = KeyFrequencyTally(store: store)
         case .unusable:
-            // Present but not decodable as a tally. There is nothing in it to
-            // preserve, and refusing forever would mean never writing again.
+            // Present but not decodable *by this build*, which is not the same
+            // as empty: a file from a later build reads this way too. Move it
+            // aside before writing, so going forward to a newer build and back
+            // does not cost someone their tally.
+            //
+            // If it cannot be moved, **this write does not happen**. The
+            // earlier reasoning here — that refusing forever would mean never
+            // writing again — weighed the wrong pair: what is refused is one
+            // flush, retried two minutes later and kept in memory meanwhile,
+            // while what would be overwritten may be months of counts that
+            // cannot be collected a second time. The failure is loud in the
+            // log, and `--key-frequency-reset` clears a file that really is
+            // rubbish.
+            guard Self.moveIntoArchive(
+                storeURL: storeURL,
+                base: KeyFrequencyRotation.unreadableBaseName
+            ) != nil else {
+                AppLog.logger.error("key-frequency flush=failed stage=archive")
+                return false
+            }
+            AppLog.logger.notice("key-frequency rotate=ok reason=unreadable")
             existing = KeyFrequencyTally()
         case .unreadable:
             // Present, and it may well hold counts. Overwriting it blind would
@@ -416,6 +435,134 @@ final class KeyFrequencyRecorder {
         return store
     }
 
+    /// Where a tally goes when it is moved aside: a folder beside the live one,
+    /// so the archives are discoverable from the same place without being in
+    /// the way of the file the app writes every two minutes.
+    static let archiveDirectoryName = "archive"
+
+    static func archiveDirectory(for storeURL: URL) -> URL {
+        storeURL.deletingLastPathComponent()
+            .appendingPathComponent(archiveDirectoryName, isDirectory: true)
+    }
+
+    /// What a rotation attempt did.
+    enum Rotation: Equatable {
+        case notNeeded
+        case rotated(fileName: String, days: Int)
+        case failed
+    }
+
+    /// Move the tally aside if a different rule table wrote it.
+    ///
+    /// Called once at startup, before anything is counted, so the change of
+    /// layout and the change of file happen at the same moment. See
+    /// `KeyFrequencyRotation` for why a file may not span two layouts.
+    @discardableResult
+    func rotateIfLayoutChanged() -> Rotation {
+        // File I/O, so it belongs to the same set of entry points that are
+        // allowed to be slow as the flush path: the main thread, at startup,
+        // never the per-keystroke path.
+        dispatchPrecondition(condition: .onQueue(.main))
+        let outcome = Self.rotate(storeURL: storeURL, layout: layoutIdentifier, force: false)
+        switch outcome {
+        case .notNeeded:
+            break
+        case let .rotated(_, days):
+            // The name is dates and the directory is ours, but neither is worth
+            // a log line: how many days moved is what tells the two states
+            // apart afterwards.
+            AppLog.logger.notice("key-frequency rotate=ok days=\(days, privacy: .public)")
+        case .failed:
+            // The tally stays where it is and keeps counting. A file that could
+            // not be moved is a nuisance; one that was deleted to make room is
+            // the measurement itself.
+            AppLog.logger.error("key-frequency rotate=failed")
+        }
+        return outcome
+    }
+
+    /// `force` moves the tally aside whatever wrote it, for the CLI's
+    /// `--key-frequency-archive`.
+    static func rotate(storeURL: URL, layout: String, force: Bool) -> Rotation {
+        // A tally that already lives in the archive is not rotated again. It is
+        // there because it was set aside once; moving it into an archive folder
+        // of its own would bury it a level deeper every launch.
+        guard !isArchived(storeURL) else { return .notNeeded }
+
+        switch readStore(at: storeURL) {
+        case .absent, .unreadable:
+            // Nothing there, or bytes that cannot be obtained at all. Either
+            // way there is nothing to move and nothing to lose by waiting.
+            return .notNeeded
+        case .unusable:
+            // Present, and not a tally this build understands — a file from a
+            // later build reads exactly this way. Asked to archive explicitly,
+            // move it aside under a name that says so; it cannot be named after
+            // days that cannot be read. Left alone otherwise, because the flush
+            // path handles it at the moment it would have been overwritten.
+            guard force else { return .notNeeded }
+            guard let name = moveIntoArchive(
+                storeURL: storeURL,
+                base: KeyFrequencyRotation.unreadableBaseName
+            ) else { return .failed }
+            return .rotated(fileName: name, days: 0)
+        case let .decoded(store):
+            guard force || KeyFrequencyRotation.isNeeded(for: store, layout: layout) else {
+                return .notNeeded
+            }
+            // A tally whose days are not calendar days cannot be named after
+            // them. Asked to archive explicitly, it still moves — "nothing to
+            // archive" would be false about a file that holds counts.
+            let base = KeyFrequencyRotation.archiveBaseName(for: store)
+                ?? (force && !store.days.isEmpty ? KeyFrequencyRotation.undatedBaseName : nil)
+            guard let base else { return .notNeeded }
+            guard let name = moveIntoArchive(storeURL: storeURL, base: base) else { return .failed }
+            return .rotated(fileName: name, days: store.days.count)
+        }
+    }
+
+    /// Move the store into the archive folder under a free name, and answer
+    /// with the name used. `nil` when it could not be moved, which every caller
+    /// treats as "leave it alone".
+    private static func moveIntoArchive(storeURL: URL, base: String) -> String? {
+        let fileManager = FileManager.default
+        let directory = archiveDirectory(for: storeURL)
+        guard let name = KeyFrequencyRotation.freeFileName(base: base, isTaken: {
+            fileManager.fileExists(atPath: directory.appendingPathComponent($0).path)
+        }) else { return nil }
+        do {
+            try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+            // Set separately and only on our own directory, for the reason the
+            // flush path gives: an existing directory keeps the mode it was
+            // born with.
+            try fileManager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
+            // Moved rather than copied. A copy interrupted halfway leaves two
+            // partial truths and no way to tell which is which; a move either
+            // happened or did not, and the file keeps the 0600 it was written
+            // with.
+            let destination = directory.appendingPathComponent(name)
+            try fileManager.moveItem(at: storeURL, to: destination)
+            // The move carries the store's own 0600 across, so this only
+            // matters for a file that arrived some other way. `try?` because
+            // the counts are already safe at this point and a failed chmod is
+            // not a reason to report the archive as lost.
+            try? fileManager.setAttributes(
+                [.posixPermissions: NSNumber(value: Int16(0o600))],
+                ofItemAtPath: destination.path
+            )
+        } catch {
+            return nil
+        }
+        return name
+    }
+
+    /// Whether `url` sits in an archive folder, which `--key-frequency-reset`
+    /// refuses to delete. An archive is the only copy of a layout's counts that
+    /// exists, and `reset` is a command whose whole job is deletion.
+    static func isArchived(_ url: URL) -> Bool {
+        url.deletingLastPathComponent().lastPathComponent == archiveDirectoryName
+    }
+
     /// Delete the persisted tally.
     ///
     /// Only the file. A recorder running in another process still holds its own
@@ -450,6 +597,15 @@ final class KeyFrequencyRecorder {
             return (error as? CocoaError)?.code == .fileReadNoSuchFile ? .absent : .unreadable
         }
         guard let store = try? JSONDecoder().decode(KeyFrequencyStore.self, from: data) else {
+            return .unusable
+        }
+        // A version this build does not know decodes perfectly well — the
+        // fields it shares are the fields it has — and would then read as a
+        // tally with nothing in it. Saying so **here** is what keeps the flush
+        // path from treating a newer file as an empty one and writing over it;
+        // deciding it later, inside the tally, put the judgement after the
+        // point where it could still be acted on.
+        guard KeyFrequencyStore.readableSchemaVersions.contains(store.schemaVersion) else {
             return .unusable
         }
         return .decoded(store)

@@ -73,6 +73,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             retainedDays: configuration.keyFrequencyRetainedDays
         )
         frequencyRecorder = recorder
+        // Before the first count, and only from the resident process: both
+        // startup guards are behind us, and neither the report subprocess nor
+        // a second instance reaches this line. A tally may not span two rule
+        // tables, so if a different one wrote the file it is moved aside now —
+        // at the moment the layout changes, rather than at the next midnight.
+        recorder?.rotateIfLayoutChanged()
         recorder?.startFlushing()
 
         guard let controller = EventTapController(
@@ -315,6 +321,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         controller.openHeatmapRequested = { [weak self] in
             self?.openKeyFrequencyReport()
         }
+        controller.openArchivedHeatmapRequested = { [weak self] in
+            self?.chooseArchivedTally()
+        }
         controller.chooseKeymapRequested = { [weak self] in
             self?.chooseKeymap()
         }
@@ -371,6 +380,57 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Asks for a tally that was set aside when the layout changed, and draws
+    /// it.
+    ///
+    /// Same shape as `chooseKeymap`, and for the same reasons: `begin` rather
+    /// than `runModal` so the run loop the event tap sits on is not held, and
+    /// `NSApp.activate()` first because an `LSUIElement` app's panel would
+    /// otherwise open behind whatever is in front.
+    ///
+    /// The panel opens in the archive folder. It lives under Application
+    /// Support, which no one reaches by browsing, and putting the user there is
+    /// what makes the entry usable at all — while still keeping the directory
+    /// off the menu itself.
+    private func chooseArchivedTally() {
+        precondition(Thread.isMainThread)
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.message = "過去の集計ファイルを選んでください"
+        panel.prompt = "開く"
+        // `allowsOtherFileTypes` is a save-panel setting and does nothing
+        // here, so it is not set: the archives this offers are ours and are
+        // always `.json`.
+        panel.allowedContentTypes = [.json]
+        let storeURL = KeyFrequencyReportCommand.storeURL(for: configuration)
+        let archiveDirectory = storeURL.map(KeyFrequencyRecorder.archiveDirectory(for:))
+        if let storeURL {
+            panel.directoryURL = archiveDirectory.flatMap {
+                FileManager.default.fileExists(atPath: $0.path) ? $0 : nil
+            } ?? storeURL.deletingLastPathComponent()
+        }
+
+        NSApp.activate()
+        panel.begin { [weak self] response in
+            guard let self, response == .OK, let url = panel.url else { return }
+            // Not read here. Opening a file is I/O, this is the run loop the
+            // tap is on, and the child draws an unreadable file as a page that
+            // says so rather than as an empty picture.
+            AppLog.logger.notice("key-frequency-archive opened=true")
+            // The page goes in our own archive folder rather than beside
+            // whatever was picked. A file chosen from a read-only disk, or from
+            // a folder this app may not write to, would otherwise fail at the
+            // last step with nowhere to say so — and a picked file named like
+            // the live tally would land its report on top of the live one.
+            let output = archiveDirectory?
+                .appendingPathComponent(url.deletingPathExtension().lastPathComponent + ".html")
+                .path
+            self.openKeyFrequencyReport(storePathOverride: url.path, reportPathOverride: output)
+        }
+    }
+
     /// Goes back to the built-in layout.
     private func clearKeymap() {
         precondition(Thread.isMainThread)
@@ -419,7 +479,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// them explicitly. When they were not, the child resolves the same user
     /// defaults this process did, so the menu and `make key-frequency-report`
     /// produce the same report.
-    private func openKeyFrequencyReport() {
+    private func openKeyFrequencyReport(
+        storePathOverride: String? = nil,
+        reportPathOverride: String? = nil
+    ) {
         precondition(Thread.isMainThread)
         guard let executable = Bundle.main.executableURL else {
             AppLog.logger.error("key-frequency-report launch=failed reason=no-executable")
@@ -427,8 +490,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         var arguments = ["--key-frequency-report", "--open"]
-        if let storePath = configuration.keyFrequencyStorePath {
+        // An override is a file the user just picked and must be forwarded
+        // whatever this process was launched with; without one, the store is
+        // forwarded only when this process was given it explicitly, so that the
+        // child otherwise resolves the same defaults.
+        if let storePath = storePathOverride ?? configuration.keyFrequencyStorePath {
             arguments += ["--key-frequency-store", storePath]
+        }
+        if let reportPath = reportPathOverride {
+            arguments += ["--output", reportPath]
         }
         if let keymapPath = selectedKeymapPath {
             arguments += ["--vil", keymapPath]
@@ -556,6 +626,8 @@ do {
         exit(KeyFrequencyReportCommand.runReport(configuration))
     case .keyFrequencyReset:
         exit(KeyFrequencyReportCommand.runReset(configuration))
+    case .keyFrequencyArchive:
+        exit(KeyFrequencyReportCommand.runArchive(configuration))
     case .run:
         break
     }
