@@ -53,6 +53,7 @@ Apple日本語入力へ打ち直します**。Apple日本語入力から見れ�
 | [docs/design.md](./docs/design.md) | 設計判断の記録。採用／不採用の理由と安全境界 |
 | [docs/verification.md](./docs/verification.md) | 公開可能な検証結果と確認範囲 |
 | [docs/roadmap.md](./docs/roadmap.md) | 未着手・未完了の項目 |
+| [docs/development.md](./docs/development.md) | 変更時の上流同期、入力処理、ログ、検証の確認点 |
 
 ## 対応範囲と既知の限界
 
