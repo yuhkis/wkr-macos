@@ -1,0 +1,18 @@
+.DS_Store
+.build/
+.swiftpm/
+DerivedData/
+build/
+xcuserdata/
+*.xcuserstate
+*.app
+.claude/settings.local.json
+
+# ローカル専用（公開しない実測ログ・過去プロンプト）
+WORKLOG.md
+docs/archive/
+AGENTS.local.md
+CLAUDE.local.md
+
+__pycache__/
+*.pyc
