@@ -6,6 +6,15 @@ Apple日本語入力の前段で、わから配列v2のキーを標準ローマ�
 
 [アプリzipとSHA256SUMS](https://github.com/yuhkis/wkr-macos/releases/tag/v0.8.0-public.beta.5)を公式Releaseから入手できます。
 
+## 配列とアプリの対応
+
+| 配列 | macOSアプリ |
+| --- | --- |
+| [2.0.0-beta.1](https://github.com/yuhkis/wkr-layout/releases/tag/v2.0.0-beta.1) | [Public 0.8.0-public.beta.5](https://github.com/yuhkis/wkr-macos/releases/tag/v0.8.0-public.beta.5) |
+| [1.1.0 保存資料](https://github.com/yuhkis/wkr-layout/releases/tag/v1.1.0-archive.1) | [0.7.0 保存ソース](https://github.com/yuhkis/wkr-macos/releases/tag/v0.7.0-archive.1) |
+
+v1保存版は[Legacy/wkr-macos-v1](Legacy/wkr-macos-v1/README.md)へ隔離しています。現行v2アプリはv1切替機能を持ちません。保存版の作成は`python3 Scripts/package-v1-archive.py`、固定ソースの検査は`python3 Scripts/check-v1-archive.py`です。[スクリプトの説明](Scripts/README.md)を参照してください。
+
 ## 初めて使う方へ
 
 [導入・権限設定・停止・アンインストール](docs/install.md)の順に進めます。macOS 14以降、Apple日本語入力のローマ字入力・ひらがなモード、JISキーボードを対象とします。今回のローカル配布候補はApple Silicon用です。ソースからのビルドと、ad-hoc署名・未公証のアプリzipによる導入を用意します。Apple Developer Programへの加入を前提にせず、アプリzipではmacOSの個別の起動許可が必要になる場合があります。

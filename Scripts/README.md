@@ -21,3 +21,9 @@
 - `python3 Scripts/test_publication_guard.py`: 実データを使わず、一時Git履歴とZIPで公開拒否条件を確認します。
 
 履歴・ref・方針・配布物が変わると承認は無効です。方針や検査コードの変更後は、差分レビュー・監査・再設置が必要です。詳細と限界は[公開前監査](../docs/publication-audit.md)を参照してください。
+
+## v1対応アプリの保存ソース
+
+`python3 Scripts/check-v1-archive.py`は`Legacy/wkr-macos-v1/archive-source.json`の全ファイルSHA256と、詳細ログを残さない境界を検査します。`make -C Legacy/wkr-macos-v1 test`と`make -C Legacy/wkr-macos-v1 app`で保存版を検証・ビルドします。ビルドはad-hoc署名のみで、インストールや起動をしません。
+
+`python3 Scripts/package-v1-archive.py`はcleanなcommitから、`build/distribution/0.7.0-archive.1/<commit>/`へソースzip・manifest・SHA256SUMSを作ります。出力対象は固定manifestのソースだけで、build・Git履歴・ローカル記録を含みません。既存の異なる配布物は上書きせず、保存ソースを変更する場合は保存版を上げます。
