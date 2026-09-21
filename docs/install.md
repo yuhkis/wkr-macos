@@ -6,7 +6,7 @@
 
 公開承認前のローカル準備品です。Apple Developer Programへの加入を前提にせず、次の二つの導入経路を用意します。
 
-- アプリzip: Apple Silicon用の `WKR-macOS-0.8.0-public.beta.4-arm64-adhoc.zip` を展開する。利用者側のXcodeは必要ありません。ad-hoc署名・未公証なので、初回の個別起動許可が必要になる場合があります。
+- アプリzip: Apple Silicon用の `WKR-macOS-0.8.0-public.beta.5-arm64-adhoc.zip` を展開する。利用者側のXcodeは必要ありません。ad-hoc署名・未公証なので、初回の個別起動許可が必要になる場合があります。
 - ソースビルド: 下記の手順で自分のMac上にアプリを作る。
 
 アプリzipを使う場合は、公開時の公式Release URLと `SHA256SUMS` を照合してから展開します。ad-hoc署名はコードの整合性を検査するもので、Appleによる開発元の確認や公証を意味しません。
