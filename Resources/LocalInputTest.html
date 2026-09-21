@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WKR macOS local input test</title>
+  <style>
+    body { font: 16px system-ui, sans-serif; max-width: 48rem; margin: 3rem auto; padding: 0 1rem; }
+    label { display: block; margin: 1.5rem 0 0.5rem; font-weight: 600; }
+    textarea, input { box-sizing: border-box; width: 100%; font: inherit; padding: 0.75rem; }
+    textarea { min-height: 12rem; }
+    p { line-height: 1.6; }
+  </style>
+</head>
+<body>
+  <h1>WKR macOS local input test</h1>
+  <p>このページはローカルファイルです。フォーム、スクリプト、ネットワーク送信はありません。</p>
+
+  <label for="normal">通常テキスト欄</label>
+  <textarea id="normal" autocomplete="off" spellcheck="false"></textarea>
+
+  <label for="secure">Secure Event Input確認用パスワード欄</label>
+  <input id="secure" type="password" autocomplete="off">
+  <p>パスワード欄では固定の無害なキーだけを使い、内容を読み取り・保存・送信しません。</p>
+</body>
+</html>

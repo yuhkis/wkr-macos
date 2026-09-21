@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>io.github.yuhkis.wkr-macos.public.login</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Applications/WKRPublic.app/Contents/MacOS/WKRPublic</string>
+        <string>--input-source-id</string>
+        <string>com.apple.inputmethod.Kotoeri.RomajiTyping.Japanese</string>
+        <string>--input-mode-id</string>
+        <string>com.apple.inputmethod.Japanese</string>
+        <string>--mode</string>
+        <string>prefix</string>
+        <!-- Add these two lines to drop the 55 `P` symbol rules. They inject
+             Unicode, which commits with no chance to convert and cannot be
+             sent at all while a pre-edit is open. Arrow rules remain available.
+             See docs/install.md.
+        <string>--symbol-layer</string>
+        <string>off</string>
+        -->
+        <!-- Repeat --exclude-app to stop converting while a given application is
+             frontmost. Useful for a remote desktop where the keystrokes belong
+             to another machine. A virtual machine is not automatically a
+             candidate: if WKR's synthetic romaji reaches the guest, the guest's
+             own IME converts it, and no layout has to be installed there. See
+             docs/install.md before excluding one.
+        <string>--exclude-app</string>
+        <string>com.parallels.desktop.console</string>
+        -->
+        <!-- Add these two lines to keep per-key press counts, so
+             `WKRPublic --key-frequency-report` can draw a heatmap. Counts are
+             totals per calendar day and nothing else: no order, no timing, no
+             text. They stay in
+             ~/Library/Application Support/io.github.yuhkis.wkr-macos.public/ and are
+             never sent anywhere. Off by default. See docs/install.md.
+        <string>--key-frequency</string>
+        <string>on</string>
+        -->
+        <string>--request-permissions</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <false/>
+    <key>LimitLoadToSessionType</key>
+    <string>Aqua</string>
+    <key>ProcessType</key>
+    <string>Interactive</string>
+</dict>
+</plist>

@@ -1,0 +1,103 @@
+APP := $(CURDIR)/build/WKRPublic.app
+EXECUTABLE := $(APP)/Contents/MacOS/WKRPublic
+INSTALLED_APP ?= /Applications/WKRPublic.app
+INSTALLED_EXECUTABLE := $(INSTALLED_APP)/Contents/MacOS/WKRPublic
+MODE ?= prefix
+INPUT_SOURCE_ID ?= com.apple.inputmethod.Kotoeri.RomajiTyping.Japanese
+INPUT_MODE_ID ?= com.apple.inputmethod.Japanese
+# Per-key press counts. Off unless asked for; see docs/design.md section 9.
+#
+# Deliberately unset rather than `?= off`: the flag is only passed when this is
+# given a value, so leaving it alone lets the KeyFrequencyLog user default
+# decide. Passing `--key-frequency off` unconditionally made that default
+# unreachable from `make start`, which is the very command docs/install.md tells
+# people to use after setting it.
+KEY_FREQUENCY ?=
+
+# A Mac may have Command Line Tools selected globally even though the
+# full Xcode app is installed. Keep the system-wide xcode-select untouched and
+# use full Xcode only for this project's make targets.
+ifeq ($(origin DEVELOPER_DIR), undefined)
+ifneq ($(wildcard /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild),)
+export DEVELOPER_DIR := /Applications/Xcode.app/Contents/Developer
+endif
+endif
+
+.PHONY: practice package check-public test build app input-source input-source-installed start start-installed stop install-login-agent uninstall-login-agent key-frequency-report key-frequency-report-installed key-frequency-archive key-frequency-reset
+
+test:
+	swift test
+
+build:
+	swift build
+
+app:
+	./Scripts/build-app.sh
+
+input-source:
+	@test -x "$(EXECUTABLE)" || (echo 'App is not built; run make app first.' >&2; exit 2)
+	$(EXECUTABLE) --print-input-source
+
+input-source-installed:
+	@test -x "$(INSTALLED_EXECUTABLE)" || (echo 'Installed app was not found at $(INSTALLED_APP).' >&2; exit 2)
+	$(INSTALLED_EXECUTABLE) --print-input-source
+
+start:
+	@test -x "$(EXECUTABLE)" || (echo 'App is not built; run make app first.' >&2; exit 2)
+	@test -n "$(INPUT_SOURCE_ID)" || (echo 'INPUT_SOURCE_ID is required; run make input-source after selecting Apple Japanese input.' >&2; exit 2)
+	@test -n "$(INPUT_MODE_ID)" || (echo 'INPUT_MODE_ID is required; run make input-source while Apple Japanese Hiragana is active.' >&2; exit 2)
+	@if [ "$(MODE)" = "optimistic" ] && [ "$(ALLOW_OPTIMISTIC)" != "1" ]; then echo 'optimistic mode requires ALLOW_OPTIMISTIC=1 and a disposable untitled document.' >&2; exit 2; fi
+	@$(MAKE) stop
+	./Scripts/start-app.sh "$(APP)" --input-source-id "$(INPUT_SOURCE_ID)" --input-mode-id "$(INPUT_MODE_ID)" --mode "$(MODE)" $(if $(KEY_FREQUENCY),--key-frequency $(KEY_FREQUENCY),) --request-permissions $(if $(filter optimistic,$(MODE)),--allow-unverified-optimistic,) $(if $(SYMBOL_LAYER),--symbol-layer $(SYMBOL_LAYER),)
+
+start-installed:
+	@test -x "$(INSTALLED_EXECUTABLE)" || (echo 'Installed app was not found at $(INSTALLED_APP).' >&2; exit 2)
+	@test -n "$(INPUT_SOURCE_ID)" || (echo 'INPUT_SOURCE_ID is required; run make input-source-installed after selecting Apple Japanese input.' >&2; exit 2)
+	@test -n "$(INPUT_MODE_ID)" || (echo 'INPUT_MODE_ID is required; run make input-source-installed while Apple Japanese Hiragana is active.' >&2; exit 2)
+	@if [ "$(MODE)" = "optimistic" ] && [ "$(ALLOW_OPTIMISTIC)" != "1" ]; then echo 'optimistic mode requires ALLOW_OPTIMISTIC=1 and a disposable untitled document.' >&2; exit 2; fi
+	@$(MAKE) stop
+	./Scripts/start-app.sh "$(INSTALLED_APP)" --input-source-id "$(INPUT_SOURCE_ID)" --input-mode-id "$(INPUT_MODE_ID)" --mode "$(MODE)" $(if $(KEY_FREQUENCY),--key-frequency $(KEY_FREQUENCY),) --request-permissions $(if $(filter optimistic,$(MODE)),--allow-unverified-optimistic,) $(if $(SYMBOL_LAYER),--symbol-layer $(SYMBOL_LAYER),)
+
+stop:
+	@pkill -TERM -x WKRPublic 2>/dev/null || true
+
+install-login-agent:
+	@$(MAKE) stop
+	./Scripts/install-login-agent.sh
+
+uninstall-login-agent:
+	./Scripts/uninstall-login-agent.sh
+
+# Render the heatmap. Reading counts the app already wrote needs no permission,
+# so this works from the build directory even when the bundle is not installed.
+# VIL points at a Vial .vil export so the Cornix picture carries the keymap that
+# is actually flashed to the keyboard; without it the built-in layout is drawn.
+# STORE points at a tally other than the live one — an archived tally, which the
+# app sets aside whenever the layout changes — and the HTML is then written
+# beside that file under its own name.
+key-frequency-report:
+	@test -x "$(EXECUTABLE)" || (echo 'App is not built; run make app first.' >&2; exit 2)
+	$(EXECUTABLE) --key-frequency-report --open $(if $(STORE),--key-frequency-store "$(STORE)",) $(if $(VIL),--vil "$(VIL)",) $(if $(OUTPUT),--output "$(OUTPUT)",)
+
+key-frequency-report-installed:
+	@test -x "$(INSTALLED_EXECUTABLE)" || (echo 'Installed app was not found at $(INSTALLED_APP).' >&2; exit 2)
+	$(INSTALLED_EXECUTABLE) --key-frequency-report --open $(if $(STORE),--key-frequency-store "$(STORE)",) $(if $(VIL),--vil "$(VIL)",) $(if $(OUTPUT),--output "$(OUTPUT)",)
+
+# Moves the current tally into archive/ and starts a new one, which is what the
+# app does by itself whenever the layout changes.
+key-frequency-archive:
+	@test -x "$(EXECUTABLE)" || (echo 'App is not built; run make app first.' >&2; exit 2)
+	$(EXECUTABLE) --key-frequency-archive
+
+key-frequency-reset:
+	@test -x "$(EXECUTABLE)" || (echo 'App is not built; run make app first.' >&2; exit 2)
+	$(EXECUTABLE) --key-frequency-reset
+
+practice:
+	open "$(APP)" --args --practice-only
+
+package:
+	python3 Scripts/package-public.py
+
+check-public:
+	python3 Scripts/check-public.py
