@@ -1,4 +1,4 @@
-# Release文案 — WKR macOS Public 0.8.0-public.beta.5
+# Release情報 — WKR macOS Public 0.8.0-public.beta.5
 
 わから配列v2を初めて使う方のための公開ベータです。対応配列は **2.0.0-beta.1（233規則）**、同梱練習帳は **0.1.0（12課題・127問）** です。教材はブラウザ版と共通で、同梱版はオフラインで使えます。
 
@@ -6,7 +6,7 @@ Public専用の `WKRPublic.app` / `io.github.yuhkis.wkr-macos.public` を使用�
 
 詳細入力ログ、2キー・規則ペア計測、個人用RSft Enter推定補正、旧練習ログ連携は含みません。日別の論理キー集計と練習成績はそれぞれ既定オフで、明示的に有効化した場合だけローカルへ保存します。キーボードの描画は実際の打鍵元の識別ではありません。
 
-添付候補は `WKR-macOS-0.8.0-public.beta.5-arm64-adhoc.zip`、`manifest.json`、`SHA256SUMS`。これはad-hoc署名・未公証の候補です。Apple Developer Programへの加入を前提とせず、ソースから自分でビルドする方法も提供します。展開後の署名構造検査は成功しましたが、公証チケットはなく、Gatekeeperの既定評価はrejectedでした。ダウンロード版の初回起動では、公式Releaseとハッシュの照合後、macOSの「プライバシーとセキュリティ」からアプリ個別の起動許可が必要になる場合があります。手順と確認範囲は[導入文書](install.md)を参照してください。
+添付は `WKR-macOS-0.8.0-public.beta.5-arm64-adhoc.zip`、`manifest.json`、`SHA256SUMS`。これはad-hoc署名・未公証の候補です。Apple Developer Programへの加入を前提とせず、ソースから自分でビルドする方法も提供します。展開後の署名構造検査は成功しましたが、公証チケットはなく、Gatekeeperの既定評価はrejectedでした。ダウンロード版の初回起動では、公式Releaseとハッシュの照合後、macOSの「プライバシーとセキュリティ」からアプリ個別の起動許可が必要になる場合があります。手順と確認範囲は[導入文書](install.md)を参照してください。
 
 対象: macOS 14以降、Apple Silicon、JISキーボード、Apple日本語入力のローマ字入力・ひらがな。Intel向けビルドと全対応OSの実機確認は未実施です。
 
@@ -17,5 +17,3 @@ beta.1では、利用者がPublicの権限付与と実変換を確認しまし�
 本候補は確認済みの公開ソースから始まる独立履歴です。公開文書は再現条件・確認結果・未確認事項と、テストで生成する合成データの説明に絞っています。beta.2から変換処理・教材は変更していません。
 
 未確認: beta.5での実機入力・変換候補・停止復帰・スリープ復帰、実インストールとアンインストール、Privateの排他ロック対応。Developer ID署名・公証は今回の配布方式では行いません。実機での軽い確認と、ダウンロード版の個別起動許可の確認は実施結果を追記します。過去版の実機記録を本版の確認済み結果として扱いません。[導入](install.md)、[移行](migration.md)、[検証](verification.md)、[公開前監査](publication-audit.md)を参照してください。
-
-公開操作案: 従来URLの新規リポジトリに最小の比較用基点をbootstrap branchとして登録し、実装は専用branchからそこへPRを作成する。CI `swift-test`成功後、署名付きcommitを維持するmerge commitで統合し、既定branchをmainへ改名する。mainへの直接pushは行わない。その統合結果を対象にtag `v0.8.0-public.beta.5` のprereleaseを作る。全公開対象と配布物を再監査し、利用者の最終承認後に操作する。以前の履歴・PR・Release・Actionsを新しい公開先へ移さない。初回基点の登録方法を含め、公開操作は最終承認を待つ。現時点ではpush・PR・tag・Releaseは未実施。

@@ -2,7 +2,9 @@
 
 Apple日本語入力の前段で、わから配列v2のキーを標準ローマ字に置き換えるmacOSアプリです。`W E R` + Enterで「わから」、`E K`で「き」と入力できます。かな漢字変換はApple日本語入力を使います。
 
-**公開準備版: 0.8.0-public.beta.5 / 配列: 2.0.0-beta.1 / 練習: 0.1.0**。配列は233規則です。Pの短縮形はベータで評価中です。
+**公開ベータ版: 0.8.0-public.beta.5 / 配列: 2.0.0-beta.1 / 練習: 0.1.0**。配列は233規則です。Pの短縮形はベータで評価中です。
+
+[アプリzipとSHA256SUMS](https://github.com/yuhkis/wkr-macos/releases/tag/v0.8.0-public.beta.5)を公式Releaseから入手できます。
 
 ## 初めて使う方へ
 
@@ -41,6 +43,6 @@ make package
 
 MIT License。配列と教材の正本は [wkr-layout](https://github.com/yuhkis/wkr-layout)。取り込んだcommitとファイルSHA256は `Resources/upstream-manifest.json` に記録します。
 
-この公開候補は、確認済みのソースだけから始めた独立履歴です。以前のリポジトリの履歴・PR・Releaseを引き継ぎません。[公開前監査](docs/publication-audit.md)で全ref・配布物と公開範囲を確認してから公開します。
+この公開ベータは、確認済みのソースだけから始めた独立履歴です。以前のリポジトリの履歴・PR・Releaseを引き継ぎません。[公開前監査](docs/publication-audit.md)で全ref・配布物と公開範囲を確認してから公開します。
 
 公開作業を始めるときは `python3 Scripts/publication_guard.py install` で、このリポジトリだけのpush前ガードを設置します。接続先のrepository IDと監査済みの内容に対する承認が揃うまではpushを拒否します。[公開前監査](docs/publication-audit.md)に監査と承認記録の手順があります。
