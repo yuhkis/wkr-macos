@@ -1,5 +1,6 @@
 import XCTest
 @testable import WKRMacOS
+@testable import WKRPracticeUI
 import WKRCore
 
 final class PublicBoundaryTests: XCTestCase {
@@ -52,7 +53,7 @@ final class PublicBoundaryTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at:base) }
         let store=PracticeProgressStore(url:base.appendingPathComponent("practice-progress.json"))
         XCTAssertNil(try store.load())
-        let raw: [String:Any]=["schemaVersion":1,"layoutVersion":WKRLayout.layoutVersion,"text":"synthetic input","time":123,"lessons":["vowels":["completed":1,"bestAccuracy":95,"wrong":"synthetic","keys":["x"]]]]
+        let raw: [String:Any]=["schemaVersion":2,"layoutVersion":WKRLayout.layoutVersion,"text":"synthetic input","time":123,"lessons":["vowels":["completed":1,"bestAccuracy":95,"wrong":"synthetic","keys":["x"]]]]
         let value=try XCTUnwrap(PracticeProgress.validated(JSONSerialization.data(withJSONObject:raw)))
         try store.save(value)
         let object=try JSONSerialization.jsonObject(with:Data(contentsOf:store.url)) as! [String:Any]
@@ -71,4 +72,19 @@ final class PublicBoundaryTests: XCTestCase {
         let bad=Data("unreadable".utf8);try bad.write(to:store.url)
         XCTAssertThrowsError(try store.save(.empty));XCTAssertEqual(try Data(contentsOf:store.url),bad)
     }
+    func testNewProgressSchemaKeepsTheOldFileSeparate() throws {
+        XCTAssertEqual(PracticeProgressStore().url.lastPathComponent, "practice-progress-v2.json")
+        let base = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: base) }
+        let previous = base.appendingPathComponent("practice-progress.json")
+        let old = Data("{\"schemaVersion\":1,\"layoutVersion\":\"2.0.0-beta.1\",\"lessons\":{}}".utf8)
+        try old.write(to: previous)
+        XCTAssertNil(PracticeProgress.validated(old))
+        let current = PracticeProgressStore(url: base.appendingPathComponent("practice-progress-v2.json"))
+        try current.save(.empty)
+        try current.delete()
+        XCTAssertEqual(try Data(contentsOf: previous), old)
+    }
+
 }

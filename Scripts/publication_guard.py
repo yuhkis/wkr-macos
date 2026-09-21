@@ -86,7 +86,7 @@ def public_path(name):
     forbidden = {'.git', '.env', '.DS_Store', '__MACOSX', 'archive',
                  'WORKLOG.md', 'AGENTS.local.md', 'practice-progress.json',
                  'key-frequency.json', 'key-frequency.html'}
-    require(not any(p in forbidden or p.startswith('.env.') or p.endswith(('.log', '.vil'))
+    require(not any(p in forbidden or p.startswith('.env.') or re.fullmatch(r'practice-progress(?:-v[0-9]+)?\.json', p) or p.endswith(('.log', '.vil'))
                     for p in parts), 'Private working material cannot be published')
 
 

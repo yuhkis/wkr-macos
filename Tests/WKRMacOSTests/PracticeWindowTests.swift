@@ -2,6 +2,7 @@ import AppKit
 import WebKit
 import XCTest
 @testable import WKRMacOS
+@testable import WKRPracticeUI
 
 @MainActor
 final class PracticeWindowTests: XCTestCase {

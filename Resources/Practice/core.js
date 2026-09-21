@@ -3,8 +3,8 @@
   'use strict';
   const MAX = 1000000;
   function clean(value, ids, layoutVersion) {
-    const empty = {schemaVersion: 1, layoutVersion, lessons: {}};
-    if (!value || value.schemaVersion !== 1 || value.layoutVersion !== layoutVersion ||
+    const empty = {schemaVersion: 2, layoutVersion, lessons: {}};
+    if (!value || value.schemaVersion !== 2 || value.layoutVersion !== layoutVersion ||
         !value.lessons || typeof value.lessons !== 'object' || Array.isArray(value.lessons)) return empty;
     for (const id of ids) {
       const v = value.lessons[id];

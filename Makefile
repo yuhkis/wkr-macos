@@ -23,16 +23,25 @@ export DEVELOPER_DIR := /Applications/Xcode.app/Contents/Developer
 endif
 endif
 
-.PHONY: practice package check-public test build app input-source input-source-installed start start-installed stop install-login-agent uninstall-login-agent key-frequency-report key-frequency-report-installed key-frequency-archive key-frequency-reset
+.PHONY: test-v1 app-v1 practice-app package-all practice package check-public test build app input-source input-source-installed start start-installed stop install-login-agent uninstall-login-agent key-frequency-report key-frequency-report-installed key-frequency-archive key-frequency-reset
 
 test:
-	swift test
+	swift test --scratch-path .build/v2
+
+test-v1:
+	env WKR_BUILD_FLAVOR=v1 swift test --scratch-path .build/v1
 
 build:
 	swift build
 
 app:
-	./Scripts/build-app.sh
+	env WKR_BUILD_FLAVOR=v2 ./Scripts/build-app.sh
+
+app-v1:
+	env WKR_BUILD_FLAVOR=v1 ./Scripts/build-app.sh
+
+practice-app:
+	env WKR_BUILD_FLAVOR=practice ./Scripts/build-app.sh
 
 input-source:
 	@test -x "$(EXECUTABLE)" || (echo 'App is not built; run make app first.' >&2; exit 2)
@@ -98,6 +107,9 @@ practice:
 
 package:
 	python3 Scripts/package-public.py
+
+package-all:
+	python3 Scripts/package-apps.py
 
 check-public:
 	python3 Scripts/check-public.py

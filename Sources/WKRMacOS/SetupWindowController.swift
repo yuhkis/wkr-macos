@@ -8,12 +8,13 @@ final class SetupWindowController: NSWindowController {
     private let explanation = NSTextField(wrappingLabelWithString: "")
     init() {
         let window = NSWindow(contentRect: NSRect(x: 0,y: 0,width: 580,height: 390),styleMask: [.titled,.closable],backing: .buffered,defer: false)
-        window.title = "WKR macOS Public — 導入と権限"
+        window.title = AppVersion.name + " — 導入と権限"
         super.init(window: window)
         let stack=NSStackView();stack.orientation = .vertical;stack.alignment = .leading;stack.spacing=16;stack.translatesAutoresizingMaskIntoConstraints=false
-        let title=NSTextField(labelWithString: "わから配列 v2 をはじめる");title.font = .boldSystemFont(ofSize: 22);stack.addArrangedSubview(title)
+        let title=NSTextField(labelWithString: AppVersion.name + " をはじめる");title.font = .boldSystemFont(ofSize: 22);stack.addArrangedSubview(title)
         stack.addArrangedSubview(explanation)
         for (label,selector) in [("入力監視の設定を開く",#selector(openInput)),("アクセシビリティの設定を開く",#selector(openAccessibility)),("状態を再確認して変換を開始",#selector(retryChosen)),("権限なしでキー位置を練習",#selector(practiceChosen))] {
+            if selector == #selector(practiceChosen) && !AppVersion.supportsPractice { continue }
             let button=NSButton(title: label,target: self,action: selector);stack.addArrangedSubview(button)
             if selector == #selector(retryChosen) { retryButton = button }
         }

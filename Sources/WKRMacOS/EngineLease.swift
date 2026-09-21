@@ -6,7 +6,7 @@ import Foundation
 /// Older builds do not know the lease, so they must be stopped before switching.
 final class EngineLease {
     private var descriptor: Int32
-    static let peerBundleIDs = ["io.github.yuhkis.wkr-macos", "io.github.yuhkis.wkr-macos.public", "io.github.yuhkis.wkr-macos.private"]
+    static let peerBundleIDs = ["io.github.yuhkis.wkr-macos", "io.github.yuhkis.wkr-macos.public", "io.github.yuhkis.wkr-macos.private", "io.github.yuhkis.wkr-macos.v1", "io.github.yuhkis.wkr-macos.v1-archive"]
     static var peerIsRunning: Bool {
         peerBundleIDs.contains { id in
             NSRunningApplication.runningApplications(withBundleIdentifier: id)

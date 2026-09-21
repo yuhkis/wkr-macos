@@ -1,10 +1,10 @@
-# WKR macOS Public — わから配列 v2
+# WKR macOS — わから配列 v1 / v2
 
 Apple日本語入力の前段で、わから配列v2のキーを標準ローマ字に置き換えるmacOSアプリです。`W E R` + Enterで「わから」、`E K`で「き」と入力できます。かな漢字変換はApple日本語入力を使います。
 
-**公開ベータ版: 0.8.0-public.beta.5 / 配列: 2.0.0-beta.1 / 練習: 0.1.0**。配列は233規則です。Pの短縮形はベータで評価中です。
+**今回の配布候補: v1アプリ0.7.1-public.1 / v2アプリ0.8.0-public.beta.6 / 練習帳0.2.0**。配列はそれぞれ1.1.0 / 2.0.0-beta.1です。配列は233規則です。Pの短縮形はベータで評価中です。
 
-[アプリzipとSHA256SUMS](https://github.com/yuhkis/wkr-macos/releases/tag/v0.8.0-public.beta.5)を公式Releaseから入手できます。
+公開済みbeta.5の[アプリzipとSHA256SUMS](https://github.com/yuhkis/wkr-macos/releases/tag/v0.8.0-public.beta.5)を公式Releaseから入手できます。
 
 ## 配列とアプリの対応
 
@@ -13,15 +13,17 @@ Apple日本語入力の前段で、わから配列v2のキーを標準ローマ�
 | [2.0.0-beta.1](https://github.com/yuhkis/wkr-layout/releases/tag/v2.0.0-beta.1) | [Public 0.8.0-public.beta.5](https://github.com/yuhkis/wkr-macos/releases/tag/v0.8.0-public.beta.5) |
 | [1.1.0 保存資料](https://github.com/yuhkis/wkr-layout/releases/tag/v1.1.0-archive.1) | [0.7.0 保存ソース](https://github.com/yuhkis/wkr-macos/releases/tag/v0.7.0-archive.1) |
 
-v1保存版は[Legacy/wkr-macos-v1](Legacy/wkr-macos-v1/README.md)へ隔離しています。現行v2アプリはv1切替機能を持ちません。保存版の作成は`python3 Scripts/package-v1-archive.py`、固定ソースの検査は`python3 Scripts/check-v1-archive.py`です。[スクリプトの説明](Scripts/README.md)を参照してください。
+新しい3製品の選び方・アプリ名・保存先は[アプリ配布の導入手順](docs/distribution.md)を参照してください。v1はWKRV1.app、v2はWKRPublic.app、v2練習帳はWakaraPractice.appです。新候補はローカル準備中で、公開済みの版とは別です。
+
+v1保存版は[Legacy/wkr-macos-v1](Legacy/wkr-macos-v1/README.md)へ隔離しています。保存ソースを変更せず、公開済みv1規則を現在の共通変換処理に組み合わせたWKRV1.appを別に作ります。各アプリ内でv1/v2は切り替えません。保存版の作成は`python3 Scripts/package-v1-archive.py`、固定ソースの検査は`python3 Scripts/check-v1-archive.py`です。[スクリプトの説明](Scripts/README.md)を参照してください。
 
 ## 初めて使う方へ
 
-[導入・権限設定・停止・アンインストール](docs/install.md)の順に進めます。macOS 14以降、Apple日本語入力のローマ字入力・ひらがなモード、JISキーボードを対象とします。今回のローカル配布候補はApple Silicon用です。ソースからのビルドと、ad-hoc署名・未公証のアプリzipによる導入を用意します。Apple Developer Programへの加入を前提にせず、アプリzipではmacOSの個別の起動許可が必要になる場合があります。
+[ダウンロード・権限設定・停止・アンインストール](docs/distribution.md)の順に進めます。macOS 14以降、Apple日本語入力のローマ字入力・ひらがなモード、JISキーボードを対象とします。今回のローカル配布候補はApple Silicon用です。ソースからのビルドと、ad-hoc署名・未公証のアプリzipによる導入を用意します。Apple Developer Programへの加入を前提にせず、アプリzipではmacOSの個別の起動許可が必要になる場合があります。
 
 起動すると権限不足や別のWKRの起動状態を案内します。変換中はメニューバーで一時停止・再開・終了できます。安全条件を失ったときは状態を捨てて停止します。入力ソースを自動で切り替えません。
 
-メニューの「わから v2 を練習する」から、母音・行キーから短文へ進む練習帳を開けます。教材はアプリに同梱され、オフラインで使えます。`--practice-only`なら変換エンジンや入力権限を使わずに練習画面だけを開きます。ブラウザ版と同じ公開教材です。
+メニューの「わから v2 を練習する」から、母音・行キーから短文へ進む練習帳を開けます。教材はアプリに同梱され、オフラインで使えます。`--practice-only`なら変換エンジンや入力権限を使わずに練習画面だけを開きます。ブラウザ版・独立したWakaraPractice.appと同じ公開教材です。QWERTY体験はABC・英数で、導入済みWKRでの練習は「WKR・IMEで練習」で使います。
 
 ## 記録とPublic / Private
 
@@ -35,19 +37,21 @@ Publicは `WKRPublic.app` / `io.github.yuhkis.wkr-macos.public` を使います�
 
 ```sh
 make test
+make test-v1
 make check-public
 make app
-make practice
-make package
+make app-v1
+make practice-app
+make package-all
 ```
 
-`make app`は専用の`build/WKRPublic.app`をad-hoc署名で作ります。証明書を自動選択せず、インストールや起動はしません。`make package`の出力先は`build/distribution/<アプリ版>/`です。公開対象はその版のzip・manifest.json・SHA256SUMSを明示します。配布時はad-hoc署名・未公証であることと初回起動手順を明記します。[配布方式と公開前の確認](docs/public-beta.md)を参照してください。
+`make app`は専用の`build/WKRPublic.app`をad-hoc署名で作ります。証明書を自動選択せず、インストールや起動はしません。`make app-v1`はWKRV1.app、`make practice-app`はWakaraPractice.appを作ります。`make package`はv2のみ、`make package-all`は3製品を`build/distribution/<アプリ版>/<commit>/`へ出力します。公開対象はその版のzip・manifest.json・SHA256SUMSを明示します。配布時はad-hoc署名・未公証であることと初回起動手順を明記します。[配布方式と公開前の確認](docs/public-beta.md)を参照してください。
 
 配列と教材の同期は `python3 Scripts/sync-layout.py --upstream ../wkr-layout --revision <commit>`、手順は[Scripts/README.md](Scripts/README.md)。`--check`で一致を検査し、取り込み日は同じpinの記録を保ちます。日付の明示指定には`--imported-on YYYY-MM-DD`を使います。純粋な変換処理は`WKRCore`へ集約し、Public/Privateで別の配列表を手書きしません。
 
 - [配列とmacOS用綴り](docs/layout-reference.md)
 - [仕組み](docs/how-it-works.md)・[設計](docs/design.md)・[開発時の確認](docs/development.md)
-- [検証記録](docs/verification.md)・[残件](docs/roadmap.md)・[Release文案](docs/release-0.8.0-public.beta.5.md)
+- [検証記録](docs/verification.md)・[残件](docs/roadmap.md)・[v2 Release文案](docs/release-0.8.0-public.beta.6.md)・[v1](docs/release-0.7.1-public.1.md)・[練習帳](docs/release-practice-0.2.0.md)
 - [公開作業規約](AGENTS.md)
 
 MIT License。配列と教材の正本は [wkr-layout](https://github.com/yuhkis/wkr-layout)。取り込んだcommitとファイルSHA256は `Resources/upstream-manifest.json` に記録します。

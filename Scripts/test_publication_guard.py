@@ -75,6 +75,11 @@ class PublicationGuardTests(unittest.TestCase):
         with self.assertRaisesRegex(guard.Blocked, 'Private working'):
             guard.check_index(self.root)
 
+    def test_all_progress_store_versions_are_private_assets(self):
+        for name in ['practice-progress.json', 'practice-progress-v2.json', 'practice-progress-v99.json']:
+            with self.subTest(name=name), self.assertRaisesRegex(guard.Blocked, 'Private working'):
+                guard.public_path('Resources/' + name)
+
     def test_index_prevents_broadening_contact_allowlist(self):
         self.policy['emails'].append('private' + '@' + 'example.org')
         (self.root / guard.POLICY).write_text(json.dumps(self.policy))

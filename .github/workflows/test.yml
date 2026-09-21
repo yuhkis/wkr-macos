@@ -27,9 +27,11 @@ jobs:
       - name: Check public boundary and bundled resources
         run: python3 Scripts/check-public.py
       - name: Run tests
-        run: swift test
-      - name: Build the ad-hoc candidate without installing
-        run: make app
+        run: |
+          swift test --scratch-path .build/v2 -Xswiftc -warnings-as-errors
+          env WKR_BUILD_FLAVOR=v1 swift test --scratch-path .build/v1 -Xswiftc -warnings-as-errors
+      - name: Build and inspect all ad-hoc app packages without installing
+        run: make package-all
 
       - name: Verify the v1 archive source and boundaries
         run: |

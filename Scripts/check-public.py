@@ -67,8 +67,32 @@ require(defaults == {'EnglishFallbackTrigger', 'SymbolLayer', 'KeyFrequencyLog',
 require('case nil, "off"' in config, 'Key frequency default must remain off')
 require('unsupportedOption' in config, 'Unknown long options must fail closed')
 recorder = (root / 'Sources/WKRMacOS/KeyFrequencyRecorder.swift').read_text()
-require('io.github.yuhkis.wkr-macos.public' in recorder and 'ioQueue.async' in recorder, 'Storage boundary changed')
-bridge = (root / 'Sources/WKRMacOS/PracticeWindowController.swift').read_text()
+require('AppVersion.bundleIdentifier' in recorder and 'ioQueue.async' in recorder, 'Storage boundary changed')
+bridge = (root / 'Sources/WKRPracticeUI/PracticeWindowController.swift').read_text()
 require('.nonPersistent()' in bridge and '["load","save","delete"]' in bridge and 'message.frameInfo.isMainFrame' in bridge, 'Practice bridge changed: review required')
 require("connect-src 'none'" in (root / 'Resources/Practice/index.html').read_text(), 'Practice must be offline')
-print('Public boundary, independent versions, resource hashes and ' + str(len(supported)) + ' CLI options checked')
+# Public v1 comes only from the preserved, hash-checked public archive.
+wrapper = '#if WKR_V1\n// Frozen public v1 rules; the runtime conversion engine is shared with v2.\n'
+for name in ['WKRLayout', 'WakaraKeyLegend']:
+    original = (root / ('Legacy/wkr-macos-v1/Sources/WKRCore/' + name + '.swift')).read_text()
+    current = (root / ('Sources/WKRCore/' + name + 'V1.swift')).read_text()
+    if name == 'WKRLayout':
+        original = original.replace('public enum WKRLayout {', 'public enum WKRLayout {\n    public static let layoutVersion = "1.1.0"\n    public static let layoutIdentifier = "wkr-layout-v1@" + sourceRevision')
+    else:
+        original = original.replace('    public static let all:', '    public static let historical: [String: [WakaraKeyLegend]] = [:]\n    public static let all:')
+    require(current == wrapper + original + '\n#endif\n', 'Frozen v1 definitions differ: ' + name)
+for filename,identifier,executable in [('Info-v1.plist','io.github.yuhkis.wkr-macos.v1','WKRV1'), ('Info-practice.plist','io.github.yuhkis.wkr-practice','WakaraPractice')]:
+    product = plistlib.loads((root / 'Resources' / filename).read_bytes())
+    require(product['CFBundleIdentifier'] == identifier and product['CFBundleExecutable'] == executable, 'Product identity differs')
+    if executable == 'WKRV1':
+        require(product['WKRLayoutVersion'] == '1.1.0' and product['WKRReleaseVersion'] in version_source, 'V1 versions differ')
+    else:
+        require(product['WKRPracticeVersion'] == manifest['practiceVersion'] and product['WKRLayoutVersion'] == manifest['layoutVersion'], 'Standalone practice versions differ')
+        require('NSInputMonitoringUsageDescription' not in product, 'Practice must not request input monitoring')
+package = (root / 'Package.swift').read_text()
+require('.executableTarget(name: "WKRPractice", dependencies: ["WKRCore", "WKRPracticeUI"]' in package, 'Practice executable dependencies changed')
+standalone = (root / 'Sources/WKRPractice/main.swift').read_text()
+require(not re.search(r'EventTap|EngineLease|PermissionController|import WKRMacOS|CGEvent', standalone), 'Standalone practice must not start a converter')
+store = (root / 'Sources/WKRPracticeUI/PracticeProgressStore.swift').read_text()
+require('practice-progress-v2.json' in store and 'io.github.yuhkis.wkr-practice' in store, 'Practice storage boundary differs')
+print('Public boundary, three identities, frozen v1 definitions, resource hashes and ' + str(len(supported)) + ' CLI options checked')
