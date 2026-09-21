@@ -71,7 +71,30 @@ public final class PracticeWindowController: NSWindowController, WKNavigationDel
         loadPractice()
     }
     required public init?(coder: NSCoder) { fatalError("init(coder:) is unsupported") }
-    public func show() { NSApp.setActivationPolicy(.regular); showWindow(nil); window?.makeKeyAndOrderFront(nil); NSApp.activate() }
+    public func show() {
+        Self.configureEditingMenu()
+        NSApp.setActivationPolicy(.regular); showWindow(nil)
+        window?.makeKeyAndOrderFront(nil); NSApp.activate()
+    }
+    private static func configureEditingMenu() {
+        // WKWebView forwards standard editing shortcuts through the menu's responder chain.
+        let menu = NSApp.mainMenu ?? NSMenu()
+        if menu.items.isEmpty {
+            let appItem = NSMenuItem(), appMenu = NSMenu()
+            appMenu.addItem(withTitle: "アプリを終了", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+            appItem.submenu = appMenu; menu.addItem(appItem)
+        }
+        if menu.items.contains(where: { $0.identifier?.rawValue == "wkr.practice.edit" }) { return }
+        let item = NSMenuItem(title: "編集", action: nil, keyEquivalent: "")
+        item.identifier = NSUserInterfaceItemIdentifier("wkr.practice.edit")
+        let edit = NSMenu(title: "編集")
+        for (title, action, key) in [("取り消す", "undo:", "z"), ("切り取る", "cut:", "x"),
+                                     ("コピー", "copy:", "c"), ("ペースト", "paste:", "v"),
+                                     ("すべてを選択", "selectAll:", "a")] {
+            edit.addItem(withTitle: title, action: NSSelectorFromString(action), keyEquivalent: key)
+        }
+        item.submenu = edit; menu.addItem(item); NSApp.mainMenu = menu
+    }
     public func windowWillClose(_ notification: Notification) {
         closed = true
         loadGeneration += 1

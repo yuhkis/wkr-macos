@@ -6,6 +6,6 @@ Apple Silicon / macOS 14以降向けのad-hoc署名・未公証ZIPです。利�
 
 [導入・権限・練習・停止・削除](https://github.com/yuhkis/wkr-macos/blob/main/docs/distribution.md)を参照してください。入力本文・キー列・細かな時刻を保存する機能は含めません。任意の集約成績や日別頻度は既定オフ・ローカル保存です。
 
-確認状況は[検証記録](https://github.com/yuhkis/wkr-macos/blob/main/docs/verification.md)に記載します。今回のバイナリのダウンロード後の起動許可・TCC・物理打鍵は未確認です。Google日本語入力・azooKeyはWKRアプリの初回対応範囲に含めず、専用テーブルによる別の導入経路を案内します。Intel・他キーボード配列・全OS版・支援技術は未確認です。
+ローカルで起動・教材表示・QWERTY体験・採点・標準の貼り付け・終了を確認しました。確認状況は[検証記録](https://github.com/yuhkis/wkr-macos/blob/main/docs/verification.md)に記載します。今回のバイナリのダウンロード後の起動許可・TCC・物理打鍵は未確認です。Google日本語入力・azooKeyはWKRアプリの初回対応範囲に含めず、専用テーブルによる別の導入経路を案内します。Intel・他キーボード配列・全OS版・支援技術は未確認です。
 
 この文書は公開前の候補です。添付ハッシュと最終検証結果を揃えてから公開します。
