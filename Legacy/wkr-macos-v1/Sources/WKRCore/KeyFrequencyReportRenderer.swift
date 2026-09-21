@@ -1,0 +1,1325 @@
+import Foundation
+
+public enum KeyFrequencyReportRenderer {
+    public static func html(
+        store: KeyFrequencyStore,
+        geometries: [KeyboardGeometry],
+        generatedAt: Date,
+        calendar: Calendar = .current,
+        wakaraLegends: [WakaraKeyLegend] = WakaraKeyLegends.all
+    ) -> String {
+        let payload = Payload(
+            generatedAt: isoTimestamp(generatedAt, calendar: calendar),
+            windows: Payload.Windows(
+                recent7: window(endingOn: generatedAt, days: 7, calendar: calendar),
+                recent30: window(endingOn: generatedAt, days: 30, calendar: calendar)
+            ),
+            fingerOrder: KeyCap.Finger.allCases.map(\.rawValue),
+            fingerNames: Dictionary(
+                uniqueKeysWithValues: KeyCap.Finger.allCases.map { ($0.rawValue, $0.displayName) }
+            ),
+            exclusionNames: exclusionReasons,
+            wakara: Payload.Wakara(
+                sourceRevision: WKRLayout.sourceRevision,
+                legends: wakaraLegends
+            ),
+            store: store,
+            geometries: geometries
+        )
+
+        let blob = encode(payload, pretty: false)
+            .replacingOccurrences(of: "</", with: "<\\/")
+
+        return document(
+            timestamp: displayTimestamp(generatedAt, calendar: calendar),
+            isoTimestamp: payload.generatedAt,
+            payload: blob
+        )
+    }
+
+    public static func json(store: KeyFrequencyStore) -> String {
+        encode(store, pretty: true)
+    }
+}
+
+
+extension KeyFrequencyReportRenderer {
+    private struct Payload: Encodable {
+        struct Windows: Encodable {
+            let recent7: [String]
+            let recent30: [String]
+        }
+
+        struct Wakara: Encodable {
+            let sourceRevision: String
+            let legends: [WakaraKeyLegend]
+        }
+
+        let generatedAt: String
+        let windows: Windows
+        let fingerOrder: [String]
+        let fingerNames: [String: String]
+        let exclusionNames: [String: String]
+        let wakara: Wakara
+        let store: KeyFrequencyStore
+        let geometries: [KeyboardGeometry]
+    }
+
+    private static let exclusionReasons: [String: String] = {
+        let all: [KeyCapExclusion] = [
+            .modifier, .layerHold, .compoundModifierHold, .encoder, .media, .mouse,
+            .shortcut, .unmappedOnMacOS,
+        ]
+        return Dictionary(uniqueKeysWithValues: all.map { ($0.rawValue, reason(for: $0)) })
+    }()
+
+    private static func reason(for exclusion: KeyCapExclusion) -> String {
+        switch exclusion {
+        case .modifier:
+            return "修飾キー。押下は flags-changed イベントとして届くため、頻度記録を有効にしている間だけ数えられる。"
+        case .layerHold:
+            return "レイヤーキーの長押し。キーボードのファームウェア内で完結し、macOS には届かない。数えているのはタップ側の動作だけ。"
+        case .compoundModifierHold:
+            return "複数の修飾キーを同時に押す長押し。macOS には修飾キーごとの値しか届かず、この長押し1回を表す単独の打鍵数には戻せない。"
+        case .encoder:
+            return "ロータリーエンコーダ。押下も回転も system-defined イベントとして届くため、キーイベントの tap からは見えない。"
+        case .media:
+            return "メディア／システムキー。エンコーダと同じ理由で、キーイベントとしては届かない。"
+        case .mouse:
+            return "キーボードが送るマウスボタン。マウスイベントとして届くため数えていない。"
+        case .shortcut:
+            return "Command / Control / Option を伴う操作だけを持つキー。これらのイベントは意図的に数えていない。"
+        case .unmappedOnMacOS:
+            return "macOS に対応する仮想キーコードが無いか、キーマップからは送出内容を決められないキー。キーイベントの中に、このキーを名指しするものが無い。"
+        }
+    }
+}
+
+
+extension KeyFrequencyReportRenderer {
+    private static func encode<Value: Encodable>(_ value: Value, pretty: Bool) -> String {
+        let encoder = JSONEncoder()
+        var formatting: JSONEncoder.OutputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        if pretty { formatting.insert(.prettyPrinted) }
+        encoder.outputFormatting = formatting
+        guard
+            let data = try? encoder.encode(value),
+            let text = String(data: data, encoding: .utf8)
+        else {
+            return "{}"
+        }
+        return text
+    }
+
+    private static func window(endingOn end: Date, days: Int, calendar: Calendar) -> [String] {
+        (0..<days).reversed().compactMap { offset in
+            calendar.date(byAdding: .day, value: -offset, to: end)
+                .map { KeyFrequencyDay(date: $0, calendar: calendar).rawValue }
+        }
+    }
+
+    private static func displayTimestamp(_ date: Date, calendar: Calendar) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+        return formatter.string(from: date)
+    }
+
+    private static func isoTimestamp(_ date: Date, calendar: Calendar) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.timeZone = calendar.timeZone
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.string(from: date)
+    }
+
+    private static func escaped(_ text: String) -> String {
+        text.replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
+    }
+}
+
+
+extension KeyFrequencyReportRenderer {
+    private static func document(
+        timestamp: String,
+        isoTimestamp: String,
+        payload: String
+    ) -> String {
+        #"""
+        <!doctype html>
+        <html lang="ja">
+        <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>わから配列 打鍵頻度</title>
+        <style>
+        \#(styleSheet)
+        </style>
+        </head>
+        <body>
+        <main>
+        <header class="head">
+          <h1>わから配列 打鍵頻度</h1>
+          <dl class="facts">
+            <div><dt>作成</dt><dd><time datetime="\#(escaped(isoTimestamp))">\#(escaped(timestamp))</time></dd></div>
+            <div><dt>総打鍵数</dt><dd id="fact-total">—</dd></div>
+            <div><dt>記録期間</dt><dd id="fact-range">—</dd></div>
+          </dl>
+          <p class="empty" id="empty-note" hidden>まだ記録がありません。</p>
+          <noscript><p class="empty">この報告書の作図には JavaScript を使っています。</p></noscript>
+        </header>
+
+        <section class="controls" aria-label="表示の設定">
+          <div class="segmented" id="period" role="group" aria-label="集計期間の選択">
+            <button type="button" data-period="all">全期間</button>
+            <button type="button" data-period="w7">直近7日</button>
+            <button type="button" data-period="w30">直近30日</button>
+            <button type="button" data-period="day">単日</button>
+          </div>
+          <label class="daypick" id="daypick-label" hidden>対象日 <select id="daypick"></select></label>
+          <div class="legend-mode">
+            <span class="control-label" id="legend-mode-label">キートップ</span>
+            <div class="segmented" id="legend-mode" role="group" aria-labelledby="legend-mode-label">
+              <button type="button" data-legend="print">刻印</button>
+              <button type="button" data-legend="wakara">わから配列</button>
+            </div>
+          </div>
+          <p class="period-note" id="period-note"></p>
+          <p class="period-note" id="legend-note" hidden></p>
+        </section>
+
+        <div class="tabs" id="tabs" role="tablist" aria-label="キーボード"></div>
+
+        <section class="panel" role="tabpanel" id="panel">
+          <div class="board-wrap" id="board-wrap">
+            <div class="board-scroll" id="board"></div>
+            <div class="tip" id="tip" hidden></div>
+          </div>
+
+          <div class="scale">
+            <div class="scale-head">
+              <span>色の目盛</span>
+              <span class="scale-hint">面積ではなく順位が読めるよう、最大値に対する平方根で色を割り当てている</span>
+            </div>
+            <div id="scale"></div>
+            <div class="scale-ticks" id="scale-ticks"></div>
+            <div class="scale-keys">
+              <span class="key-swatch zero"></span>期間内に打鍵なし
+              <span class="key-swatch excl"></span>数えられない
+              <span class="key-swatch noted"></span>注記あり（数値は有効）
+              <span class="shared-glyph">◇</span>同じ合計値を共有
+            </div>
+          </div>
+
+          <div class="caveats" id="caveats" hidden></div>
+
+          <div class="tables">
+            <section>
+              <h2>上位25キー</h2>
+              <div class="table-scroll">
+                <table id="ranking">
+                  <thead><tr><th>順位</th><th>キー</th><th class="num">打鍵数</th><th class="num">割合</th><th class="bar-head"><span class="sr">相対量</span></th></tr></thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </section>
+            <section>
+              <h2>指別の合計</h2>
+              <div class="table-scroll">
+                <table id="fingers">
+                  <thead><tr><th>指</th><th class="num">打鍵数</th><th class="num">割合</th></tr></thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+              <p class="table-note" id="finger-note"></p>
+            </section>
+          </div>
+        </section>
+        </main>
+
+        <script type="application/json" id="report-data">\#(payload)</script>
+        <script>
+        \#(script)
+        </script>
+        </body>
+        </html>
+        """#
+    }
+}
+
+
+extension KeyFrequencyReportRenderer {
+    private static let styleSheet = #"""
+/* The complete light palette lives on bare :root so that a viewer whose system
+   is set to "no preference" still gets every colour. The dark block below
+   redefines only the tokens that actually change, and nothing anywhere gets its
+   sole definition inside a media query. */
+:root {
+  color-scheme: light dark;
+
+  --bg: #f7f5f1;
+  --surface: #fffdfa;
+  --fg: #1d1b18;
+  --fg-muted: #6b6459;
+  --fg-faint: #948c80;
+  --rule: #e0dad0;
+  --rule-strong: #c8bfb1;
+  --accent: #a8412a;
+  --accent-soft: #e8ded2;
+
+  --cap-stroke: #cdc5b7;
+  --cap-excluded: #fbf9f6;
+
+  /* The heat ramp, as space-separated sRGB triples. They are tokens rather than
+     literals in the script because the drawing has to follow the viewer's theme,
+     and reading them back out of the stylesheet is the only way one ramp
+     definition serves both. Stop 0 doubles as the "pressed nothing" fill, so a
+     cold cap is by construction the coldest colour on the scale. */
+  --ramp-0: 238 233 225;
+  --ramp-1: 250 224 178;
+  --ramp-2: 243 184 105;
+  --ramp-3: 223 121 62;
+  --ramp-4: 155 45 33;
+
+  /* Cap text is chosen against the cap's own fill, not the page, so these two do
+     not change with the theme. */
+  --ink-dark: 33 27 21;
+  --ink-light: 251 247 241;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16171a;
+    --surface: #1d1f23;
+    --fg: #e9e5de;
+    --fg-muted: #9b948a;
+    --fg-faint: #746d64;
+    --rule: #303338;
+    --rule-strong: #464a50;
+    --accent: #e08a5c;
+    --accent-soft: #35302b;
+
+    --cap-stroke: #3a3e44;
+    --cap-excluded: #1a1c1f;
+
+    --ramp-0: 40 42 46;
+    --ramp-1: 74 51 40;
+    --ramp-2: 130 76 41;
+    --ramp-3: 196 112 49;
+    --ramp-4: 246 179 97;
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Hiragino Sans",
+    "Hiragino Kaku Gothic ProN", "Yu Gothic Medium", Meiryo, sans-serif;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+main { max-width: 1180px; margin: 0 auto; padding: 34px 20px 96px; }
+
+h1 { margin: 0 0 14px; font-size: 21px; font-weight: 600; letter-spacing: .04em; }
+h2 { margin: 0 0 8px; font-size: 13px; font-weight: 600; letter-spacing: .06em; color: var(--fg-muted); }
+
+.sr {
+  position: absolute; width: 1px; height: 1px;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+
+.head { border-bottom: 1px solid var(--rule); padding-bottom: 18px; }
+
+.facts { display: flex; flex-wrap: wrap; gap: 4px 32px; margin: 0; }
+.facts div { display: flex; align-items: baseline; gap: 10px; }
+.facts dt { font-size: 12px; color: var(--fg-muted); letter-spacing: .06em; }
+.facts dd { margin: 0; font-variant-numeric: tabular-nums; }
+
+.empty { margin: 14px 0 0; color: var(--accent); font-size: 13px; }
+
+.controls {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px;
+  padding: 16px 0 14px; border-bottom: 1px solid var(--rule);
+}
+
+.segmented { display: inline-flex; border: 1px solid var(--rule-strong); border-radius: 6px; overflow: hidden; }
+.segmented button {
+  appearance: none; border: 0; border-left: 1px solid var(--rule-strong);
+  background: var(--surface); color: var(--fg-muted);
+  font: inherit; font-size: 13px; padding: 5px 14px; cursor: pointer;
+}
+.segmented button:first-child { border-left: 0; }
+.segmented button:hover:not(:disabled) { color: var(--fg); }
+.segmented button.on { background: var(--accent-soft); color: var(--fg); font-weight: 600; }
+.segmented button:disabled { cursor: default; color: var(--fg-faint); }
+
+.daypick { font-size: 13px; color: var(--fg-muted); }
+.daypick select {
+  font: inherit; font-size: 13px; color: var(--fg); background: var(--surface);
+  border: 1px solid var(--rule-strong); border-radius: 5px; padding: 4px 6px;
+}
+
+/* Pushed to the far end of the row so the two selectors read as separate
+   questions: which days, and what the caps say. */
+.legend-mode { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; }
+.control-label { font-size: 12px; color: var(--fg-muted); letter-spacing: .06em; }
+
+.period-note { flex-basis: 100%; margin: 0; font-size: 12px; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
+#legend-note { margin-top: -8px; }
+
+.tabs { display: flex; flex-wrap: wrap; gap: 2px; margin: 20px 0 0; border-bottom: 1px solid var(--rule); }
+.tab {
+  appearance: none; border: 1px solid transparent; border-bottom: 0; background: none;
+  font: inherit; font-size: 13px; color: var(--fg-muted);
+  padding: 7px 15px; margin-bottom: -1px; cursor: pointer; border-radius: 5px 5px 0 0;
+}
+.tab:hover { color: var(--fg); }
+.tab.on {
+  background: var(--surface); border-color: var(--rule);
+  border-bottom: 1px solid var(--surface); color: var(--fg); font-weight: 600;
+}
+
+.panel { background: var(--surface); border: 1px solid var(--rule); border-top: 0; padding: 22px 20px 26px; }
+
+.board-wrap { position: relative; }
+/* The board is the one thing that can exceed the viewport, so it carries its own
+   scroller: the page body must never scroll sideways. */
+.board-scroll { overflow-x: auto; overflow-y: hidden; padding-bottom: 6px; }
+
+.cap .part-bg { stroke: var(--cap-stroke); stroke-width: 1; }
+.cap text { text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.cap .pri { font-weight: 600; }
+.cap .cnt { font-variant-numeric: tabular-nums; font-weight: 600; }
+.cap .shr, .cap .sec { font-variant-numeric: tabular-nums; }
+.cap .role { font-weight: 600; letter-spacing: .08em; opacity: .68; }
+.cap-part:hover .part-bg { stroke: var(--fg); stroke-width: 1.6; }
+.cap.split .part-bg { stroke-width: 0; }
+.cap-outline { fill: none; stroke: var(--cap-stroke); stroke-width: 1; pointer-events: none; }
+.cap-divider { stroke: var(--cap-stroke); stroke-width: 1; pointer-events: none; }
+.part-state-outline {
+  fill: none; stroke: var(--rule-strong); stroke-width: 1.2;
+  stroke-dasharray: 4 3; pointer-events: none;
+}
+
+.cap-part.uncountable .part-bg { fill: var(--cap-excluded); stroke-dasharray: 4 3; stroke: var(--rule-strong); }
+.cap-part.uncountable text { fill: var(--fg-faint); }
+/* A noted cap keeps its heat fill. Setting `fill` here would win over the
+   presentation attribute the script writes and flatten it back to neutral. */
+.cap-part.noted .part-bg { stroke-dasharray: 4 3; stroke: var(--rule-strong); }
+.mark-excl { fill: none; stroke: var(--fg-faint); stroke-width: 1.2; }
+.mark-shared { fill: var(--accent); opacity: .85; }
+
+.tip {
+  position: absolute; z-index: 5; pointer-events: none;
+  min-width: 170px; max-width: 320px;
+  background: var(--surface); color: var(--fg);
+  border: 1px solid var(--rule-strong); border-radius: 6px;
+  padding: 8px 10px; font-size: 12px; line-height: 1.5;
+}
+.tip-row { display: flex; gap: 10px; justify-content: space-between; }
+.tip-k { color: var(--fg-muted); white-space: nowrap; }
+.tip-v { font-variant-numeric: tabular-nums; text-align: right; }
+.tip-note { margin-top: 5px; padding-top: 5px; border-top: 1px solid var(--rule); color: var(--fg-muted); }
+
+.scale { margin: 20px 0 0; max-width: 520px; }
+.scale-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; font-size: 12px; color: var(--fg-muted); letter-spacing: .06em; margin-bottom: 6px; }
+.scale-hint { letter-spacing: 0; color: var(--fg-faint); }
+.scale-bar { display: block; width: 100%; height: 12px; border: 1px solid var(--rule); border-radius: 3px; }
+.scale-ticks { display: flex; justify-content: space-between; font-size: 11px; color: var(--fg-muted); font-variant-numeric: tabular-nums; margin-top: 3px; }
+.scale-keys { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; margin-top: 10px; font-size: 11.5px; color: var(--fg-muted); }
+.key-swatch { display: inline-block; width: 13px; height: 13px; border-radius: 3px; vertical-align: -2px; margin-right: 5px; }
+.key-swatch.zero { background: rgb(var(--ramp-0)); border: 1px solid var(--cap-stroke); }
+.key-swatch.excl { background: var(--cap-excluded); border: 1px dashed var(--rule-strong); }
+.key-swatch.noted { background: rgb(var(--ramp-0)); border: 1px dashed var(--rule-strong); }
+.shared-glyph { color: var(--accent); font-size: 15px; font-weight: 700; line-height: 1; }
+
+/* The caveats are the honest part of the picture, not a warning: a quiet left
+   rule and body-sized text, no alarm colour. */
+.caveats { margin: 22px 0 0; border-left: 2px solid var(--rule-strong); padding: 2px 0 2px 14px; }
+.caveat-head { margin: 0 0 4px; font-size: 12px; letter-spacing: .06em; color: var(--fg-muted); }
+.caveats ul { margin: 0; padding-left: 18px; }
+.caveats li { font-size: 12.5px; color: var(--fg-muted); }
+
+.tables { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 26px; margin-top: 28px; }
+@media (max-width: 880px) { .tables { grid-template-columns: minmax(0, 1fr); } }
+
+.table-scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { padding: 4px 10px; border-bottom: 1px solid var(--rule); text-align: left; white-space: nowrap; }
+th { font-size: 11.5px; font-weight: 600; color: var(--fg-muted); letter-spacing: .04em; }
+td { font-size: 13px; }
+td.num, th.num { text-align: right; }
+td.rank { color: var(--fg-faint); }
+td.absent { color: var(--fg-faint); }
+.bar-head { width: 34%; }
+.bar { height: 6px; min-width: 56px; background: var(--rule); border-radius: 3px; overflow: hidden; }
+.bar span { display: block; height: 100%; }
+.table-note { margin: 8px 0 0; font-size: 11.5px; color: var(--fg-muted); }
+.table-empty { color: var(--fg-faint); }
+"""#
+}
+
+
+extension KeyFrequencyReportRenderer {
+    private static let script = #"""
+(function () {
+  'use strict';
+
+  var NS = 'http://www.w3.org/2000/svg';
+  var DATA = JSON.parse(document.getElementById('report-data').textContent);
+
+  var UNIT = 60;
+  var INSET = 3;
+
+  var PERIOD_LABELS = { all: '全期間', w7: '直近7日', w30: '直近30日', day: '単日' };
+
+  function remember(key, value) {
+    try { window.localStorage.setItem('wkr.report.' + key, value); } catch (e) { /* ignored */ }
+  }
+  function recall(key) {
+    try { return window.localStorage.getItem('wkr.report.' + key); } catch (e) { return null; }
+  }
+
+  var days = (DATA.store && DATA.store.days ? DATA.store.days.slice() : []).sort(function (a, b) {
+    return a.date < b.date ? -1 : (a.date > b.date ? 1 : 0);
+  });
+  var dayNames = days.map(function (d) { return d.date; });
+  var geometries = DATA.geometries || [];
+
+  var WAKARA = {};
+  ((DATA.wakara && DATA.wakara.legends) || []).forEach(function (entry) {
+    WAKARA[entry.keyCode] = entry;
+  });
+  var wakaraKeyCount = Object.keys(WAKARA).length;
+
+  var familyCaps = {};
+  geometries.forEach(function (geo) {
+    familyCaps[geo.model] = (familyCaps[geo.model] || []).concat(geo.caps);
+  });
+
+  function partsFor(cap) {
+    if (cap.tapHold) {
+      return [
+        {
+          role: 'hold',
+          legend: cap.tapHold.hold.legend,
+          secondary: null,
+          secondaryIsShifted: false,
+          identities: cap.tapHold.hold.identities || [],
+          exclusion: cap.tapHold.hold.exclusion || null,
+          finger: null
+        },
+        {
+          role: 'tap',
+          legend: cap.tapHold.tap.legend,
+          secondary: null,
+          secondaryIsShifted: false,
+          identities: cap.tapHold.tap.identities || [],
+          exclusion: cap.tapHold.tap.exclusion || null,
+          finger: cap.finger || null
+        }
+      ];
+    }
+    return [{
+      role: 'key',
+      legend: cap.legend.primary,
+      secondary: cap.legend.secondary,
+      secondaryIsShifted: cap.legend.secondaryIsShifted,
+      identities: cap.identities || [],
+      exclusion: cap.exclusion || null,
+      finger: cap.finger || null
+    }];
+  }
+
+  var state = {
+    period: 'all',
+    day: dayNames.length ? dayNames[dayNames.length - 1] : null,
+    tab: 0,
+    legend: 'print'
+  };
+
+  function idKey(identity) { return identity.keyCode + (identity.isShifted ? 's' : 'u'); }
+
+  function wakaraFor(part) {
+    for (var i = 0; i < part.identities.length; i++) {
+      var identity = part.identities[i];
+      if (!identity.isShifted && WAKARA[identity.keyCode]) { return WAKARA[identity.keyCode]; }
+    }
+    return null;
+  }
+
+  function wakaraForKey(key) {
+    if (key.charAt(key.length - 1) !== 'u') { return null; }
+    return WAKARA[parseInt(key.slice(0, -1), 10)] || null;
+  }
+
+  function faceOf(part) {
+    var wakara = state.legend === 'wakara' ? wakaraFor(part) : null;
+    if (!wakara) {
+      return { primary: part.legend, secondary: part.secondary, wakara: null };
+    }
+    var kept = part.secondary && !part.secondaryIsShifted ? ' ' + part.secondary : '';
+    return { primary: wakara.label, secondary: part.legend + kept, wakara: wakara };
+  }
+
+  function hex(code) {
+    var text = code.toString(16).toUpperCase();
+    return '0x' + (text.length < 2 ? '0' + text : text);
+  }
+
+  var FALLBACK_NAMES = {
+    0x38: 'LShift', 0x3C: 'RShift', 0x3B: 'LCtrl', 0x3E: 'RCtrl',
+    0x3A: 'LOpt', 0x3D: 'ROpt', 0x37: 'LCmd', 0x36: 'RCmd',
+    0x39: 'CapsLock', 0x3F: 'Fn', 0x35: 'Esc', 0x66: '英数', 0x68: 'かな'
+  };
+
+  function num(value) { return value.toLocaleString('ja-JP'); }
+
+  function share(count, total) {
+    if (!total) { return '—'; }
+    var pct = count / total * 100;
+    return (pct >= 1 ? pct.toFixed(1) : pct.toFixed(2)) + '%';
+  }
+
+  function selectedDays() {
+    if (state.period === 'all') { return days; }
+    if (state.period === 'day') {
+      return days.filter(function (d) { return d.date === state.day; });
+    }
+    var windows = DATA.windows || { recent7: [], recent30: [] };
+    var window_ = state.period === 'w7' ? windows.recent7 : windows.recent30;
+    return days.filter(function (d) { return window_.indexOf(d.date) >= 0; });
+  }
+
+  function aggregate(chosen) {
+    var counts = {};
+    var total = 0;
+    chosen.forEach(function (day) {
+      day.entries.forEach(function (entry) {
+        var key = idKey(entry);
+        counts[key] = (counts[key] || 0) + entry.count;
+        total += entry.count;
+      });
+    });
+    return { counts: counts, total: total };
+  }
+
+  function analyse(geo, agg) {
+    var claims = {};
+    (familyCaps[geo.model] || geo.caps).forEach(function (cap) {
+      partsFor(cap).forEach(function (part) {
+        part.identities.forEach(function (identity) {
+          var key = idKey(identity);
+          claims[key] = (claims[key] || 0) + 1;
+        });
+      });
+    });
+    var max = 0;
+    var parts = geo.caps.map(function (cap) {
+      return partsFor(cap).map(function (part) {
+        var count = 0;
+        part.identities.forEach(function (identity) {
+          count += agg.counts[idKey(identity)] || 0;
+        });
+        if (part.identities.length && count > max) { max = count; }
+        var claimed = part.identities.reduce(function (most, identity) {
+          return Math.max(most, claims[idKey(identity)] || 0);
+        }, 0);
+        return { count: count, claimed: claimed };
+      });
+    });
+    return { claims: claims, parts: parts, max: max };
+  }
+
+  function triple(name) {
+    var raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    var parts = raw.split(/[\s,]+/).map(Number);
+    return parts.length === 3 && parts.every(function (v) { return isFinite(v); }) ? parts : [128, 128, 128];
+  }
+
+  function palette() {
+    return {
+      stops: [0, 1, 2, 3, 4].map(function (i) { return triple('--ramp-' + i); }),
+      inkDark: triple('--ink-dark'),
+      inkLight: triple('--ink-light')
+    };
+  }
+
+  function rampColor(stops, t) {
+    if (!(t > 0)) { return stops[0]; }
+    if (t >= 1) { return stops[stops.length - 1]; }
+    var scaled = t * (stops.length - 1);
+    var index = Math.floor(scaled);
+    var f = scaled - index;
+    var a = stops[index];
+    var b = stops[index + 1];
+    return [0, 1, 2].map(function (k) { return Math.round(a[k] + (b[k] - a[k]) * f); });
+  }
+
+  function css(rgb) { return 'rgb(' + rgb[0] + ', ' + rgb[1] + ', ' + rgb[2] + ')'; }
+
+  function luminance(rgb) {
+    var linear = rgb.map(function (v) {
+      var c = v / 255;
+      return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+  }
+
+  function heat(count, max) { return max > 0 && count > 0 ? Math.sqrt(count / max) : 0; }
+
+  function svgEl(name, attrs) {
+    var node = document.createElementNS(NS, name);
+    if (attrs) {
+      Object.keys(attrs).forEach(function (key) { node.setAttribute(key, attrs[key]); });
+    }
+    return node;
+  }
+
+  function capText(text, size, cls, dy, cx, cy, fill) {
+    var node = svgEl('text', { x: cx, y: cy + dy, 'font-size': size, 'class': cls });
+    if (fill) { node.setAttribute('fill', fill); }
+    node.textContent = text;
+    return node;
+  }
+
+  var tip = document.getElementById('tip');
+  var boardWrap = document.getElementById('board-wrap');
+
+  function hideTip() { tip.hidden = true; }
+
+  function showTip(event, lines) {
+    tip.textContent = '';
+    lines.forEach(function (line) {
+      var row = document.createElement('div');
+      if (line.k) {
+        row.className = 'tip-row';
+        var k = document.createElement('span');
+        k.className = 'tip-k';
+        k.textContent = line.k;
+        var v = document.createElement('span');
+        v.className = 'tip-v';
+        v.textContent = line.v;
+        row.appendChild(k);
+        row.appendChild(v);
+      } else {
+        row.className = 'tip-note';
+        row.textContent = line.v;
+      }
+      tip.appendChild(row);
+    });
+    tip.hidden = false;
+    var rect = boardWrap.getBoundingClientRect();
+    var left = event.clientX - rect.left + 14;
+    var top = event.clientY - rect.top + 14;
+    tip.style.left = Math.max(0, Math.min(left, boardWrap.clientWidth - tip.offsetWidth - 2)) + 'px';
+    tip.style.top = top + 'px';
+  }
+
+  function shiftSharingInfo(geo, keyCode) {
+    var holdCount = 0;
+    var dedicatedCount = 0;
+    var claimed = 0;
+    (familyCaps[geo.model] || geo.caps).forEach(function (cap) {
+      partsFor(cap).forEach(function (part) {
+        var hasIdentity = part.identities.some(function (identity) {
+          return identity.keyCode === keyCode && !identity.isShifted;
+        });
+        if (!hasIdentity) { return; }
+        claimed += 1;
+        if (part.role === 'hold') { holdCount += 1; }
+        else if (part.role === 'key') { dedicatedCount += 1; }
+      });
+    });
+    if (!holdCount) { return null; }
+    var left = keyCode === 0x38;
+    var shift = left ? 'LShift' : 'RShift';
+    var modTap = left ? 'LSFT_T' : 'RSFT_T';
+    return {
+      keyCode: keyCode,
+      claimed: claimed,
+      summary: dedicatedCount
+        ? '専用' + shift + '＋全' + modTap + 'ホールドの合計'
+        : '全' + modTap + 'ホールドの共有合計'
+    };
+  }
+
+  function shiftSharingForPart(geo, part) {
+    for (var i = 0; i < part.identities.length; i++) {
+      var identity = part.identities[i];
+      if (identity.isShifted) { continue; }
+      if (identity.keyCode === 0x38 || identity.keyCode === 0x3C) {
+        var info = shiftSharingInfo(geo, identity.keyCode);
+        if (info) { return info; }
+      }
+    }
+    return null;
+  }
+
+  function actionName(part) {
+    if (part.role === 'hold') { return 'HOLD · ' + part.legend; }
+    if (part.role === 'tap') { return 'TAP · ' + part.legend; }
+    return part.legend + (part.secondary ? ' / ' + part.secondary : '');
+  }
+
+  function faceName(part) {
+    var face = faceOf(part);
+    if (!face.wakara) { return actionName(part); }
+    var role = part.role === 'hold' ? 'HOLD · ' : (part.role === 'tap' ? 'TAP · ' : '');
+    return role + face.primary + '（' + part.legend + '）';
+  }
+
+  function tipLines(geo, part, count, shared, agg) {
+    var lines = [];
+    lines.push({
+      k: part.role === 'key' ? '刻印' : '動作',
+      v: actionName(part)
+    });
+    var wakara = state.legend === 'wakara' ? wakaraFor(part) : null;
+    if (wakara) { lines.push({ k: 'わから配列', v: wakara.label }); }
+    part.identities.forEach(function (identity) {
+      lines.push({
+        k: 'キーコード',
+        v: hex(identity.keyCode) + (identity.isShifted ? '（Shiftあり）' : '（Shiftなし）')
+          + ' ' + num(agg.counts[idKey(identity)] || 0) + '回'
+      });
+    });
+    if (part.identities.length) {
+      lines.push({ k: '打鍵数', v: num(count) });
+      lines.push({ k: '割合', v: share(count, agg.total) });
+      if (wakara) { lines.push({ v: wakara.detail }); }
+      if (shared > 1) {
+        var shiftInfo = shiftSharingForPart(geo, part);
+        lines.push({
+          v: shiftInfo
+            ? 'この' + num(count) + '回は、' + shiftInfo.summary + 'で、どの位置で押したかは区別できない。'
+            : 'この数値は同じキーコードを送る ' + shared + ' 箇所の合計（別のレイヤーのキーを含むことがある）で、どのキーで打ったかは区別できない。'
+        });
+      }
+    } else {
+      lines.push({ v: 'この動作の打鍵は数えられない。' });
+    }
+    if (part.exclusion) {
+      lines.push({ v: '注記：' + (DATA.exclusionNames[part.exclusion] || part.exclusion) });
+    }
+    return lines;
+  }
+
+  var boardHost = document.getElementById('board');
+
+  function drawBoard(geo, board, agg) {
+    var pal = palette();
+    var width = geo.widthUnits * UNIT;
+    var height = geo.heightUnits * UNIT;
+    var svg = svgEl('svg', {
+      viewBox: '0 0 ' + width + ' ' + height,
+      role: 'group',
+      'aria-label': geo.displayName + ' の打鍵頻度'
+    });
+    svg.style.display = 'block';
+    svg.style.width = '100%';
+    svg.style.height = 'auto';
+    svg.style.maxWidth = width + 'px';
+    svg.style.minWidth = Math.min(width, 720) + 'px';
+
+    var defs = svgEl('defs');
+    svg.appendChild(defs);
+
+    geo.caps.forEach(function (cap, index) {
+      var x = cap.x * UNIT + INSET;
+      var y = cap.y * UNIT + INSET;
+      var w = cap.width * UNIT - INSET * 2;
+      var h = cap.height * UNIT - INSET * 2;
+      var cx = cap.x * UNIT + cap.width * UNIT / 2;
+      var cy = cap.y * UNIT + cap.height * UNIT / 2;
+      var capParts = partsFor(cap);
+      var measurements = board.parts[index];
+      var split = capParts.length === 2;
+      var group = svgEl('g', { 'class': 'cap' + (split ? ' split' : '') });
+      var stateOverlays = [];
+      if (cap.rotation) {
+        group.setAttribute('transform', 'rotate(' + cap.rotation + ' ' + cx + ' ' + cy + ')');
+      }
+
+      var clipID = 'cap-clip-' + state.tab + '-' + index;
+      if (split) {
+        var clip = svgEl('clipPath', { id: clipID });
+        clip.appendChild(svgEl('rect', { x: x, y: y, width: w, height: h, rx: 6 }));
+        defs.appendChild(clip);
+      }
+
+      capParts.forEach(function (part, partIndex) {
+        var measured = measurements[partIndex];
+        var count = measured.count;
+        var claimed = measured.claimed;
+        var partY = split ? y + partIndex * h / 2 : y;
+        var partH = split ? h / 2 : h;
+        var partCy = partY + partH / 2;
+
+        var countable = part.identities.length > 0;
+        var partState = countable ? (part.exclusion ? ' noted' : '') : ' uncountable';
+        var exclusionNote = part.exclusion
+          ? '、注記：' + (DATA.exclusionNames[part.exclusion] || part.exclusion)
+          : '';
+        var partGroup = svgEl('g', {
+          'class': 'cap-part' + partState,
+          role: 'img',
+          'aria-label': faceName(part) + '、' + (countable ? num(count) + '回' : '計測不可')
+            + (claimed > 1 ? '、同じ合計値を共有' : '') + exclusionNote
+        });
+        if (split) { partGroup.setAttribute('clip-path', 'url(#' + clipID + ')'); }
+
+        var rectAttrs = { x: x, y: partY, width: w, height: partH, 'class': 'part-bg' };
+        if (!split) { rectAttrs.rx = 6; }
+        var rect = svgEl('rect', rectAttrs);
+        var ink = null;
+        if (countable) {
+          var fill = rampColor(pal.stops, heat(count, board.max));
+          rect.setAttribute('fill', css(fill));
+          ink = css(luminance(fill) > 0.5 ? pal.inkDark : pal.inkLight);
+        }
+        partGroup.appendChild(rect);
+
+        var face = faceOf(part);
+        var primary = face.primary;
+        var secondary = face.secondary;
+        var primarySize = primary.length <= 1 ? 17 : (primary.length <= 3 ? 12.5 : 10);
+        var showCount = countable && count > 0;
+        var countText = (claimed > 1 ? '◇ ' : '') + num(count);
+
+        if (split) {
+          var roleText = part.role.toUpperCase() + (face.wakara ? ' · ' + part.legend : '');
+          if (showCount) {
+            partGroup.appendChild(capText(roleText, 6.5, 'role', -8, cx, partCy, ink));
+            partGroup.appendChild(capText(primary, Math.min(primarySize, 9.5), 'pri', 0, cx, partCy, ink));
+            partGroup.appendChild(capText(countText, 8.5, 'cnt', 9, cx, partCy, ink));
+          } else {
+            partGroup.appendChild(capText(roleText, 6.5, 'role', -5, cx, partCy, ink));
+            partGroup.appendChild(capText(primary, Math.min(primarySize, 9.5), 'pri', 5, cx, partCy, ink));
+          }
+        } else if (showCount) {
+          if (secondary) { partGroup.appendChild(capText(secondary, 10, 'sec', -18, cx, cy, ink)); }
+          partGroup.appendChild(capText(primary, primarySize, 'pri', secondary ? -4 : -9, cx, cy, ink));
+          partGroup.appendChild(capText(countText, 11.5, 'cnt', secondary ? 11 : 8, cx, cy, ink));
+          partGroup.appendChild(capText(share(count, agg.total), 8.5, 'shr', secondary ? 22 : 20, cx, cy, ink));
+        } else {
+          if (secondary) { partGroup.appendChild(capText(secondary, 10, 'sec', -11, cx, cy, ink)); }
+          partGroup.appendChild(capText(primary, primarySize, 'pri', secondary ? 8 : 0, cx, cy, ink));
+        }
+
+        if (part.exclusion) {
+          partGroup.appendChild(svgEl('circle', {
+            cx: x + w - 9, cy: partY + partH - 8, r: 3.1, 'class': 'mark-excl'
+          }));
+        }
+        if (claimed > 1) {
+          var markX = x + w - 7;
+          var markY = partY + 7;
+          partGroup.appendChild(svgEl('path', {
+            d: 'M' + markX + ' ' + (markY - 4) + 'L' + (markX + 4) + ' ' + markY
+              + 'L' + markX + ' ' + (markY + 4) + 'L' + (markX - 4) + ' ' + markY + 'Z',
+            'class': 'mark-shared'
+          }));
+        }
+
+        partGroup.addEventListener('mousemove', function (event) {
+          showTip(event, tipLines(geo, part, count, claimed, agg));
+        });
+        partGroup.addEventListener('mouseleave', hideTip);
+        group.appendChild(partGroup);
+
+        if (split && part.exclusion) {
+          stateOverlays.push(svgEl('rect', {
+            x: x, y: partY, width: w, height: partH,
+            'class': 'part-state-outline',
+            'clip-path': 'url(#' + clipID + ')'
+          }));
+        }
+      });
+
+      if (split) {
+        group.appendChild(svgEl('rect', { x: x, y: y, width: w, height: h, rx: 6, 'class': 'cap-outline' }));
+        group.appendChild(svgEl('line', {
+          x1: x, y1: y + h / 2, x2: x + w, y2: y + h / 2, 'class': 'cap-divider'
+        }));
+        stateOverlays.forEach(function (overlay) { group.appendChild(overlay); });
+      }
+
+      svg.appendChild(group);
+    });
+
+    boardHost.textContent = '';
+    boardHost.appendChild(svg);
+  }
+
+  function drawScale(max) {
+    var pal = palette();
+    var host = document.getElementById('scale');
+    host.textContent = '';
+    var steps = 60;
+    var svg = svgEl('svg', { viewBox: '0 0 ' + steps + ' 8', preserveAspectRatio: 'none' });
+    svg.setAttribute('class', 'scale-bar');
+    for (var i = 0; i < steps; i++) {
+      svg.appendChild(svgEl('rect', {
+        x: i, y: 0, width: 1.02, height: 8,
+        fill: css(rampColor(pal.stops, i / (steps - 1)))
+      }));
+    }
+    host.appendChild(svg);
+
+    var ticks = document.getElementById('scale-ticks');
+    ticks.textContent = '';
+    if (!max) {
+      var none = document.createElement('span');
+      none.textContent = 'この期間は目盛が付かない（打鍵なし）';
+      ticks.appendChild(none);
+      return;
+    }
+    [0, 0.25, 0.5, 0.75, 1].forEach(function (t) {
+      var span = document.createElement('span');
+      span.textContent = num(Math.round(max * t * t));
+      ticks.appendChild(span);
+    });
+  }
+
+  function labelIn(caps, key) {
+    for (var c = 0; c < caps.length; c++) {
+      var cap = caps[c];
+      var parts = partsFor(cap);
+      for (var p = 0; p < parts.length; p++) {
+        var part = parts[p];
+        for (var i = 0; i < part.identities.length; i++) {
+          var identity = part.identities[i];
+          if (idKey(identity) !== key) { continue; }
+          if (!identity.isShifted) { return part.legend; }
+          var pairs = part.identities.some(function (other) {
+            return other.keyCode === identity.keyCode && other.isShifted !== identity.isShifted;
+          });
+          return pairs && part.secondary && part.secondaryIsShifted
+            ? part.secondary
+            : part.legend + ' + Shift';
+        }
+      }
+    }
+    return null;
+  }
+
+  function labelFor(geo, key) {
+    return labelIn(geo.caps, key);
+  }
+
+  function borrowedLabel(geo, key) {
+    var family = familyCaps[geo.model] || [];
+    var label = labelIn(family, key);
+    if (label !== null) { return label; }
+    for (var g = 0; g < geometries.length; g++) {
+      if (geometries[g].model === geo.model) { continue; }
+      label = labelIn(geometries[g].caps, key);
+      if (label !== null) { return label; }
+    }
+    return null;
+  }
+
+  function drawRanking(geo, agg) {
+    var body = document.querySelector('#ranking tbody');
+    body.textContent = '';
+    var rows = Object.keys(agg.counts).map(function (key) {
+      return { key: key, count: agg.counts[key] };
+    }).sort(function (a, b) {
+      return b.count - a.count || (a.key < b.key ? -1 : 1);
+    }).slice(0, 25);
+
+    if (!rows.length) {
+      var empty = document.createElement('tr');
+      var span = document.createElement('td');
+      span.colSpan = 5;
+      span.className = 'table-empty';
+      span.textContent = 'この期間の記録はありません。';
+      empty.appendChild(span);
+      body.appendChild(empty);
+      return;
+    }
+
+    var pal = palette();
+    var top = rows[0].count;
+    rows.forEach(function (row, index) {
+      var tr = document.createElement('tr');
+      var label = labelFor(geo, row.key);
+      var shifted = row.key.charAt(row.key.length - 1) === 's';
+      var code = parseInt(row.key.slice(0, -1), 10);
+
+      tr.appendChild(cell(String(index + 1), 'rank'));
+      var borrowed = label === null ? borrowedLabel(geo, row.key) : null;
+      var name = label !== null
+        ? label
+        : (borrowed !== null
+            ? borrowed
+            : (FALLBACK_NAMES[code] || hex(code)) + (shifted ? ' + Shift' : ''));
+      tr.appendChild(cell(rankingName(row.key, name, label === null), label !== null ? '' : 'absent'));
+      tr.appendChild(cell(num(row.count), 'num'));
+      tr.appendChild(cell(share(row.count, agg.total), 'num'));
+
+      var barCell = document.createElement('td');
+      var bar = document.createElement('div');
+      bar.className = 'bar';
+      var fillBar = document.createElement('span');
+      fillBar.style.width = (row.count / top * 100) + '%';
+      fillBar.style.background = css(rampColor(pal.stops, heat(row.count, top)));
+      bar.appendChild(fillBar);
+      barCell.appendChild(bar);
+      tr.appendChild(barCell);
+
+      body.appendChild(tr);
+    });
+  }
+
+  function rankingName(key, name, absent) {
+    var wakara = state.legend === 'wakara' ? wakaraForKey(key) : null;
+    if (wakara) {
+      return wakara.label + '（' + name + (absent ? '・この図に無いキー' : '') + '）';
+    }
+    return name + (absent ? '（この図に無いキー）' : '');
+  }
+
+  function cell(text, cls) {
+    var td = document.createElement('td');
+    if (cls) { td.className = cls; }
+    td.textContent = text;
+    return td;
+  }
+
+  function drawFingers(geo, agg) {
+    var owner = {};
+    var contested = {};
+    (familyCaps[geo.model] || geo.caps).forEach(function (cap) {
+      partsFor(cap).forEach(function (part) {
+        part.identities.forEach(function (identity) {
+          var key = idKey(identity);
+          var claim = part.finger || null;
+          if (!(key in owner)) { owner[key] = claim; }
+          else if (owner[key] !== claim) { contested[key] = true; }
+        });
+      });
+    });
+    var ambiguous = Object.keys(contested).length > 0;
+
+    var totals = {};
+    var attributed = 0;
+    Object.keys(agg.counts).forEach(function (key) {
+      if (contested[key]) { return; }
+      var finger = owner[key];
+      if (!finger) { return; }
+      totals[finger] = (totals[finger] || 0) + agg.counts[key];
+      attributed += agg.counts[key];
+    });
+
+    var body = document.querySelector('#fingers tbody');
+    body.textContent = '';
+    DATA.fingerOrder.forEach(function (finger) {
+      var count = totals[finger] || 0;
+      var tr = document.createElement('tr');
+      tr.appendChild(cell(DATA.fingerNames[finger] || finger, ''));
+      tr.appendChild(cell(num(count), 'num'));
+      tr.appendChild(cell(share(count, agg.total), 'num'));
+      body.appendChild(tr);
+    });
+
+    var rest = agg.total - attributed;
+    if (rest > 0) {
+      var tr = document.createElement('tr');
+      tr.appendChild(cell('指の割り当てなし・この鍵盤に無いキー', 'absent'));
+      tr.appendChild(cell(num(rest), 'num absent'));
+      tr.appendChild(cell(share(rest, agg.total), 'num absent'));
+      body.appendChild(tr);
+    }
+
+    document.getElementById('finger-note').textContent = ambiguous
+      ? '同じキーコードを複数の指が送るキーがある。macOS はどちらで打ったか報告しないため、どの指にも割り当てず下段へまとめている。片方の指へ寄せると、その手の負担を実際より重く見せてしまう。'
+      : '';
+  }
+
+  function drawCaveats(geo, agg) {
+    var host = document.getElementById('caveats');
+    host.textContent = '';
+    var caveats = (geo.caveats || []).slice();
+    [0x38, 0x3C].forEach(function (keyCode) {
+      var info = shiftSharingInfo(geo, keyCode);
+      if (!info) { return; }
+      var count = agg.counts[idKey({ keyCode: keyCode, isShifted: false })] || 0;
+      caveats.push(
+        info.summary + num(count) + '回を、該当する' + info.claimed
+          + '箇所に◇付きで表示しています。各位置の個別回数ではなく、総打鍵数・ランキング・指別合計には1回だけ加算します。'
+      );
+    });
+    if (!caveats.length) {
+      host.hidden = true;
+      return;
+    }
+    host.hidden = false;
+    var head = document.createElement('p');
+    head.className = 'caveat-head';
+    head.textContent = 'この図が知り得ないこと';
+    host.appendChild(head);
+    var list = document.createElement('ul');
+    caveats.forEach(function (caveat) {
+      var item = document.createElement('li');
+      item.textContent = caveat;
+      list.appendChild(item);
+    });
+    host.appendChild(list);
+  }
+
+  var periodBox = document.getElementById('period');
+  var periodButtons = Array.prototype.slice.call(periodBox.querySelectorAll('button'));
+  var legendButtons = Array.prototype.slice.call(
+    document.getElementById('legend-mode').querySelectorAll('button')
+  );
+  var legendNote = document.getElementById('legend-note');
+  var daySelect = document.getElementById('daypick');
+  var dayLabel = document.getElementById('daypick-label');
+  var tabBox = document.getElementById('tabs');
+
+  function restore() {
+    var period = recall('period');
+    if (period === 'all' || period === 'w7' || period === 'w30' || (period === 'day' && dayNames.length)) {
+      state.period = period;
+    }
+    var day = recall('day');
+    if (day && dayNames.indexOf(day) >= 0) { state.day = day; }
+    var tab = parseInt(recall('tab'), 10);
+    if (tab >= 0 && tab < geometries.length) { state.tab = tab; }
+    var legend = recall('legend');
+    if (legend === 'print' || (legend === 'wakara' && wakaraKeyCount)) { state.legend = legend; }
+  }
+
+  function buildChrome() {
+    periodButtons.forEach(function (button) {
+      if (button.dataset.period === 'day' && !dayNames.length) { button.disabled = true; }
+      button.addEventListener('click', function () {
+        state.period = button.dataset.period;
+        remember('period', state.period);
+        render();
+      });
+    });
+
+    legendButtons.forEach(function (button) {
+      if (button.dataset.legend === 'wakara' && !wakaraKeyCount) { button.disabled = true; }
+      button.addEventListener('click', function () {
+        state.legend = button.dataset.legend;
+        remember('legend', state.legend);
+        render();
+      });
+    });
+
+    dayNames.forEach(function (name) {
+      var option = document.createElement('option');
+      option.value = name;
+      option.textContent = name;
+      daySelect.appendChild(option);
+    });
+    if (state.day) { daySelect.value = state.day; }
+    daySelect.addEventListener('change', function () {
+      state.day = daySelect.value;
+      remember('day', state.day);
+      render();
+    });
+
+    geometries.forEach(function (geo, index) {
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'tab';
+      button.setAttribute('role', 'tab');
+      button.textContent = geo.displayName;
+      button.addEventListener('click', function () {
+        state.tab = index;
+        remember('tab', String(index));
+        render();
+      });
+      tabBox.appendChild(button);
+    });
+  }
+
+  function drawHeader() {
+    var grand = 0;
+    days.forEach(function (day) {
+      day.entries.forEach(function (entry) { grand += entry.count; });
+    });
+    document.getElementById('fact-total').textContent = num(grand) + ' 打鍵';
+    document.getElementById('fact-range').textContent = dayNames.length
+      ? (dayNames[0] === dayNames[dayNames.length - 1]
+          ? dayNames[0]
+          : dayNames[0] + ' 〜 ' + dayNames[dayNames.length - 1]) + '（' + dayNames.length + '日）'
+      : '—';
+    document.getElementById('empty-note').hidden = dayNames.length > 0;
+  }
+
+  function render() {
+    hideTip();
+    var geo = geometries[state.tab];
+
+    periodButtons.forEach(function (button) {
+      var on = button.dataset.period === state.period;
+      button.classList.toggle('on', on);
+      button.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    legendButtons.forEach(function (button) {
+      var on = button.dataset.legend === state.legend;
+      button.classList.toggle('on', on);
+      button.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    legendNote.hidden = state.legend !== 'wakara';
+    legendNote.textContent = state.legend === 'wakara'
+      ? 'わから配列：規則を持つ' + wakaraKeyCount + 'キーを、わから配列での役割（か行・あ・□ など）で表示し、'
+        + '元の刻印を上に小さく残しています。色と数値は刻印表示と同じで、Shift付きの打鍵（英字キーでは英字への'
+        + '切り替え、「;」では「+」などの記号）も同じキーに合算しています（内訳はキーの詳細に出ます）。「,」「.」「/」や数字・括弧は IME へそのまま'
+        + '通すため刻印のままです。役割は規則表（wkr-layout '
+        + String((DATA.wakara && DATA.wakara.sourceRevision) || '').slice(0, 7) + '）から生成しています。'
+      : '';
+    Array.prototype.forEach.call(tabBox.children, function (button, index) {
+      var on = index === state.tab;
+      button.classList.toggle('on', on);
+      button.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    dayLabel.hidden = state.period !== 'day';
+
+    var chosen = selectedDays();
+    var agg = aggregate(chosen);
+
+    var label = PERIOD_LABELS[state.period];
+    document.getElementById('period-note').textContent = chosen.length
+      ? label + '：' + chosen[0].date
+        + (chosen[0].date === chosen[chosen.length - 1].date ? '' : ' 〜 ' + chosen[chosen.length - 1].date)
+        + ' の ' + chosen.length + '日、' + num(agg.total) + ' 打鍵'
+      : label + '：この期間の記録はありません。';
+
+    if (!geo) { return; }
+    var board = analyse(geo, agg);
+    drawBoard(geo, board, agg);
+    drawScale(board.max);
+    drawRanking(geo, agg);
+    drawFingers(geo, agg);
+    drawCaveats(geo, agg);
+  }
+
+  restore();
+  buildChrome();
+  drawHeader();
+  render();
+
+  if (window.matchMedia) {
+    var dark = window.matchMedia('(prefers-color-scheme: dark)');
+    if (dark.addEventListener) { dark.addEventListener('change', render); }
+    else if (dark.addListener) { dark.addListener(render); }
+  }
+}());
+"""#
+}

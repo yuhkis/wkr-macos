@@ -30,3 +30,10 @@ jobs:
         run: swift test
       - name: Build the ad-hoc candidate without installing
         run: make app
+
+      - name: Verify the v1 archive source and boundaries
+        run: |
+          python3 Scripts/check-v1-archive.py
+          make -C Legacy/wkr-macos-v1 test
+          make -C Legacy/wkr-macos-v1 app
+          python3 Scripts/package-v1-archive.py
