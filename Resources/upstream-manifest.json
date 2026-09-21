@@ -1,0 +1,20 @@
+{
+  "upstream": "https://github.com/yuhkis/wkr-layout",
+  "revision": "ecbf634555bcbd4cbb87fcc62d0a6d15feb2f703",
+  "importedOn": "2026-09-21",
+  "layoutVersion": "2.0.0-beta.1",
+  "practiceVersion": "0.1.0",
+  "files": {
+    "data/layout-v2.json": "7683b30ab4f5af6313b29134e75304196f65af48ed5889780d7c04d2e7a29f56",
+    "docs/layout-v2.md": "1abb753090600bb505af3662b47d527349804686c79690b78920fdc053655a5e",
+    "LICENSE": "07adc3a42bfbcc592316a5aead9f4b98ad2f85158fd76e7d8c49dd47c26bdae8",
+    "practice/index.html": "20f2292a656ee74816e86d2453c9bba010b9e1b6ae406c85fd5bb9f28c49040f",
+    "practice/style.css": "6710b0981a0edad9be22a103cf14e5ec4fc029aa10e3c10e122f3f447c945fe9",
+    "practice/data.js": "ee1f865d1000fbd1c3dcd90d6d44c6f67f5133813fcaa302f27d8254cd6e4c50",
+    "practice/core.js": "00e5712f34713481683125fbeb47269a94f78b931bf4ed19ece1ee46e5ae5b7e",
+    "practice/app.js": "8ad17bf5bd2123ed23f3e83bb6f011f1fd16e8dbfb835858912b04fb664907bb",
+    "practice/README.md": "71d775d9b6d16ba8523033b3537b193ff50c52c162dcf26fbd9e52342f491c19",
+    "practice/VERSION": "e9dd8507f4bf0c6f42458e41aea833ad0bd3f6127272335eee9bf4d58541ed67",
+    "practice/lessons.json": "57f5be0d7620abfc5172bce2e420062c1ad3ecd79ab1aaa08c6db54b39795bd5"
+  }
+}

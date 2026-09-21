@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; object-src 'none'">
+<link rel="icon" href="data:,">
+<title>わから v2 練習帳</title><link rel="stylesheet" href="style.css">
+<script src="data.js" defer></script><script src="core.js" defer></script><script src="app.js" defer></script>
+</head><body>
+<header><div class="brand"><span class="mark" aria-hidden="true">わ</span><div><p class="eyebrow">WAKARA · はじめの一歩</p><h1>わから v2 練習帳</h1></div></div><p id="versions"></p></header>
+<main><section class="intro"><h2>ひとつずつ、手に覚えさせよう。</h2><p>まずは母音の5キーから。配列を見ながら、ゆっくり進めて大丈夫です。</p></section>
+<div class="workspace"><nav aria-label="練習課題"><h2>練習のステップ</h2><div id="lessons"></div></nav>
+<section class="practice" aria-labelledby="lesson-title">
+<div class="lesson-heading"><span id="stage" class="pill"></span><span id="position"></span></div><h2 id="lesson-title"></h2><p id="tip"></p>
+<fieldset class="modes"><legend>練習方法</legend><label><input type="radio" name="mode" value="keys" checked> キー位置の練習</label><label><input type="radio" name="mode" value="ime"> 日本語入力で練習</label></fieldset>
+<p id="mode-help" class="help"></p><div class="exercise"><p class="eyebrow">入力することば</p><p id="target" aria-live="polite"></p><div id="keys" aria-label="キーの順番"></div>
+<label id="input-label" for="typing">練習欄</label><input id="typing" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="160" aria-describedby="mode-help feedback" placeholder="ここを選んで練習を始める"><p id="feedback" role="status" aria-live="polite">準備ができたら、練習欄を選んでください。</p></div>
+<div class="actions"><button id="retry" class="secondary">この課題をやり直す</button><button id="next" disabled>次へ</button></div><p id="score" aria-live="polite"></p>
+<details open><summary>配列を見ながら練習</summary><div id="keyboard" aria-label="v2の基本配列"></div><p class="help">大文字はキーの刻印です。Shiftは押しません。Hはあ段、Mはん、Nはっです。</p></details>
+</section></div>
+<section class="privacy" aria-labelledby="privacy-title"><h2 id="privacy-title">成績は自分の端末に</h2><label><input id="save" type="checkbox"> 成績をこの端末に保存</label><p>既定では保存しません。有効にすると、課題ごとの完了回数と最高正答率だけを保存します。入力本文・まちがえた文字・キー列・時刻は保存も送信もしません。途中の入力は課題の切り替えや画面を閉じると消えます。</p><p id="storage-status" role="status"></p><button id="delete" class="secondary">保存した成績をすべて削除</button></section>
+<details class="privacy"><summary>使い方と保存の説明</summary><p>キー位置の練習では英字入力を選び、表示されたキーを順に押します。日本語入力で練習するときは、WKR macOSなどを起動し、ひらがなを確定してから、もう一度Enterで採点します。漢字へ変換せず、見本のひらがなを入力してください。</p><p>ブラウザ版の保存先は、この配信元のlocalStorage（wakara.practice.v1.2.0.0-beta.1）です。同梱macOS版はPublic専用のApplication Support内のpractice-progress.jsonへ保存します。保存チェックを外すと、この版の保存済み成績を消して保存を止めます。ブラウザのサイトデータ削除でも消せます。端末間の同期はしません。</p><p>正答率は、キー位置モードでは正しいキー数 / 押したキー数、日本語入力モードでは正しい回答数 / 提出した回答数です。最高値は両モード共通です。記録できない環境では保存せず練習を続けます。</p></details>
+</main><footer>ネット接続なしで使えます · わから v2 練習帳 · MIT License</footer></body></html>
