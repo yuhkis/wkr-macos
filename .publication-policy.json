@@ -9,7 +9,8 @@
   ],
   "emails": [
     "3623400+yuhkis@users.noreply.github.com",
-    "noreply@github.com"
+    "noreply@github.com",
+    "yuhkis@users.noreply.github.com"
   ],
   "paths": [
     ".github/workflows/test.yml",
