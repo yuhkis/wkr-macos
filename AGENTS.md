@@ -46,3 +46,9 @@
 ## 公開操作の必須経路
 
 公開用の専用Gitでpublication_guardを設置し、全履歴・成果物の監査と内容確認、利用者の操作承認を揃える。監査報告だけで承認済みとしない。pre-pushを無効化・迂回しない。PR本文、Release本文・添付はcheck-uploadを通した正確なファイルだけを送る。方針・ガード・ref・成果物の変更後は再確認する。旧URLを再利用するときは、先に既知の旧checkoutのremoteを保全先へ変更し、新repository IDを固定する。詳細はdocs/publication-audit.md。
+
+## 個人情報を入れない継続設定
+
+公開作業では毎回、専用Gitに `python3 Scripts/publication_guard.py install --repository-id ID` で検査を設置します。pre-commitは作業ファイルではなくstage済みの全ファイルと著者情報、commit-msgは本文を検査し、許可外メール・ローカルパス・秘密情報・私的記録を含むcommitを拒否します。既存のpre-pushも維持します。未設置・検査失敗・由来不明は公開停止とし、`--no-verify`やhookの無効化で回避しません。
+
+`check-index` で同じ検査を手動実行できます。`check-assets --file PATH` は生成したZIP・本文を検査しますが、アップロード承認にはなりません。Pagesも `authorize --operation pages` と `check-upload --operation pages --file PATH` の対象です。アプリ・サイトは固定の収録リストから作り、実データ・個人設定・監査原記録をコピーしません。検出語はログへ出しません。自動検査に加えて出所と内容を確認し、未検出を「個人情報ゼロ」の証明とは扱いません。

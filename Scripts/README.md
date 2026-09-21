@@ -27,3 +27,9 @@
 `python3 Scripts/check-v1-archive.py`は`Legacy/wkr-macos-v1/archive-source.json`の全ファイルSHA256と、詳細ログを残さない境界を検査します。`make -C Legacy/wkr-macos-v1 test`と`make -C Legacy/wkr-macos-v1 app`で保存版を検証・ビルドします。ビルドはad-hoc署名のみで、インストールや起動をしません。
 
 `python3 Scripts/package-v1-archive.py`はcleanなcommitから、`build/distribution/0.7.0-archive.1/<commit>/`へソースzip・manifest・SHA256SUMSを作ります。出力対象は固定manifestのソースだけで、build・Git履歴・ローカル記録を含みません。既存の異なる配布物は上書きせず、保存ソースを変更する場合は保存版を上げます。
+
+## 個人情報を入れない継続設定
+
+公開作業では毎回、専用Gitに `python3 Scripts/publication_guard.py install --repository-id ID` で検査を設置します。pre-commitは作業ファイルではなくstage済みの全ファイルと著者情報、commit-msgは本文を検査し、許可外メール・ローカルパス・秘密情報・私的記録を含むcommitを拒否します。既存のpre-pushも維持します。未設置・検査失敗・由来不明は公開停止とし、`--no-verify`やhookの無効化で回避しません。
+
+`check-index` で同じ検査を手動実行できます。`check-assets --file PATH` は生成したZIP・本文を検査しますが、アップロード承認にはなりません。Pagesも `authorize --operation pages` と `check-upload --operation pages --file PATH` の対象です。アプリ・サイトは固定の収録リストから作り、実データ・個人設定・監査原記録をコピーしません。検出語はログへ出しません。自動検査に加えて出所と内容を確認し、未検出を「個人情報ゼロ」の証明とは扱いません。
