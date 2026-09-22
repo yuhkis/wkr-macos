@@ -1,6 +1,6 @@
-# Release情報 — WKR macOS v2 beta 0.8.0-beta.5
+# Release情報 — WKR macOS v2 Public Beta 0.8.0-public.beta.5
 
-Releaseタグを **v0.8.0-beta.5** に整理しました。旧タグ `v0.8.0-public.beta.5` と同じ公開コミットを指す別名で、機能の更新ではありません。配布済みZIP・manifest・SHA256SUMSとアプリ内の版表示 `0.8.0-public.beta.5` は元のままです。旧タグはソース参照用に保持し、Releaseとダウンロードの案内は新しいURLを使います。
+「Public Beta」は一般公開する試験版を表します。通常の製品名へ一律にPublicを付ける意味ではありません。正規のReleaseタグは `v0.8.0-public.beta.5` です。別名タグ `v0.8.0-beta.5` も同じ公開コミットを指します。配布済みファイルとアプリ内の版表示は変更していません。
 
 わから配列v2を初めて使う方のための公開ベータです。対応配列は **[2.0.0-beta.1（233規則）](https://github.com/yuhkis/wkr-layout/releases/tag/v2.0.0-beta.1)**、同梱練習帳は **0.1.0（12課題・127問）** です。教材はブラウザ版と共通で、同梱版はオフラインで使えます。
 

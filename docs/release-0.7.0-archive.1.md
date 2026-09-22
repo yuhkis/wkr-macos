@@ -14,4 +14,4 @@
 
 ビルドと起動・停止・設定削除は[保存版README](../Legacy/wkr-macos-v1/README.md)を参照してください。アプリ名は`WKRV1Archive.app`、設定・保存先の識別子は`io.github.yuhkis.wkr-macos.v1-archive`です。旧版やPrivateは先に終了してください。保存版を実機へ配備する操作は今回行っていません。
 
-元のv0.7.0の変換テストに、旧設定・未対応CLI・排他制御の検査を加え、自動検証とビルドを行っています。この保存版での実機入力は未確認です。新しくv2を使う場合は[WKR macOS v2 beta 0.8.0-beta.5](https://github.com/yuhkis/wkr-macos/releases/tag/v0.8.0-beta.5)を参照してください。
+元のv0.7.0の変換テストに、旧設定・未対応CLI・排他制御の検査を加え、自動検証とビルドを行っています。この保存版での実機入力は未確認です。新しくv2を使う場合は[WKR macOS v2 Public Beta 0.8.0-public.beta.5](https://github.com/yuhkis/wkr-macos/releases/tag/v0.8.0-public.beta.5)を参照してください。
