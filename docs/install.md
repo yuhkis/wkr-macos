@@ -4,7 +4,7 @@
 
 ## 1. 入手・ビルド
 
-公開ベータは[公式Release](https://github.com/yuhkis/wkr-macos/releases/tag/v0.8.0-public.beta.5)から入手できます。Apple Developer Programへの加入を前提にせず、次の二つの導入経路を用意します。
+公開ベータは[公式Release](https://github.com/yuhkis/wkr-macos/releases/tag/v0.8.0-beta.5)から入手できます。Apple Developer Programへの加入を前提にせず、次の二つの導入経路を用意します。
 
 - アプリzip: Apple Silicon用の `WKR-macOS-0.8.0-public.beta.5-arm64-adhoc.zip` を展開する。利用者側のXcodeは必要ありません。ad-hoc署名・未公証なので、初回の個別起動許可が必要になる場合があります。
 - ソースビルド: 下記の手順で自分のMac上にアプリを作る。
