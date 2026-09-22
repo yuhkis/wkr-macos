@@ -49,7 +49,7 @@ make package-all
 
 配列と教材の同期は `python3 Scripts/sync-layout.py --upstream ../wkr-layout --revision <commit>`、手順は[Scripts/README.md](Scripts/README.md)。`--check`で一致を検査し、取り込み日は同じpinの記録を保ちます。日付の明示指定には`--imported-on YYYY-MM-DD`を使います。純粋な変換処理は`WKRCore`へ集約し、Public/Privateで別の配列表を手書きしません。
 
-練習帳の表示・入力・採点は画面で確認済みです。v1 / v2の配布候補は、入力権限の再登録と許可後の変換確認が未完了のため配布を保留しています。
+練習帳の表示・入力・採点は画面で確認済みです。v1候補0.7.1-public.1とv2候補0.8.0-public.beta.6は、許可後の短い日本語入力、一時停止・再開、終了後の通常入力を画面共有経由で確認しました。v2同梱練習での入力・採点も確認しています。物理打鍵やダウンロード後の起動許可とは区別し、v1の権限設定直後に一度起きた監視タイムアウトを含め、[検証記録](docs/verification.md)に範囲と残件を記載します。
 
 - [配列とmacOS用綴り](docs/layout-reference.md)
 - [仕組み](docs/how-it-works.md)・[設計](docs/design.md)・[開発時の確認](docs/development.md)
