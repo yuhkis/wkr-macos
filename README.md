@@ -6,7 +6,7 @@ Apple日本語入力の前段で、わから配列v2のキーを標準ローマ�
 
 [アプリzipとSHA256SUMS](https://github.com/yuhkis/wkr-macos/releases/tag/v0.8.0-public.beta.5)を公式Releaseから入手できます。
 
-「Public Beta」は一般公開する試験版を表します。通常の製品名へ一律にPublicを付ける意味ではありません。正規のReleaseタグは `v0.8.0-public.beta.5` です。別名タグ `v0.8.0-beta.5` も同じ公開コミットを指します。配布済みファイルとアプリ内の版表示は変更していません。
+「Public Beta」は一般公開する試験版を表します。通常の製品名へ一律にPublicを付ける意味ではありません。正規のReleaseタグは `v0.8.0-public.beta.5` です。配布済みファイルとアプリ内の版表示は変更していません。
 
 ## 配列とアプリの対応
 
