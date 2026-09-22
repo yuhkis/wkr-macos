@@ -4,7 +4,7 @@ WKRを導入せずQWERTYで試すモードと、導入済みWKR v2で練習す�
 
 Apple Silicon / macOS 14以降向けのad-hoc署名・未公証ZIPです。利用者側のXcodeや有料のApple開発者登録は不要です。macOSの個別の起動許可が必要になる場合があります。ZIP・manifest.json・SHA256SUMSを組で配布し、入手元・ハッシュ・版を確認してください。
 
-[導入・権限・練習・停止・削除](https://github.com/yuhkis/wkr-macos/blob/main/docs/distribution.md)を参照してください。入力本文・キー列・細かな時刻を保存する機能は含めません。任意の集約成績や日別頻度は既定オフ・ローカル保存です。
+[導入・権限・練習・停止・削除](https://github.com/yuhkis/wkr-macos/blob/main/docs/distribution.md)を参照してください。入力本文・キー列・細かな時刻を保存する機能は含めません。任意の課題別成績は既定オフ・ローカル保存です。
 
 ローカルで起動・教材表示・QWERTY体験・採点・標準の貼り付け・終了を確認しました。確認状況は[検証記録](https://github.com/yuhkis/wkr-macos/blob/main/docs/verification.md)に記載します。転送した同一バイナリでもQWERTY体験の入力・採点を確認しました。独立練習帳は入力監視・アクセシビリティを要求しません。ダウンロード後の起動許可と物理打鍵は未確認です。Google日本語入力・azooKeyはWKRアプリの初回対応範囲に含めず、専用テーブルによる別の導入経路を案内します。Intel・他キーボード配列・全OS版・支援技術は未確認です。
 
