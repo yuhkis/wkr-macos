@@ -62,7 +62,7 @@ final class VuSmallWaTrialTests: XCTestCase {
             // `W` alone is still わ, so ゎ does not need a vowel first.
             ([.w, .q, .p], "walwa"),
             // `Q` then a row key is ぁ and that row's kana, as after any row key.
-            ([.q, .w], "lawa"), ([.q, .e], "laka"), ([.q, .m], "lann"), ([.q, .n], "laltu"), ([.q, .y], "la-"),
+            ([.q, .w], "lawa"), ([.q, .e], "laka"), ([.q, .n], "lann"), ([.q, .m], "laltu"), ([.q, .y], "la-"),
         ]
         for mode in [OutputMode.deferredRomaji, .prefixRomaji] {
             for rules in [WKRLayout.rules, WKRLayout.rulesWithoutSymbolLayer] {

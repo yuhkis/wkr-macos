@@ -25,9 +25,9 @@ final class EnglishFallbackJournalTests: XCTestCase {
         let snapshot = journal(typing: keys).snapshot(at: 0)
 
         XCTAssertEqual(snapshot?.keys, keys)
-        // `pa` + `yo` + `ltu` + `h`, the `payoltuh` the connect-back puts on
+        // `pa` + `yo` + `nn` + `h`, the `payonnh` the connect-back puts on
         // screen for the `thing` the user meant to type.
-        XCTAssertEqual(snapshot?.romajiCharacterCount, 8)
+        XCTAssertEqual(snapshot?.romajiCharacterCount, 7)
     }
 
     /// The arrows are romaji now, so a mistyped `Y` `J` stays recoverable. It
@@ -120,7 +120,7 @@ final class EnglishFallbackJournalTests: XCTestCase {
 
     func testRecordedRomajiLengthMatchesWhatTheTransducerStreamed() {
         let cases: [(name: String, keys: [PhysicalKey], expected: Int)] = [
-            ("THING", [.t, .h, .i, .n, .g], 8),  // pa yo ltu h
+            ("THING", [.t, .h, .i, .n, .g], 7),  // pa yo nn h
             ("WER", [.w, .e, .r], 5),            // w a  k a  r, shown as `わかr`
             ("EK", [.e, .k], 2),                 // k i
             ("H", [.h], 1),                      // a

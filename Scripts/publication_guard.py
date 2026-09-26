@@ -79,6 +79,49 @@ def scan(data, policy):
             'Sensitive pattern or unaudited LFS content detected')
 
 
+def public_path(name):
+    parts = PurePosixPath(name).parts
+    require(name and not name.startswith('/') and "\\" not in name and
+            '..' not in parts, 'Unsafe public path')
+    forbidden = {'.git', '.env', '.DS_Store', '__MACOSX', 'archive',
+                 'WORKLOG.md', 'AGENTS.local.md', 'practice-progress.json',
+                 'key-frequency.json', 'key-frequency.html'}
+    require(not any(p in forbidden or p.startswith('.env.') or re.fullmatch(r'practice-progress(?:-v[0-9]+)?\.json', p) or p.endswith(('.log', '.vil'))
+                    for p in parts), 'Private working material cannot be published')
+
+
+def check_index(root, message=None):
+    """Inspect the index, including partially staged files, before creating history."""
+    policy = json.loads(git(root, 'show', ':' + POLICY))
+    previous = json.loads(git(root, 'show', 'HEAD:' + POLICY))
+    for field in ('root', 'repository', 'authors', 'emails', 'text_emails'):
+        require(policy.get(field) == previous.get(field),
+                'Public identity policy changed; a separate explicit review is required')
+    for role in ('GIT_AUTHOR_IDENT', 'GIT_COMMITTER_IDENT'):
+        identity = git(root, 'var', role).decode().strip()
+        match = re.fullmatch(r'(.*?) <([^>]+)> .*', identity)
+        require(match and match[1] in policy['authors'] and match[2] in policy['emails'],
+                'Unapproved commit identity')
+    count = 0
+    for entry in git(root, 'ls-files', '--stage', '-z').split(b'\0'):
+        if not entry:
+            continue
+        metadata, raw_path = entry.split(b'\t', 1)
+        mode, oid, stage = metadata.decode().split()
+        name = raw_path.decode('utf-8')
+        public_path(name)
+        require(stage == '0' and mode in ('100644', '100755'), 'Unmerged or non-regular staged file')
+        require(name in policy['paths'], 'Unlisted staged path; review its provenance first')
+        value = git(root, 'cat-file', 'blob', oid)
+        require(len(value) <= 2 * 1024 * 1024 and b'\0' not in value, 'Unexpected staged binary or size')
+        value.decode('utf-8')
+        scan(value, policy)
+        count += 1
+    if message is not None:
+        scan(Path(message).read_bytes(), policy)
+    return count
+
+
 def inspect_asset(path, policy):
     require(path.is_file() and not path.is_symlink(), 'Artifact must be a regular file')
     require(path.stat().st_size <= 200 * 1024 * 1024, 'Artifact exceeds review size limit')
@@ -89,6 +132,7 @@ def inspect_asset(path, policy):
             size = 0
             for member in archive.infolist():
                 name = member.filename
+                public_path(name.rstrip('/'))
                 parts = PurePosixPath(name).parts
                 require(name and not name.startswith('/') and '\\' not in name and
                         '..' not in parts and name not in names, 'Unsafe archive entry')
@@ -102,8 +146,12 @@ def inspect_asset(path, policy):
                 if member.is_dir():
                     continue
                 value = archive.read(member)
+                require(not zipfile.is_zipfile(__import__('io').BytesIO(value)), 'Nested archives require separate review')
                 scan(value, policy)
                 if b'\0' in value:
+                    for offset in (0, 1):
+                        for encoding in ('utf-16-le', 'utf-16-be'):
+                            scan(value[offset:].decode(encoding, errors='ignore').encode(), policy)
                     require(name in policy.get('binary_archive_members', []),
                             'Unlisted binary archive member')
     else:
@@ -147,6 +195,7 @@ def audit(root, files=()):
             metadata, raw_path = entry.split(b'\t', 1)
             mode, kind, oid = metadata.decode().split()
             path = raw_path.decode()
+            public_path(path)
             require(path in allowed, 'Unlisted path exists in reachable history')
             require(mode in ('100644', '100755') and kind == 'blob', 'Symlink or submodule in source')
             blobs.add(oid)
@@ -202,7 +251,12 @@ def install(root, repo_id=None):
     hook = hooks / 'pre-push'
     hook.write_text('#!/bin/sh\nexec python3 "$(git rev-parse --path-format=absolute --git-common-dir)/publication-guard/guard.py" pre-push "$@"\n')
     hook.chmod(0o700)
+    for name, command in [('pre-commit', 'check-index'), ('commit-msg', 'check-message')]:
+        local_hook = hooks / name
+        local_hook.write_text('#!/bin/sh\nexec python3 "$(git rev-parse --path-format=absolute --git-common-dir)/publication-guard/guard.py" ' + command + ' "$@"\n')
+        local_hook.chmod(0o700)
     git(root, 'config', '--local', 'core.hooksPath', str(hooks))
+    git(root, 'config', '--local', 'user.useConfigOnly', 'true')
     return trust
 
 
@@ -232,7 +286,7 @@ def authorize(root, report_path, evidence_path, refs, operations, files):
         require(ref.startswith('refs/heads/codex/') or ref.startswith('refs/tags/v'), 'Unapproved push ref')
         require(ref in report['snapshot']['refs'], 'Push ref is absent from audit')
         selected[ref] = report['snapshot']['refs'][ref]
-    require(operations and set(operations) <= {'push', 'pr', 'release'}, 'Explicit operations required')
+    require(operations and set(operations) <= {'push', 'pr', 'release', 'pages'}, 'Explicit operations required')
     require('push' not in operations or bool(selected), 'Select exact push refs')
     receipt = {'fingerprint': report['fingerprint'], 'trust': sha(encoded(trust)),
                'evidence': sha(Path(evidence_path).read_bytes()), 'refs': selected,
@@ -272,6 +326,11 @@ def pre_push(root, url, updates):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
+    commands.add_parser('check-index')
+    message = commands.add_parser('check-message')
+    message.add_argument('path')
+    assets = commands.add_parser('check-assets')
+    assets.add_argument('--file', action='append', required=True)
     check = commands.add_parser('audit')
     check.add_argument('--report', required=True)
     check.add_argument('--file', action='append', default=[])
@@ -286,11 +345,18 @@ def main():
     hook.add_argument('remote')
     hook.add_argument('url')
     upload = commands.add_parser('check-upload')
-    upload.add_argument('--operation', choices=('pr', 'release'), required=True)
+    upload.add_argument('--operation', choices=('pr', 'release', 'pages'), required=True)
     upload.add_argument('--file', action='append', required=True)
     args = parser.parse_args()
     root = Path(git(Path.cwd(), 'rev-parse', '--show-toplevel').decode().strip())
-    if args.command == 'audit':
+    if args.command in ('check-index', 'check-message'):
+        count = check_index(root, args.path if args.command == 'check-message' else None)
+        print(f'Public index and identities checked: {count} files')
+    elif args.command == 'check-assets':
+        for path in args.file:
+            inspect_asset(Path(path), policy_for(root))
+        print(f'Public artifact contents checked: {len(args.file)} files; upload not authorized')
+    elif args.command == 'audit':
         report = audit(root, args.file)
         private_write(Path(args.report), report)
         print(json.dumps({'fingerprint': report['fingerprint'], 'counts': report['counts']}))

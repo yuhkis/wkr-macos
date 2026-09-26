@@ -15,7 +15,7 @@ enum AppConfigurationError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .unsupportedOption: return "unsupported option in WKR macOS Public; use --help"
+        case .unsupportedOption: return "unsupported option in " + AppVersion.name + "; use --help"
         case let .missingValue(argument):
             return "missing value for \(argument)"
         case let .invalidMode(mode):
@@ -150,7 +150,9 @@ struct AppConfiguration {
 
         while index < tokens.count {
             switch tokens[index] {
-            case "--practice-only": action = .practice
+            case "--practice-only":
+                guard AppVersion.supportsPractice else { throw AppConfigurationError.unsupportedOption }
+                action = .practice
             case "--help": action = .help
             case "--version": action = .version
             case "--print-input-source":

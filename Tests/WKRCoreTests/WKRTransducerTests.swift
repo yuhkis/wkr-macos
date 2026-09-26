@@ -29,7 +29,7 @@ final class WKRTransducerTests: XCTestCase {
     func testSingleKeyRulesTableDriven() {
         let cases: [(PhysicalKey, String)] = [
             (.h, "a"), (.j, "u"), (.k, "i"), (.l, "o"), (.semicolon, "e"),
-            (.m, "nn"), (.n, "ltu"), (.y, "-"), (.slash, "?"), (.shiftedSlash, "/"),
+            (.n, "nn"), (.m, "ltu"), (.y, "-"), (.slash, "?"), (.shiftedSlash, "/"),
         ]
 
         for (key, expected) in cases {
@@ -138,7 +138,7 @@ final class WKRTransducerTests: XCTestCase {
 
     func testFullLayoutSnapshotContainsEveryUniqueNormalizedRule() {
         // Pinned so an unintended re-pin fails here first. wkr-layout ver 1.1.
-        XCTAssertEqual(WKRLayout.layoutVersion, "2.0.0-beta.1")
+        XCTAssertEqual(WKRLayout.layoutVersion, "2.0.0-beta.2")
         // 217 upstream rules, plus `QW → ゎ` and `QE → ヵ`, which `WP → ゔぃ` and
         // `AP → がい` displaced, plus the special column of the six rows that had
         // none. ゐ and ゑ lost their rules to ゔぁ and ゔぇ and have them back,
@@ -554,8 +554,8 @@ final class WKRTransducerTests: XCTestCase {
             .e, .s, .f, .d, .g, .v, .r, .w, .t, .z, .c, .b, .a, .x,
         ]
         let suffixes: [(PhysicalKey, SyntheticAction)] = [
-            (.m, .romaji("nn")),
-            (.n, .romaji("ltu")),
+            (.n, .romaji("nn")),
+            (.m, .romaji("ltu")),
             (.y, .romaji("-")),
             (.slash, .romaji("?")),
             (.shiftedSlash, .romaji("/")),

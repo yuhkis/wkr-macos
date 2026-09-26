@@ -60,6 +60,68 @@ class PublicationGuardTests(unittest.TestCase):
                             ['push', 'release'], files)
         return report
 
+    def test_index_rejects_staged_contact_even_when_worktree_is_cleaned(self):
+        (self.root / 'note.md').write_text('private' + '@' + 'example.org')
+        self.run_git('add', 'note.md')
+        (self.root / 'note.md').write_text('Safe working copy')
+        with self.assertRaisesRegex(guard.Blocked, 'email'):
+            guard.check_index(self.root)
+
+    def test_index_blocks_private_paths_even_if_added_to_allowlist(self):
+        self.policy['paths'].append('WORKLOG.md')
+        (self.root / guard.POLICY).write_text(json.dumps(self.policy))
+        (self.root / 'WORKLOG.md').write_text('Synthetic record')
+        self.run_git('add', '-A')
+        with self.assertRaisesRegex(guard.Blocked, 'Private working'):
+            guard.check_index(self.root)
+
+    def test_all_progress_store_versions_are_private_assets(self):
+        for name in ['practice-progress.json', 'practice-progress-v2.json', 'practice-progress-v99.json']:
+            with self.subTest(name=name), self.assertRaisesRegex(guard.Blocked, 'Private working'):
+                guard.public_path('Resources/' + name)
+
+    def test_index_prevents_broadening_contact_allowlist(self):
+        self.policy['emails'].append('private' + '@' + 'example.org')
+        (self.root / guard.POLICY).write_text(json.dumps(self.policy))
+        self.run_git('add', '-A')
+        with self.assertRaisesRegex(guard.Blocked, 'identity policy'):
+            guard.check_index(self.root)
+
+    def test_installed_hooks_block_commit_and_message_before_history(self):
+        guard.install(self.root)
+        head = self.run_git('rev-parse', 'HEAD')
+        (self.root / 'README.md').write_text('private' + '@' + 'example.org')
+        self.run_git('add', '-A')
+        with self.assertRaises(subprocess.CalledProcessError):
+            self.run_git('commit', '-m', 'Synthetic fixture')
+        self.assertEqual(self.run_git('rev-parse', 'HEAD'), head)
+        (self.root / 'README.md').write_text('Safe synthetic source')
+        self.run_git('add', '-A')
+        with self.assertRaises(subprocess.CalledProcessError):
+            self.run_git('commit', '-m', 'private' + '@' + 'example.org')
+        self.assertEqual(self.run_git('rev-parse', 'HEAD'), head)
+        self.run_git('commit', '-m', 'Safe synthetic message')
+
+    def test_nested_archive_is_not_silently_skipped(self):
+        import io
+        inner = io.BytesIO()
+        with zipfile.ZipFile(inner, 'w') as archive:
+            archive.writestr('data.txt', 'Synthetic')
+        asset = Path(self.temporary.name) / 'outer.zip'
+        with zipfile.ZipFile(asset, 'w') as archive:
+            archive.writestr('inner.zip', inner.getvalue())
+        with self.assertRaisesRegex(guard.Blocked, 'Nested'):
+            guard.inspect_asset(asset, self.policy)
+
+    def test_utf16_contact_in_allowed_executable_is_blocked(self):
+        asset = Path(self.temporary.name) / 'app.zip'
+        self.policy['binary_archive_members'] = ['Product.app/Contents/MacOS/Product']
+        with zipfile.ZipFile(asset, 'w') as archive:
+            archive.writestr('Product.app/Contents/MacOS/Product',
+                             ('private' + '@' + 'example.org').encode('utf-16-le'))
+        with self.assertRaisesRegex(guard.Blocked, 'email'):
+            guard.inspect_asset(asset, self.policy)
+
     def test_reviewed_history_passes(self):
         self.assertEqual(guard.audit(self.root)['counts']['commits'], 2)
 
@@ -157,7 +219,7 @@ class PublicationGuardTests(unittest.TestCase):
         asset = Path(self.temporary.name) / 'artifact.zip'
         with zipfile.ZipFile(asset, 'w') as archive:
             archive.writestr('../escape.txt', 'Synthetic')
-        with self.assertRaisesRegex(guard.Blocked, 'Unsafe archive'):
+        with self.assertRaisesRegex(guard.Blocked, 'Unsafe (?:archive|public)'):
             guard.inspect_asset(asset, self.policy)
         with zipfile.ZipFile(asset, 'w') as archive:
             archive.writestr('README.md', 'private' + '@' + 'example.org')

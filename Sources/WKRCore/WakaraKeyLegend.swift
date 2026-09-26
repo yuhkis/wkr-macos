@@ -1,3 +1,4 @@
+#if !WKR_V1
 import Foundation
 
 /// What one key means in わから配列, for the heatmap's わから配列 legend mode.
@@ -171,3 +172,5 @@ public enum WakaraKeyLegends {
         .period: 0x2F, .slash: 0x2C,
     ]
 }
+
+#endif

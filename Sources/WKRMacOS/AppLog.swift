@@ -3,7 +3,7 @@ import OSLog
 
 enum AppLog {
     static let logger = Logger(
-        subsystem: "io.github.yuhkis.wkr-macos.public",
+        subsystem: AppVersion.bundleIdentifier,
         category: "conversion"
     )
 }

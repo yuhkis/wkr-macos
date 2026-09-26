@@ -38,3 +38,9 @@ macOSはREADME・LICENSE・除外規則だけの署名付き最小基点と、�
 `.publication-policy.json`は公開を認めるパス、著者identity、独立履歴の基点を明記します。Gitの全履歴から削除済みのファイルも検査し、未許可パス、他の基点、個人メールやホームパス、秘密鍵/token形式、未監査LFS、symlink/submoduleを拒否します。配布zipの全エントリも走査します。エラーには検出した値を転載しません。
 
 この仕組みは誤操作を止めるためのもので、未知の個人情報をすべて自動判定する保証ではありません。Git hookを外す操作、`--no-verify`、ブラウザやAPIへの直接投稿までは強制できません。これらの迂回は使わず、公開用素材だけを専用作業場へ置き、文章の内容確認と併用します。承認記録・元ログ・個人設定を公開Gitへ追加しません。
+
+## 個人情報を入れない継続設定
+
+公開作業では毎回、専用Gitに `python3 Scripts/publication_guard.py install --repository-id ID` で検査を設置します。pre-commitは作業ファイルではなくstage済みの全ファイルと著者情報、commit-msgは本文を検査し、許可外メール・ローカルパス・秘密情報・私的記録を含むcommitを拒否します。既存のpre-pushも維持します。未設置・検査失敗・由来不明は公開停止とし、`--no-verify`やhookの無効化で回避しません。
+
+`check-index` で同じ検査を手動実行できます。`check-assets --file PATH` は生成したZIP・本文を検査しますが、アップロード承認にはなりません。Pagesも `authorize --operation pages` と `check-upload --operation pages --file PATH` の対象です。アプリ・サイトは固定の収録リストから作り、実データ・個人設定・監査原記録をコピーしません。検出語はログへ出しません。自動検査に加えて出所と内容を確認し、未検出を「個人情報ゼロ」の証明とは扱いません。

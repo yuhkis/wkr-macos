@@ -3,7 +3,7 @@
 - `build-app.sh`: releaseビルドを`build/WKRPublic.app`へ組み立て、既定ad-hoc署名で検査する。ローカルパスをcompilerのprefix mapで除き、debug情報を生成せずに配布実行ファイルをstripする。インストールはしない。`CONFIGURATION`で構成、`CODESIGN_IDENTITY`で承認済みidentityだけを明示できる。
 - `sync-layout.py --upstream PATH --revision COMMIT`: 公開`wkr-layout`の指定commitから規則と教材を許可リストで取り込む。`--check`は一致検査。`--imported-on YYYY-MM-DD`で取り込み日を指定でき、省略時は同じpinの記録済み日付（新規pinは当日）を使う。開発時だけ`--working-tree`を使えるが、この状態の配布zip作成は拒否する。
 - `check-public.py`: Publicの実装に禁止された研究レコーダー・設定・CLI・橋渡しが入っていないこと、生成教材のハッシュと版、設定・保存先がPublic専用であることを検査する。全Git履歴の公開監査は別に必要。
-- `package-public.py` / `make package`: cleanなcommitからアプリをビルドし、導入・移行・検証文書と参照先の公開作業規約をzipにする。`build/distribution/<アプリ版>/`へzip・manifest.json・SHA256SUMSを出力し、旧候補と分ける。公開時は確認した版の3ファイルを指定する。push、署名identity変更、公証、インストールはしない。
+- `package-apps.py` / `make package-all`: cleanなcommitを全履歴監査して3製品をビルドし、固定リストのアプリ本体・LICENSE・導入説明だけをZIPにする。`--product v1|v2|practice`で選択できる。`build/distribution/<アプリ版>/<commit>/`へZIP・manifest.json・SHA256SUMSを出力し、既存の異なる候補を上書きしない。`package-public.py` / `make package`はv2だけの互換入口。ad-hoc署名を明示し、push・公証・インストールはしない。
 - `install-app.sh SOURCE [DEST]`: Public IDだけを許可し、既存の同名アプリを控えてからコピーする。実機での承認範囲内だけで使う。
 - `start-app.sh APP [ARGS...]`: 指定Publicアプリを起動する。プロセスが存在しても変換中とは限らないため、メニューと権限・入力源を確認する。
 - `install-login-agent.sh` / `uninstall-login-agent.sh`: Publicのログイン起動だけを登録・解除する。
@@ -27,3 +27,17 @@
 `python3 Scripts/check-v1-archive.py`は`Legacy/wkr-macos-v1/archive-source.json`の全ファイルSHA256と、詳細ログを残さない境界を検査します。`make -C Legacy/wkr-macos-v1 test`と`make -C Legacy/wkr-macos-v1 app`で保存版を検証・ビルドします。ビルドはad-hoc署名のみで、インストールや起動をしません。
 
 `python3 Scripts/package-v1-archive.py`はcleanなcommitから、`build/distribution/0.7.0-archive.1/<commit>/`へソースzip・manifest・SHA256SUMSを作ります。出力対象は固定manifestのソースだけで、build・Git履歴・ローカル記録を含みません。既存の異なる配布物は上書きせず、保存ソースを変更する場合は保存版を上げます。
+
+## 個人情報を入れない継続設定
+
+公開作業では毎回、専用Gitに `python3 Scripts/publication_guard.py install --repository-id ID` で検査を設置します。pre-commitは作業ファイルではなくstage済みの全ファイルと著者情報、commit-msgは本文を検査し、許可外メール・ローカルパス・秘密情報・私的記録を含むcommitを拒否します。既存のpre-pushも維持します。未設置・検査失敗・由来不明は公開停止とし、`--no-verify`やhookの無効化で回避しません。
+
+`check-index` で同じ検査を手動実行できます。`check-assets --file PATH` は生成したZIP・本文を検査しますが、アップロード承認にはなりません。Pagesも `authorize --operation pages` と `check-upload --operation pages --file PATH` の対象です。アプリ・サイトは固定の収録リストから作り、実データ・個人設定・監査原記録をコピーしません。検出語はログへ出しません。自動検査に加えて出所と内容を確認し、未検出を「個人情報ゼロ」の証明とは扱いません。
+
+## 3製品のビルド
+
+`WKR_BUILD_FLAVOR=v1|v2|practice`を環境変数で指定します。既定はv2。`env WKR_BUILD_FLAVOR=v1 ./Scripts/build-app.sh` はWKRV1.app、practiceはWakaraPractice.appを作ります。Makefileでは`app-v1` / `app` / `practice-app`です。SwiftPMのscratchを`.build/<flavor>`へ分け、v1は公開済みの固定規則・v2は上流JSON由来の規則を同じ変換エンジンへ組み合わせます。
+
+`make test-v1`は固定したv1変換・キートップのテストと、現在の共通安全処理・保存形式のテストを実行します。旧保存版のテストは別に残し、そのソースを変更しません。`make test`はv2と同梱練習のテストです。独立した練習アプリはWKRPracticeUIを共有し、WKRMacOSターゲットに依存しません。
+
+通常のinstall/start/loginスクリプトは引き続きv2専用です。v1・独立練習帳は[配布手順](../docs/distribution.md)のFinder操作で扱い、ビルドだけでは起動しません。

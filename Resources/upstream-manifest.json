@@ -1,20 +1,21 @@
 {
   "upstream": "https://github.com/yuhkis/wkr-layout",
-  "revision": "65cd73cf97559bfd0d5b1ecce6ada19c8392373d",
-  "importedOn": "2026-09-21",
-  "layoutVersion": "2.0.0-beta.1",
-  "practiceVersion": "0.1.0",
+  "revision": "34ac11be1af3c0a83789c03949dd7c21419a4781",
+  "importedOn": "2026-09-26",
+  "layoutVersion": "2.0.0-beta.2",
+  "practiceVersion": "0.2.1",
   "files": {
-    "data/layout-v2.json": "7683b30ab4f5af6313b29134e75304196f65af48ed5889780d7c04d2e7a29f56",
-    "docs/layout-v2.md": "1abb753090600bb505af3662b47d527349804686c79690b78920fdc053655a5e",
+    "data/layout-v2.json": "48eda1129ad3fac0965e4d3f36e00e2c8857314b21bd487c6b308e0186e21aca",
+    "docs/layout-v2.md": "e45193808e4fa830309a5f73a860c4e4489eed26e2bb8a0c3a3ab046b0853ae4",
     "LICENSE": "07adc3a42bfbcc592316a5aead9f4b98ad2f85158fd76e7d8c49dd47c26bdae8",
-    "practice/index.html": "20f2292a656ee74816e86d2453c9bba010b9e1b6ae406c85fd5bb9f28c49040f",
-    "practice/style.css": "6710b0981a0edad9be22a103cf14e5ec4fc029aa10e3c10e122f3f447c945fe9",
-    "practice/data.js": "ee1f865d1000fbd1c3dcd90d6d44c6f67f5133813fcaa302f27d8254cd6e4c50",
-    "practice/core.js": "00e5712f34713481683125fbeb47269a94f78b931bf4ed19ece1ee46e5ae5b7e",
-    "practice/app.js": "8ad17bf5bd2123ed23f3e83bb6f011f1fd16e8dbfb835858912b04fb664907bb",
-    "practice/README.md": "71d775d9b6d16ba8523033b3537b193ff50c52c162dcf26fbd9e52342f491c19",
-    "practice/VERSION": "e9dd8507f4bf0c6f42458e41aea833ad0bd3f6127272335eee9bf4d58541ed67",
-    "practice/lessons.json": "57f5be0d7620abfc5172bce2e420062c1ad3ecd79ab1aaa08c6db54b39795bd5"
+    "practice/index.html": "fe89011c20152d94f04da7894cc127d41422a2372fdc758c5bb25c1cc49085c2",
+    "practice/style.css": "4706759312e4df8d052799191323dc512fbcf3af2e78d69bc31960352a076de3",
+    "practice/data.js": "066d88cc0e4bcd8b11172a99505079be356b1b42da57d9e3fc67ea310fe1c655",
+    "practice/core.js": "ad6da97ca6b8ddcf48ae6036212cb56b5ba7be3f6e68aaa58dabaee9ea62c243",
+    "practice/engine.js": "8a45c9a38584c08b7fea5f2ebf0c341fdfe7cc55b609f38240b14885583004ed",
+    "practice/app.js": "caa63fc7a5424133a19570edfffe34b4dbbd46132346e90518caa068872c8ba6",
+    "practice/README.md": "ef9642144633dfb4f3618129727ab6656e90787b097abe7ccfda1d9533390d62",
+    "practice/VERSION": "71015c979ccb0fc8a0be7ca0ae83046ab045cdc2c8faa09fb2f0f7e440f9b4a6",
+    "practice/lessons.json": "d56875bd096985a322e6ce27bffe33ba0171fde414a087f7490ea4d42c4237ca"
   }
 }

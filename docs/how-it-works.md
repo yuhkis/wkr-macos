@@ -2,7 +2,7 @@
 
 ## 1. 配列の正本
 
-`wkr-layout`の配列2.0.0-beta.1（233規則）を固定commitから生成して`WKRCore`へ組み込む。配列表は[layout-reference.md](layout-reference.md)、版とハッシュは`Resources/upstream-manifest.json`を参照する。
+`wkr-layout`の配列2.0.0-beta.2（233規則）を固定commitから生成して`WKRCore`へ組み込む。配列表は[layout-reference.md](layout-reference.md)、版とハッシュは`Resources/upstream-manifest.json`を参照する。
 
 ## 2. 変換
 
@@ -37,3 +37,9 @@ callbackはメモリ内加算だけ。120秒ごとに値を取り出し、専用
 同梱ページを非永続WKWebViewで開く。ブラウザ版と同じ教材・採点処理を使い、HTTP(S)をブロックする。システム変換を持たないキー位置練習と、確定したひらがなを比較する日本語入力練習がある。
 
 Native橋渡しは同梱のメインフレームからのload / save / deleteだけ。保存は課題ID・完了回数・最高正答率・配列版の許可リストへ作り直し、誤入力やキー列を保存しない。保存I/Oは入力監視のrun loop外で行う。練習結果を日別頻度や研究計測へ送り込む連携はない。
+
+## v1・v2・練習帳のビルド構成
+
+WKRV1とWKRPublicは同じWKRCoreのWKRTransducerとWKRMacOSの権限・停止・排他処理を使います。WKR_BUILD_FLAVORでコンパイル時に規則表と製品IDを選びます。v1規則とキートップは公開済み保存ソースから固定し、v2規則・全練習教材はwkr-layoutのcommitから生成・取り込みます。規則の差を実行時の切替では吸収しません。
+
+WakaraPracticeは別実行ターゲットでWKRPracticeUIを使い、WKRMacOSへ依存しません。WKWebViewの通信遮断・同梱教材の読取・集約した成績の保存だけを共有します。ページ内のQWERTY体験ではengine.jsが233規則を使い、WKR・IMEモードでは確定文字列を採点します。実IMEでの未確定文字列やmacOSの合成キー出力を再現するものではありません。

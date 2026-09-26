@@ -100,7 +100,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         versionItem.isEnabled = false
         menu.addItem(versionItem)
         let practice = NSMenuItem(title: "わから v2 を練習する", action: #selector(practiceChosen), keyEquivalent: "")
-        practice.target = self; menu.addItem(practice)
+        practice.target = self; if AppVersion.supportsPractice { menu.addItem(practice) }
         let setup = NSMenuItem(title: "導入・権限の案内", action: #selector(setupChosen), keyEquivalent: "")
         setup.target = self; menu.addItem(setup)
         pauseItem.title = "変換を一時停止"

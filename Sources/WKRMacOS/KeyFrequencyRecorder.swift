@@ -32,7 +32,7 @@ final class KeyFrequencyRecorder {
     /// the same string; `AGENTS.md` pins the identifier to keep the permission
     /// grant stable across rebuilds, and a tally under a second name would be
     /// invisible to the report command.
-    static let bundleIdentifier = "io.github.yuhkis.wkr-macos.public"
+    static let bundleIdentifier = AppVersion.bundleIdentifier
     static let storeFileName = "key-frequency.json"
 
     /// Two minutes. A crash or a forced quit therefore loses at most two minutes

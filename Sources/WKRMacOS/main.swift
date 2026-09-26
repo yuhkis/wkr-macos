@@ -85,7 +85,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard permissions.isGranted else {
             AppLog.logger.error("conversion-not-started reason=permissions")
             engineLease = nil
-            showSetup(reason: "入力監視: \(permissions.listen ? "許可済み" : "未許可") / アクセシビリティ: \(permissions.post ? "許可済み" : "未許可")。設定画面で WKR macOS Public を許可して、再確認してください。")
+            showSetup(reason: "入力監視: \(permissions.listen ? "許可済み" : "未許可") / アクセシビリティ: \(permissions.post ? "許可済み" : "未許可")。設定画面で \(AppVersion.name) を許可して、再確認してください。")
             return
         }
 
@@ -640,6 +640,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func openPractice() {
+        guard AppVersion.supportsPractice else { return }
         if practiceWindow == nil {
             guard let window = PracticeWindowController() else {
                 showSetup(reason: "同梱教材を読み込めません。配布アプリの内容を確認してください。")
@@ -685,8 +686,8 @@ do {
         exit(KeyFrequencyReportCommand.runArchive(configuration))
     case .help:
         print("""
-        WKR macOS Public — --version / --practice-only / --print-input-source
-        Open WKRPublic.app to set up permissions and start conversion.
+        \(AppVersion.name) — --version / --print-input-source\(AppVersion.supportsPractice ? " / --practice-only" : "")
+        Open the app to set up permissions and start conversion.
         --mode prefix|deferred (optimistic requires --allow-unverified-optimistic)
         --key-frequency on|off (default off), --key-frequency-retention all|DAYS
         --key-frequency-report [--open] [--output PATH] [--vil PATH]

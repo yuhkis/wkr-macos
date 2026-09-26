@@ -123,7 +123,7 @@ final class LoanwordColumnsTrialTests: XCTestCase {
             // takes its vowel explicitly, in every row alike.
             ([.d, .h, .p, .l], "nazl"), ([.c, .h, .i], "dayo"), ([.v, .h, .p, .l], "mazl"),
             // ー っ ん are not columns, so the bare kana still takes them directly.
-            ([.d, .y], "na-"), ([.c, .m], "dann"),
+            ([.d, .y], "na-"), ([.c, .n], "dann"),
             // The sequences a slot now gives can still be spelled out, and まい,
             // which ます displaced, is the vowel spelled out like かい.
             ([.d, .h, .k], "nai"), ([.c, .semicolon, .s, .j], "desu"), ([.s, .k, .f, .semicolon], "shite"),
