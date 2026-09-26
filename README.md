@@ -6,12 +6,14 @@ Apple日本語入力の前段で、わから配列v2のキーを標準ローマ�
 
 公開済みbeta.5の[アプリzipとSHA256SUMS](https://github.com/yuhkis/wkr-macos/releases/tag/v0.8.0-public.beta.5)を公式Releaseから入手できます。
 
+「Public Beta」は一般公開する試験版を表します。通常の製品名へ一律にPublicを付ける意味ではありません。正規のReleaseタグは `v0.8.0-public.beta.5` です。配布済みファイルとアプリ内の版表示は変更していません。
+
 ## 配列とアプリの対応
 
 | 配列 | macOSアプリ |
 | --- | --- |
-| [2.0.0-beta.1](https://github.com/yuhkis/wkr-layout/releases/tag/v2.0.0-beta.1) | [Public 0.8.0-public.beta.5](https://github.com/yuhkis/wkr-macos/releases/tag/v0.8.0-public.beta.5) |
-| [1.1.0 保存資料](https://github.com/yuhkis/wkr-layout/releases/tag/v1.1.0-archive.1) | [0.7.0 保存ソース](https://github.com/yuhkis/wkr-macos/releases/tag/v0.7.0-archive.1) |
+| [2.0.0-beta.1](https://github.com/yuhkis/wkr-layout/releases/tag/v2.0.0-beta.1) | [v2 Public Beta 0.8.0-public.beta.5](https://github.com/yuhkis/wkr-macos/releases/tag/v0.8.0-public.beta.5) |
+| [1.1.0 保存資料](https://github.com/yuhkis/wkr-layout/releases/tag/v1.1.0-archive.1) | [v1 0.7.0-archive.1 保存ソース](https://github.com/yuhkis/wkr-macos/releases/tag/v0.7.0-archive.1) |
 
 新しい3製品の選び方・アプリ名・保存先は[アプリ配布の導入手順](docs/distribution.md)を参照してください。v1はWKRV1.app、v2はWKRPublic.app、v2練習帳はWakaraPractice.appです。新候補はローカル準備中で、公開済みの版とは別です。
 
