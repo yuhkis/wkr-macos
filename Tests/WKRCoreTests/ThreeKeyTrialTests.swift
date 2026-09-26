@@ -41,7 +41,7 @@ final class ThreeKeyTrialTests: XCTestCase {
             ([.w, .j, .j], "vu"), ([.w, .j, .j, .r], "vura"), ([.w, .j, .j, .h], "vua"),
             ([.w, .j, .j, .j], "vuu"), ([.w, .j, .j, .w, .j, .j], "vuvu"),
             // ゔ alone, and ゔ before anything that is not a column key.
-            ([.w, .j], "vu"), ([.w, .j, .r], "vura"), ([.w, .j, .m], "vunn"), ([.w, .j, .y], "vu-"),
+            ([.w, .j], "vu"), ([.w, .j, .r], "vura"), ([.w, .j, .n], "vunn"), ([.w, .j, .y], "vu-"),
             // The old way still works: the small kana prefix is not a column key.
             ([.w, .j, .q, .l], "vulo"),
             // The two-key ゔぁ ゔぃ ゔぇ are gone: the row under `WJ` is the one way in.
@@ -64,7 +64,7 @@ final class ThreeKeyTrialTests: XCTestCase {
         let cases: [([PhysicalKey], String)] = [
             ([.q], "la"), ([.q, .h], "la"), ([.q, .k], "li"), ([.q, .u], "lya"), ([.q, .p], "lwa"),
             ([.q, .w, .e], "lawaka"), ([.q, .e], "laka"), ([.q, .s], "lasa"),
-            ([.q, .m], "lann"), ([.q, .n], "laltu"), ([.q, .y], "la-"), ([.q, .q], "lala"),
+            ([.q, .n], "lann"), ([.q, .m], "laltu"), ([.q, .y], "la-"), ([.q, .q], "lala"),
             // もーつぁると: つ, ぁ, る with no vowel key for the ぁ.
             ([.f, .j, .q, .r, .j], "tularu"),
             // くゎ, and ぁ before an arrow needs its vowel spelled out like any row.

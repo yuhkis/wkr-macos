@@ -19,7 +19,7 @@
 	<key>CFBundleShortVersionString</key>
 	<string>0.8.0</string>
 	<key>CFBundleVersion</key>
-	<string>46</string>
+	<string>47</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>14.0</string>
 	<key>LSUIElement</key>
@@ -29,10 +29,10 @@
 	<key>NSInputMonitoringUsageDescription</key>
 	<string>わから配列の対象キーだけを変換するため、入力イベントを監視します。入力内容は記録・送信しません。</string>
 	<key>WKRReleaseVersion</key>
-	<string>0.8.0-public.beta.6</string>
+	<string>0.8.0-public.beta.7</string>
 	<key>WKRLayoutVersion</key>
-	<string>2.0.0-beta.1</string>
+	<string>2.0.0-beta.2</string>
 	<key>WKRPracticeVersion</key>
-	<string>0.2.0</string>
+	<string>0.2.1</string>
 </dict>
 </plist>

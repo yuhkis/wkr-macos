@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "name": "わから配列 v2",
-  "version": "2.0.0-beta.1",
+  "version": "2.0.0-beta.2",
   "status": "public-beta",
   "description": "P特殊列は公開ベータで評価中。版を固定して利用し、変更時は配列版を更新する。",
   "rules": [
@@ -1612,9 +1612,9 @@
       "group": "kana"
     },
     {
-      "id": "m-n",
+      "id": "n-n",
       "keys": [
-        "m"
+        "n"
       ],
       "output": "ん",
       "delivery": "romaji",
@@ -1622,9 +1622,9 @@
       "group": "kana"
     },
     {
-      "id": "n-small-tsu",
+      "id": "m-small-tsu",
       "keys": [
-        "n"
+        "m"
       ],
       "output": "っ",
       "delivery": "romaji",

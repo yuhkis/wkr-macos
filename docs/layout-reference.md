@@ -1,10 +1,10 @@
 # macOSでの配列と綴り
 
-正本: [wkr-layout](https://github.com/yuhkis/wkr-layout)、固定commit `df67ebe9c7a6ef947277549e0aaf01b0cb765984`。
+正本: [wkr-layout](https://github.com/yuhkis/wkr-layout)、固定commit `34ac11be1af3c0a83789c03949dd7c21419a4781`。
 
 # わから配列 v2 配列表
 
-配列版 **2.0.0-beta.1**。`data/layout-v2.json` から生成。
+配列版 **2.0.0-beta.2**。`data/layout-v2.json` から生成。
 
 あ段は行キー単打、または行キー + H。母音を続ける場合は H を明示します。
 P を2打鍵目に置く短縮形はベータで評価中です。Q は小書きの行、W J だけが3打鍵へ続きます。
@@ -159,8 +159,8 @@ P を2打鍵目に置く短縮形はベータで評価中です。Q は小書き
 | `U` | や | kana | ya |
 | `O` | ゆ | kana | yu |
 | `I` | よ | kana | yo |
-| `M` | ん | kana | nn |
-| `N` | っ | kana | ltu |
+| `N` | ん | kana | nn |
+| `M` | っ | kana | ltu |
 | `Y` | ー | kana | - |
 | `/` | ？ | kana | ? |
 | `Shift+/` | ・ | kana | / |

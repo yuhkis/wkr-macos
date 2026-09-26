@@ -8,7 +8,7 @@ enum AppVersion {
     static let name = "WKR macOS v1"
     static let supportsPractice = false
     #else
-    static let release = "0.8.0-public.beta.6"
+    static let release = "0.8.0-public.beta.7"
     static let bundleIdentifier = "io.github.yuhkis.wkr-macos.public"
     static let name = "WKR macOS Public"
     static let supportsPractice = true

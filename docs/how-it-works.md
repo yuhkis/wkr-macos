@@ -2,7 +2,7 @@
 
 ## 1. 配列の正本
 
-`wkr-layout`の配列2.0.0-beta.1（233規則）を固定commitから生成して`WKRCore`へ組み込む。配列表は[layout-reference.md](layout-reference.md)、版とハッシュは`Resources/upstream-manifest.json`を参照する。
+`wkr-layout`の配列2.0.0-beta.2（233規則）を固定commitから生成して`WKRCore`へ組み込む。配列表は[layout-reference.md](layout-reference.md)、版とハッシュは`Resources/upstream-manifest.json`を参照する。
 
 ## 2. 変換
 

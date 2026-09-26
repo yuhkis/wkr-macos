@@ -5,10 +5,10 @@
 | 製品 | アプリ版 | 対応配列 | アプリ / Bundle ID |
 | --- | --- | --- | --- |
 | WKR macOS v1 | 0.7.1-public.1 | 1.1.0 | WKRV1.app / io.github.yuhkis.wkr-macos.v1 |
-| WKR macOS Public v2 | 0.8.0-public.beta.6 | 2.0.0-beta.1 | WKRPublic.app / io.github.yuhkis.wkr-macos.public |
-| わから v2 練習帳 | 0.2.0 | 2.0.0-beta.1 | WakaraPractice.app / io.github.yuhkis.wkr-practice |
+| WKR macOS Public v2 | 0.8.0-public.beta.7 | 2.0.0-beta.2 | WKRPublic.app / io.github.yuhkis.wkr-macos.public |
+| わから v2 練習帳 | 0.2.1 | 2.0.0-beta.2 | WakaraPractice.app / io.github.yuhkis.wkr-practice |
 
-練習帳の教材はv2だけです。v1アプリにv2教材は同梱しません。v2アプリにも同じ練習帳0.2.0を同梱します。アプリ版と配列版はメニュー・練習画面・実行ファイルの `--version` で確認できます。
+練習帳の教材はv2だけです。v1アプリにv2教材は同梱しません。v2アプリにも同じ練習帳0.2.1を同梱します。配列2.0.0-beta.2では、2.0.0-beta.1で入れ替えていた ん・っ をv1と同じ ん＝N、っ＝M に戻しています。アプリ版と配列版はメニュー・練習画面・実行ファイルの `--version` で確認できます。
 
 ## 入手と初回起動
 
@@ -45,9 +45,9 @@ macOSの設定ドメインとApplication Supportのフォルダ名は上表のBu
 | 保存物 | 場所・削除方法 |
 | --- | --- |
 | v1 / v2の任意の日別キー頻度 | `~/Library/Application Support/<Bundle ID>/key-frequency.json`。既定オフ。終了後に対象アプリの `--key-frequency-reset` で現在の集計を削除。archiveは別途本人が確認して削除 |
-| macOS練習帳0.2.0の成績 | v2または練習専用の同フォルダ内 `practice-progress-v2.json`。画面から削除 |
+| macOS練習帳0.2.xの成績 | v2または練習専用の同フォルダ内 `practice-progress-v2.json`。画面から削除 |
 | 練習帳0.1.0の成績 | 旧 `practice-progress.json` は保持して自動移行しない。旧版の画面、または終了後にそのファイルだけを本人が削除 |
-| ブラウザ練習帳0.2.0の成績 | そのサイトのlocalStorage `wakara.practice.v2.2.0.0-beta.1`。画面またはブラウザのサイトデータ管理で削除 |
+| ブラウザ練習帳0.2.xの成績 | そのサイトのlocalStorage `wakara.practice.v2.<配列版>`（0.2.1は `wakara.practice.v2.2.0.0-beta.2`、0.2.0は `…2.0.0-beta.1`）。画面またはブラウザのサイトデータ管理で削除 |
 
 頻度は暦日・規則表ID・論理キーとShiftごとの回数だけです。図で選ぶキーボードは表示用で、実際の打鍵元を識別しません。公開ZIPへ利用者の設定や保存データを入れません。
 
@@ -57,4 +57,4 @@ macOSの設定ドメインとApplication Supportのフォルダ名は上表のBu
 
 アンインストールは、本人が登録したログイン項目を解除し、アプリを終了してからアプリ本体をゴミ箱へ移します。変換アプリの入力監視・アクセシビリティの登録を削除します。成績は事前に画面から削除でき、設定・頻度も不要なら上表の**対象製品だけ**のApplication Supportと設定ドメインを確認して削除します。旧版やPrivateのデータは別です。配布アプリはログイン項目を自動登録しません。
 
-v1候補0.7.1-public.1とv2候補0.8.0-public.beta.6は、権限付与後の短い変換、一時停止・再開、終了後の通常入力をApple日本語入力と画面共有のキー操作で確認しました。v2同梱練習の入力・採点も確認しています。ダウンロード後の起動許可、物理打鍵、更新・アンインストールは未確認です。[検証記録](verification.md)で製品ごとの範囲を確認してください。
+v1候補0.7.1-public.1とv2候補0.8.0-public.beta.6（配列2.0.0-beta.1、未公開）は、権限付与後の短い変換、一時停止・再開、終了後の通常入力をApple日本語入力と画面共有のキー操作で確認しました。v2同梱練習の入力・採点も確認しています。v2 0.8.0-public.beta.7と練習帳0.2.1は、配列・教材データと版の記載だけを変えた候補で、同じ確認を公開前にやり直します。ダウンロード後の起動許可、物理打鍵、更新・アンインストールは未確認です。[検証記録](verification.md)で製品ごとの範囲を確認してください。

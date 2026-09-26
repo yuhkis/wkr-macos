@@ -18,7 +18,7 @@ final class IOTrialTests: XCTestCase {
 
     func testSingleSmallAndContractedKanaInBothCommonModes() {
         let cases: [([PhysicalKey], String)] = [
-            ([.m], "nn"), ([.n], "ltu"), ([.e, .m], "kann"), ([.e, .n], "kaltu"),
+            ([.n], "nn"), ([.m], "ltu"), ([.e, .n], "kann"), ([.e, .m], "kaltu"),
             ([.i], "yo"), ([.o], "yu"), ([.e, .i], "kyo"), ([.e, .o], "kyu"),
             ([.q, .i], "lyo"), ([.q, .o], "lyu"), ([.i, .o], "yoyu"),
         ]

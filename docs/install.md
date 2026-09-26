@@ -2,7 +2,7 @@
 
 3製品のダウンロード版の共通手順は[distribution.md](distribution.md)へ。以下はv2の詳細設定・開発用操作です。
 
-対象はmacOS 14以降・Apple日本語入力（ローマ字入力）・JISキーボードです。現在の配布候補はApple Silicon用です。v2候補0.8.0-public.beta.6の権限付与後の短い変換・停止・再開は、Apple日本語入力と画面共有のキー操作で確認しています。[確認済み範囲](verification.md)を先に確認してください。
+対象はmacOS 14以降・Apple日本語入力（ローマ字入力）・JISキーボードです。現在の配布候補はApple Silicon用です。v2候補0.8.0-public.beta.6（配列2.0.0-beta.1、未公開）の権限付与後の短い変換・停止・再開は、Apple日本語入力と画面共有のキー操作で確認しています。配列2.0.0-beta.2の0.8.0-public.beta.7では、公開前に同じ確認をやり直します。[確認済み範囲](verification.md)を先に確認してください。
 
 ## 1. 入手・ビルド
 

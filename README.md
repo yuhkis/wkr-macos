@@ -2,7 +2,7 @@
 
 Apple日本語入力の前段で、わから配列v2のキーを標準ローマ字に置き換えるmacOSアプリです。`W E R` + Enterで「わから」、`E K`で「き」と入力できます。かな漢字変換はApple日本語入力を使います。
 
-**今回の配布候補: v1アプリ0.7.1-public.1 / v2アプリ0.8.0-public.beta.6 / 練習帳0.2.0**。配列はそれぞれ1.1.0 / 2.0.0-beta.1です。配列は233規則です。Pの短縮形はベータで評価中です。
+**今回の配布候補: v1アプリ0.7.1-public.1 / v2アプリ0.8.0-public.beta.7 / 練習帳0.2.1**。配列はそれぞれ1.1.0 / 2.0.0-beta.2です。2.0.0-beta.2では、2.0.0-beta.1で入れ替えていた ん・っ をv1と同じ ん＝N、っ＝M に戻しました（[変更点](https://github.com/yuhkis/wkr-layout/blob/v2.0.0-beta.2/docs/compatibility.md#200-beta2-での変更)）。配列は233規則です。Pの短縮形はベータで評価中です。
 
 公開済みbeta.5の[アプリzipとSHA256SUMS](https://github.com/yuhkis/wkr-macos/releases/tag/v0.8.0-public.beta.5)を公式Releaseから入手できます。
 
@@ -12,6 +12,7 @@ Apple日本語入力の前段で、わから配列v2のキーを標準ローマ�
 
 | 配列 | macOSアプリ |
 | --- | --- |
+| [2.0.0-beta.2](https://github.com/yuhkis/wkr-layout/releases/tag/v2.0.0-beta.2) | v2 Public Beta 0.8.0-public.beta.7（準備中・未公開） |
 | [2.0.0-beta.1](https://github.com/yuhkis/wkr-layout/releases/tag/v2.0.0-beta.1) | [v2 Public Beta 0.8.0-public.beta.5](https://github.com/yuhkis/wkr-macos/releases/tag/v0.8.0-public.beta.5) |
 | [1.1.0 保存資料](https://github.com/yuhkis/wkr-layout/releases/tag/v1.1.0-archive.1) | [v1 0.7.0-archive.1 保存ソース](https://github.com/yuhkis/wkr-macos/releases/tag/v0.7.0-archive.1) |
 
@@ -51,11 +52,11 @@ make package-all
 
 配列と教材の同期は `python3 Scripts/sync-layout.py --upstream ../wkr-layout --revision <commit>`、手順は[Scripts/README.md](Scripts/README.md)。`--check`で一致を検査し、取り込み日は同じpinの記録を保ちます。日付の明示指定には`--imported-on YYYY-MM-DD`を使います。純粋な変換処理は`WKRCore`へ集約し、Public/Privateで別の配列表を手書きしません。
 
-練習帳の表示・入力・採点は画面で確認済みです。v1候補0.7.1-public.1とv2候補0.8.0-public.beta.6は、許可後の短い日本語入力、一時停止・再開、終了後の通常入力を画面共有経由で確認しました。v2同梱練習での入力・採点も確認しています。物理打鍵やダウンロード後の起動許可とは区別し、v1の権限設定直後に一度起きた監視タイムアウトを含め、[検証記録](docs/verification.md)に範囲と残件を記載します。
+練習帳0.2.0の表示・入力・採点は画面で確認済みです。v1候補0.7.1-public.1とv2候補0.8.0-public.beta.6（配列2.0.0-beta.1、未公開）は、許可後の短い日本語入力、一時停止・再開、終了後の通常入力を画面共有経由で確認しました。v2同梱練習での入力・採点も確認しています。v2 0.8.0-public.beta.7と練習帳0.2.1は配列・教材データと版の記載だけを変えた候補で、同じ確認を公開前にやり直します。物理打鍵やダウンロード後の起動許可とは区別し、v1の権限設定直後に一度起きた監視タイムアウトを含め、[検証記録](docs/verification.md)に範囲と残件を記載します。
 
 - [配列とmacOS用綴り](docs/layout-reference.md)
 - [仕組み](docs/how-it-works.md)・[設計](docs/design.md)・[開発時の確認](docs/development.md)
-- [検証記録](docs/verification.md)・[残件](docs/roadmap.md)・[v2 Release文案](docs/release-0.8.0-public.beta.6.md)・[v1](docs/release-0.7.1-public.1.md)・[練習帳](docs/release-practice-0.2.0.md)
+- [検証記録](docs/verification.md)・[残件](docs/roadmap.md)・[v2 Release文案](docs/release-0.8.0-public.beta.7.md)・[v1](docs/release-0.7.1-public.1.md)・[練習帳](docs/release-practice-0.2.1.md)
 - [公開作業規約](AGENTS.md)
 
 MIT License。配列と教材の正本は [wkr-layout](https://github.com/yuhkis/wkr-layout)。取り込んだcommitとファイルSHA256は `Resources/upstream-manifest.json` に記録します。
