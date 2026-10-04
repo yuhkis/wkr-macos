@@ -156,6 +156,29 @@ final class KeyFrequencyReportRendererTests: XCTestCase {
         XCTAssertEqual(make(), make())
     }
 
+    func testReportPersistsOnlyTheGenerationDayInHTMLAndPayload() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 9 * 3600)!
+        // Synthetic time exercises the local calendar and a nonzero time of day.
+        let generatedAt = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2000, month: 1, day: 2, hour: 23, minute: 45, second: 56
+        )))
+        let html = KeyFrequencyReportRenderer.html(
+            store: .empty, geometries: [], generatedAt: generatedAt, calendar: calendar
+        )
+        let payload = try Self.payload(of: html)
+        XCTAssertEqual(payload["generatedAt"] as? String, "2000-01-02")
+        XCTAssertTrue(html.contains(#"<dt>作成日</dt><dd><time datetime="2000-01-02">2000-01-02</time>"#))
+        let timestampPattern = #"\b\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2})?"#
+        XCTAssertNil(html.range(of: timestampPattern, options: .regularExpression))
+        let payloadJSON = String(data: try JSONSerialization.data(withJSONObject: payload), encoding: .utf8)!
+        XCTAssertNil(payloadJSON.range(of: timestampPattern, options: .regularExpression))
+        // Changing the time within the same calendar day does not change the report.
+        XCTAssertEqual(html, KeyFrequencyReportRenderer.html(
+            store: .empty, geometries: [], generatedAt: generatedAt.addingTimeInterval(-3600), calendar: calendar
+        ))
+    }
+
     private static func payload(of html: String) throws -> [String: Any] {
         let open = #"<script type="application/json" id="report-data">"#
         let start = try XCTUnwrap(html.range(of: open))

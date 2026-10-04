@@ -30,10 +30,11 @@ public enum KeyFrequencyReportRenderer {
         sourceFileName: String? = nil,
         problem: String? = nil
     ) -> String {
+        let generationDay = KeyFrequencyDay(date: generatedAt, calendar: calendar).rawValue
         var legendsByLayout = historicalLegends
         legendsByLayout[layoutIdentifier] = wakaraLegends
         let payload = Payload(
-            generatedAt: isoTimestamp(generatedAt, calendar: calendar),
+            generatedAt: generationDay,
             windows: Payload.Windows(
                 recent7: window(endingOn: generatedAt, days: 7, calendar: calendar),
                 recent30: window(endingOn: generatedAt, days: 30, calendar: calendar)
@@ -63,8 +64,7 @@ public enum KeyFrequencyReportRenderer {
             .replacingOccurrences(of: "</", with: "<\\/")
 
         return document(
-            timestamp: displayTimestamp(generatedAt, calendar: calendar),
-            isoTimestamp: payload.generatedAt,
+            generationDay: generationDay,
             sourceFileName: sourceFileName,
             problem: problem,
             payload: blob
@@ -204,26 +204,6 @@ extension KeyFrequencyReportRenderer {
         }
     }
 
-    /// A fixed pattern rather than a localised date style: the timestamp is read
-    /// on the same page as the day strings from the tally, which are always
-    /// `YYYY-MM-DD`, and a locale that reorders the fields would make the two look
-    /// like different calendars.
-    private static func displayTimestamp(_ date: Date, calendar: Calendar) -> String {
-        let formatter = DateFormatter()
-        formatter.calendar = calendar
-        formatter.timeZone = calendar.timeZone
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd HH:mm"
-        return formatter.string(from: date)
-    }
-
-    private static func isoTimestamp(_ date: Date, calendar: Calendar) -> String {
-        let formatter = ISO8601DateFormatter()
-        formatter.timeZone = calendar.timeZone
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.string(from: date)
-    }
-
     private static func escaped(_ text: String) -> String {
         text.replacingOccurrences(of: "&", with: "&amp;")
             .replacingOccurrences(of: "<", with: "&lt;")
@@ -242,8 +222,7 @@ extension KeyFrequencyReportRenderer {
     /// path: the directory above it carries a home directory and often an
     /// account name, and this file is meant to be keepable.
     private static func document(
-        timestamp: String,
-        isoTimestamp: String,
+        generationDay: String,
         sourceFileName: String?,
         problem: String?,
         payload: String
@@ -275,7 +254,7 @@ extension KeyFrequencyReportRenderer {
         <header class="head">
           <h1>わから配列 打鍵頻度</h1>
           <dl class="facts">
-            <div><dt>作成</dt><dd><time datetime="\#(escaped(isoTimestamp))">\#(escaped(timestamp))</time></dd></div>
+            <div><dt>作成日</dt><dd><time datetime="\#(escaped(generationDay))">\#(escaped(generationDay))</time></dd></div>
             <div><dt>総打鍵数</dt><dd id="fact-total">—</dd></div>
             <div><dt>記録期間</dt><dd id="fact-range">—</dd></div>
             \#(sourceRow)
@@ -893,14 +872,8 @@ extension KeyFrequencyReportRenderer {
     return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
   }
 
-  // Rank-normalised, not linear. Key frequencies are Zipf-like — the top key on a
-  // real tally runs eighty to a hundred times the median — so a linear ramp puts
-  // everything except a handful of keys within one shade of the cold end and the
-  // board stops carrying information. sqrt was chosen over log because log lifts a
-  // key pressed twice most of the way up the scale, which reads as "warm" when the
-  // truth is "almost never"; sqrt puts a key at 1% of the maximum at 10% of the
-  // ramp, far enough off the floor to be told apart from an unused key while
-  // leaving the busiest keys visibly alone at the top.
+  // A square-root scale keeps low counts visible while distinguishing them
+  // from the largest totals. Unused keys remain at the cold end.
   function heat(count, max) { return max > 0 && count > 0 ? Math.sqrt(count / max) : 0; }
 
   // ---- svg helpers ---------------------------------------------------------
