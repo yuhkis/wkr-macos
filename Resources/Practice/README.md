@@ -1,6 +1,6 @@
-# わから v2 練習帳 0.2.1
+# わから v2 練習帳 0.5.0（公開候補）
 
-[ブラウザで体験する](https://yuhkis.github.io/wkr-layout/)。対応配列は2.0.0-beta.2（ん＝N、っ＝M。v1と同じ位置）。Web版とこのソースから生成するオフラインZIPは同じ教材・変換処理を使います。macOS向けにも同じソースを取り込める構成です。現在公開済みのWKR macOS 0.8.0-public.beta.5に同梱する練習帳は0.1.0（配列2.0.0-beta.1）で、0.2.x を同梱するアプリは未公開です。Webは初回読み込みに通信し、ZIPとmacOS版はオフラインで動きます。PCの物理QWERTYキーボードが主対象です。
+[公開済みのブラウザ版で体験する](https://yuhkis.github.io/wkr-layout/)（現在は練習帳0.4.0 / 配列2.0.0-beta.4）。このソースの対応配列は2.0.0-beta.5（D＝た行、F＝な行、ん＝M、っ＝U、N＝いぇ、や＝P、記号・矢印の規則なし。キー配置は[配列表](../docs/layout-v2.md)）。Web版とこのソースから生成するオフラインZIPは同じ教材・変換処理を使います。macOS向けにも同じソースを取り込める構成です。現在公開済みのWKR macOS 0.8.0-public.beta.5に同梱する練習帳は0.1.0（配列2.0.0-beta.1）で、0.2.0以降を同梱するアプリは未公開です。Webは初回読み込みに通信し、ZIPとmacOS版はオフラインで動きます。PCの物理QWERTYキーボードが主対象です。
 
 ## 練習の切り替え
 
@@ -11,10 +11,10 @@
 ## 保存と削除
 
 既定は保存オフ。有効にしたときだけ配列版・固定課題ID・完了回数・最高正答率（整数）を端末内に保存します。入力本文・誤入力・キー列・日時・所要時間は保存・送信しません。正答率は正しい回答 / 提出した回答で、両モード共通です。
-Web/ブラウザの保存先はlocalStorageのwakara.practice.v2.2.0.0-beta.2（配列版ごとに分かれます。2.0.0-beta.1の成績は wakara.practice.v2.2.0.0-beta.1 に残り、引き継ぎません）。旧版のキー数による成績は自動移行しません。旧版の成績削除は旧版を開いて行います。macOSはアプリごとに独立したApplication Support内のpractice-progress-v2.jsonを使用します。Webとアプリ間の自動同期はありません。
+Web/ブラウザの保存先はlocalStorageのwakara.practice.v2.2.0.0-beta.5（配列版ごとに分かれます。以前の配列版の成績は wakara.practice.v2.2.0.0-beta.4 などの版ごとの名前に残り、引き継ぎません）。旧版のキー数による成績は自動移行しません。旧版の成績削除は旧版を開いて行います。macOSはアプリごとに独立したApplication Support内のpractice-progress-v2.jsonを使用します。Webとアプリ間の自動同期はありません。
 「保存した成績をすべて削除」または保存チェックを外すと、この版の成績を消して保存を止めます。Webではブラウザのサイトデータ削除でも消せます。保存できないときも保存せずに練習できます。
 解析タグは使用しません。公開Web版ではGitHubがアクセス元IPをセキュリティ目的で記録します。これは練習内容の記録ではありません。
 
 ## 教材と変換
 
-教材はlessons.json、配列は../data/layout-v2.jsonが正本。python3 scripts/generate.pyでdata.jsを生成し、engine.jsが同じ233規則をページ内で解釈します。node --test practice/*.test.cjsとpython3 -m unittest discover -s testsで規則・教材・保存を検査します。
+教材はlessons.json、配列は../data/layout-v2.jsonが正本。python3 scripts/generate.pyでdata.jsを生成し、engine.jsが同じ171規則をページ内で解釈します。node --test practice/*.test.cjsとpython3 -m unittest discover -s testsで規則・教材・保存を検査します。

@@ -1,0 +1,17 @@
+# WKR macOS v2 Public Beta 0.8.0-public.beta.8 — Release文案
+
+未公開の配布候補です。配列 **2.0.0-beta.5（171規則）**、同梱練習帳 **0.5.0** に対応します。
+
+公開済み0.8.0-public.beta.5（配列2.0.0-beta.1）から、D＝た行、F＝な行、M＝ん、U＝っ、P＝や・拗音列、N＝いぇ・ぇ列へ更新しました。専用の記号・矢印・短縮列を廃止しました。配列表・IMEテーブル・教材は[wkr-layout](https://github.com/yuhkis/wkr-layout)の同じ正本から生成します。[Web練習帳](https://yuhkis.github.io/wkr-layout/)も用意しています。公開前はWebが以前の配列版の場合があるため、画面の版表示を確認してください。
+
+練習帳は、ABC・英数でQWERTY入力を体験するモードと、WKR・IMEで確定したかなを練習するモードを備えます。同じ教材の単独WakaraPractice.appは入力監視・アクセシビリティを要求せず、オフラインで利用できます。
+
+起動時の権限不足・監視作成拒否を一定時間内だけ新しいプロセスで再試行します。監視はUI等の初期化の最後に開始し、最初のキーより前の監視timeoutだけ起動再試行の対象にします。入力を扱った後の無効化は安全終了します。入力ソースは自動変更しません。
+
+詳細なキー列・入力本文・時刻・研究用計測は保存しません。日別頻度と課題別成績は既定オフ・明示的有効化・ローカル保存です。設定や既存データは自動移行しません。[導入・保存・削除](https://github.com/yuhkis/wkr-macos/blob/main/docs/distribution.md)を参照してください。
+
+配布形式はApple Silicon用ZIP、ad-hoc署名・未公証、macOS 14以降です。Apple Developer Program加入や証明書の登録を必要とせず、開発元の証明・公証は提供しません。macOSがブロックした場合は公式ReleaseとSHA256を確認し、そのアプリだけ起動を許可します。Gatekeeper全体を無効にしません。
+
+自動検証と未確認事項は[検証記録](https://github.com/yuhkis/wkr-macos/blob/main/docs/verification.md)を参照してください。以前の候補の実機確認を、このZIPの確認として引き継ぎません。今回の権限付与後の日本語実入力・停止・再開・終了、ダウンロード後の起動許可、物理打鍵、更新・アンインストールは未確認です。初回の対象はApple日本語入力です。Google日本語入力・azooKeyは専用テーブルによる導入経路を別に案内します。
+
+既存のタグ・Release・配布ファイルは保持し、未公開候補beta.6・beta.7の番号は別内容に再利用しません。

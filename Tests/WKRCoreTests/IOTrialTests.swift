@@ -4,8 +4,8 @@ import XCTest
 final class IOTrialTests: XCTestCase {
     func testEveryKanaRowMovesItsIAndOColumnsTogether() {
         let rows: [(PhysicalKey, String, String)] = [
-            (.e, "きょ", "きゅ"), (.s, "しょ", "しゅ"), (.f, "ちょ", "ちゅ"),
-            (.d, "にょ", "にゅ"), (.g, "ひょ", "ひゅ"), (.v, "みょ", "みゅ"),
+            (.e, "きょ", "きゅ"), (.s, "しょ", "しゅ"), (.d, "ちょ", "ちゅ"),
+            (.f, "にょ", "にゅ"), (.g, "ひょ", "ひゅ"), (.v, "みょ", "みゅ"),
             (.r, "りょ", "りゅ"), (.w, "うぉ", "ゑ"), (.a, "ぎょ", "ぎゅ"),
             (.z, "じょ", "じゅ"), (.c, "どぅ", "でゅ"), (.b, "びょ", "びゅ"),
             (.t, "ぴょ", "ぴゅ"), (.x, "とぅ", "てゅ"),
@@ -18,7 +18,7 @@ final class IOTrialTests: XCTestCase {
 
     func testSingleSmallAndContractedKanaInBothCommonModes() {
         let cases: [([PhysicalKey], String)] = [
-            ([.n], "nn"), ([.m], "ltu"), ([.e, .n], "kann"), ([.e, .m], "kaltu"),
+            ([.m], "nn"), ([.u], "ltu"), ([.e, .m], "kann"), ([.e, .u], "kaltu"), ([.n], "ye"), ([.e, .n], "kye"),
             ([.i], "yo"), ([.o], "yu"), ([.e, .i], "kyo"), ([.e, .o], "kyu"),
             ([.q, .i], "lyo"), ([.q, .o], "lyu"), ([.i, .o], "yoyu"),
         ]
@@ -37,19 +37,14 @@ final class IOTrialTests: XCTestCase {
         }
     }
 
-    func testSymbolSelectorsStayWhilePrefixAndLongVowelMove() {
+    func testPIsTheYaColumnAndThePublishedTableHasNoSymbolLayer() {
         for rules in [WKRLayout.rules, WKRLayout.rulesWithoutSymbolLayer] {
             XCTAssertEqual(rules.first { $0.input == [.y] }?.action, .romaji("-"))
-            XCTAssertEqual(rules.first { $0.input == [.p, .j] }?.action, .romaji("zj"))
-            XCTAssertEqual(rules.first { $0.input == [.s, .p] }?.kana, "しぇ")
+            XCTAssertEqual(rules.first { $0.input == [.p] }?.kana, "や")
+            XCTAssertEqual(rules.first { $0.input == [.s, .p] }?.kana, "しゃ")
+            XCTAssertEqual(rules.first { $0.input == [.s, .n] }?.kana, "しぇ")
+            XCTAssertFalse(rules.contains { $0.input.first == .p && $0.input.count > 1 })
+            XCTAssertTrue(rules.allSatisfy { if case .romaji = $0.action { return true }; return false })
         }
-        XCTAssertEqual(WKRLayout.rules.first { $0.input == [.p, .i] }?.kana, "【")
-        XCTAssertEqual(WKRLayout.rules.first { $0.input == [.p, .o] }?.kana, "】")
-        XCTAssertEqual(WKRLayout.rules.first { $0.input == [.p, .y] }?.kana, "〒")
-        XCTAssertEqual(WKRLayout.rules.first { $0.input == [.p, .p] }?.kana, "～")
-        XCTAssertEqual(WKRLayout.rules.first { $0.input == [.p, .n] }?.kana, "′")
-        XCTAssertEqual(WKRLayout.rules.first { $0.input == [.p, .m] }?.kana, "″")
     }
-
-
 }

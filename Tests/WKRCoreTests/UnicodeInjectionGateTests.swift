@@ -1,12 +1,36 @@
 import XCTest
 @testable import WKRCore
 
+// Synthetic rules for generic Unicode safety tests. These are not shipped layout rules.
+// P is a prefix only in this fixture; the published beta.5 layout has P = や.
+enum SyntheticSymbolRules {
+    static let rules: [NormalizedRule] = WKRLayout.rules.filter { $0.input.first != .p } + [
+        .init(id: "synthetic-arrow-down", input: [.p, .j], kana: "↓", romaji: "zj"),
+        .init(id: "synthetic-arrow-right", input: [.p, .l], kana: "→", romaji: "zl"),
+        .init(id: "synthetic-mark", input: [.p, .a], text: "※"),
+        .init(id: "synthetic-circle", input: [.p, .c], text: "〇"),
+        .init(id: "synthetic-filled-circle", input: [.p, .shiftedDigit1], text: "●"),
+        .init(id: "synthetic-postal", input: [.p, .y], text: "〒"),
+        .init(id: "synthetic-left-square", input: [.p, .leftBracket], text: "［"),
+        .init(id: "synthetic-right-square", input: [.p, .rightBracket], text: "］"),
+        .init(id: "synthetic-left-angle", input: [.p, .leftBrace], text: "《"),
+        .init(id: "synthetic-right-angle", input: [.p, .rightBrace], text: "》"),
+        .init(id: "synthetic-left-lenticular-number", input: [.p, .shiftedDigit8], text: "【"),
+        .init(id: "synthetic-left-lenticular-letter", input: [.p, .i], text: "【"),
+        .init(id: "synthetic-right-lenticular-number", input: [.p, .shiftedDigit9], text: "】"),
+        .init(id: "synthetic-right-lenticular-letter", input: [.p, .o], text: "】"),
+        .init(id: "synthetic-fullwidth-comma", input: [.q, .comma], text: "，"),
+        .init(id: "synthetic-fullwidth-slash", input: [.q, .slash], text: "／"),
+    ]
+    static let withoutUnicode = rules.filter { if case .unicode = $0.action { return false }; return true }
+}
+
 final class UnicodeInjectionGateTests: XCTestCase {
     /// Drive a prefix-mode transducer through the gate exactly as the
     /// controller does, and return what would have been posted for each key.
     private func post(
         _ events: [WKRInputEvent],
-        engine: WKRTransducer = WKRTransducer(mode: .prefixRomaji)
+        engine: WKRTransducer = WKRTransducer(mode: .prefixRomaji, rules: SyntheticSymbolRules.rules)
     ) -> [UnicodeInjectionGate.Decision] {
         var gate = UnicodeInjectionGate()
         return events.map { event in
@@ -28,7 +52,7 @@ final class UnicodeInjectionGateTests: XCTestCase {
     // MARK: - The case the gate exists for
 
     func testSymbolIsInjectedWhenNothingIsPending() {
-        // `Y` `A` is ※ at the start of an empty pre-edit: the provisional
+        // Synthetic `P` `A` is ※ at the start of an empty pre-edit: the provisional
         // `z` is the only thing on screen, and the same batch deletes it, so
         // the injection is allowed by this gate.
         let decisions = post(keys([.p, .a]))
@@ -44,9 +68,8 @@ final class UnicodeInjectionGateTests: XCTestCase {
         // `W` `E` `R` `H` leaves `わから` uncommitted, and Apple Japanese Input
         // discards the injection in that state. Sending it anyway loses the
         // keystroke with nothing on screen to show for it. The `H` is there
-        // because `P` straight after a row key is that row's special column
-        // (`RP` is りぇ), so a bare kana before the symbol prefix takes its
-        // vowel explicitly, in every row.
+        // because `P` straight after a row key selects the ゃ column,
+        // so a bare kana before this synthetic prefix needs its vowel.
         let decisions = post(keys([.w, .e, .r, .h, .p, .a]))
 
         XCTAssertTrue(decisions[5].droppedUnicode)
@@ -57,7 +80,7 @@ final class UnicodeInjectionGateTests: XCTestCase {
 
     func testTheDroppedInjectionKeepsTheRestOfTheResultIntact() {
         let decisions = post(keys([.w, .e, .r, .h, .p, .a]))
-        let original = WKRTransducer(mode: .prefixRomaji)
+        let original = WKRTransducer(mode: .prefixRomaji, rules: SyntheticSymbolRules.rules)
         for event in keys([.w, .e, .r, .h, .p]) { _ = original.process(event) }
         let ungated = original.process(.physical(.a))
 
@@ -65,11 +88,10 @@ final class UnicodeInjectionGateTests: XCTestCase {
         XCTAssertEqual(decisions[5].result.stateCode, ungated.stateCode)
     }
 
-    // MARK: - Every Unicode rule, not only the `Y` layer
+    // MARK: - Unicode rules both inside and outside the synthetic P prefix
 
     func testUnicodeRulesOutsideTheSymbolLayerAreGatedToo() {
-        // `T` `,` is `，` and `T` `/` is `／`, the punctuation left on this
-        // path now that `ヴ` reaches the pre-edit as `vu`.
+        // Synthetic `Q ,` and `Q /` inject punctuation independently of P.
         let comma = post(keys([.w, .e, .r, .q, .comma]))
         let slash = post(keys([.w, .e, .r, .q, .slash]))
 
@@ -120,7 +142,7 @@ final class UnicodeInjectionGateTests: XCTestCase {
     }
 
     func testRomanTransliterationKeepsThePreEditClosedToUnicode() {
-        let engine = WKRTransducer(mode: .prefixRomaji)
+        let engine = WKRTransducer(mode: .prefixRomaji, rules: SyntheticSymbolRules.rules)
         var gate = UnicodeInjectionGate()
         for event in keys([.w, .e, .r]) {
             _ = gate.decide(event, engine.process(event))
@@ -137,7 +159,7 @@ final class UnicodeInjectionGateTests: XCTestCase {
     }
 
     func testDeferredRomanTransliterationKeepsThePreEditClosedToUnicode() {
-        let engine = WKRTransducer(mode: .deferredRomaji)
+        let engine = WKRTransducer(mode: .deferredRomaji, rules: SyntheticSymbolRules.rules)
         var gate = UnicodeInjectionGate()
         for event in keys([.w, .e, .r]) {
             _ = gate.decide(event, engine.process(event))
@@ -152,7 +174,7 @@ final class UnicodeInjectionGateTests: XCTestCase {
 
     func testOptimisticRomanTransliterationKeepsTheRestoredPrefixInThePreEdit() {
         let engine = WKRTransducer(
-            mode: .optimisticRomaji(.fullLayoutExperimental)
+            mode: .optimisticRomaji(.fullLayoutExperimental), rules: SyntheticSymbolRules.rules
         )
         var gate = UnicodeInjectionGate()
         let physical = WKRInputEvent.physical(.e)
@@ -169,7 +191,7 @@ final class UnicodeInjectionGateTests: XCTestCase {
     }
 
     func testRomanTransliterationKeepsTheGateClosedWithoutTransducerPendingInput() {
-        let engine = WKRTransducer(mode: .prefixRomaji)
+        let engine = WKRTransducer(mode: .prefixRomaji, rules: SyntheticSymbolRules.rules)
         var gate = UnicodeInjectionGate()
         for event in keys([.e, .k]) {
             _ = gate.decide(event, engine.process(event))
@@ -198,7 +220,7 @@ final class UnicodeInjectionGateTests: XCTestCase {
     }
 
     func testClearReopensTheGate() {
-        let engine = WKRTransducer(mode: .prefixRomaji)
+        let engine = WKRTransducer(mode: .prefixRomaji, rules: SyntheticSymbolRules.rules)
         var gate = UnicodeInjectionGate()
         for event in keys([.w, .e, .r]) {
             _ = gate.decide(event, engine.process(event))
@@ -218,7 +240,7 @@ final class UnicodeInjectionGateTests: XCTestCase {
     func testRomajiOutputIsNeverAltered() {
         let events = keys([.w, .e, .r]) + [.boundary(.enter)]
         let gated = post(events)
-        let plain = WKRTransducer(mode: .prefixRomaji)
+        let plain = WKRTransducer(mode: .prefixRomaji, rules: SyntheticSymbolRules.rules)
 
         for (index, event) in events.enumerated() {
             XCTAssertEqual(gated[index].result, plain.process(event))

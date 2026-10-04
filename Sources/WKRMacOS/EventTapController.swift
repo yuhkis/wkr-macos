@@ -25,6 +25,8 @@ final class EventTapController {
     private var permissionsGranted = false
     private var contextIsCurrent = false
     private var tapOperational = false
+    /// A boolean safety boundary, not a key count or history.
+    private(set) var hasHandledKey = false
     private var suppressedKeyUps: Set<CGKeyCode> = []
     private let englishFallbackTrigger: EnglishFallbackTrigger
     /// Physical keys and streamed romaji length for the current pre-edit, so
@@ -261,7 +263,7 @@ final class EventTapController {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             let reason = type == .tapDisabledByUserInput ? "user-input" : "timeout"
             failClosed(reason: "event-tap-disabled-\(reason)")
-            AppLog.logger.error("event-tap-disabled type=\(type.rawValue, privacy: .public) action=terminate")
+            AppLog.logger.error("event-tap-disabled type=\(type.rawValue, privacy: .public) action=fail-closed")
             return Unmanaged.passUnretained(event)
         }
 
@@ -287,6 +289,7 @@ final class EventTapController {
             return Unmanaged.passUnretained(event)
         }
 
+        hasHandledKey = true
         let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
         if type == .keyUp {
             return handleKeyUp(event: event, keyCode: keyCode)

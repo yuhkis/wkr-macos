@@ -1,12 +1,7 @@
 import XCTest
 @testable import WKRCore
 
-/// beta.14: the だ row and the `X` row carry the で and て loanword kana on the
-/// same keys, and the special column changes the kana after every row.
-/// beta.15 gave the slots that held unwritten kana to common sequences, and
-/// beta.16 gathered every sequence on the special column.
 final class LoanwordColumnsTrialTests: XCTestCase {
-    private let beta13 = "wkr-layout@03cba20+ga-pa-small-io-yp-y-slash-question-swap-long-question-nm-swap-wp-vi-qw-small-wa"
     private let rows: [PhysicalKey] = [.e, .s, .f, .d, .g, .v, .r, .w, .a, .z, .c, .b, .t, .x]
 
     private func actions(typing keys: [PhysicalKey], mode: OutputMode) -> [SyntheticAction] {
@@ -33,18 +28,23 @@ final class LoanwordColumnsTrialTests: XCTestCase {
         WKRLayout.rules.first { $0.input == keys }
     }
 
-    /// The rule the layout is read by: after a consonant key, `U` `I` `O` and
-    /// `P` always give a kana of their own. No row leaves one of them to mean
-    /// the bare kana followed by や よ ゆ or by the symbol prefix.
+    /// Every row has P/I/O variants. N adds the ぇ column except on the W row.
     func testEveryConsonantRowChangesTheKanaOnAllFourColumns() {
         for rules in [WKRLayout.rules, WKRLayout.rulesWithoutSymbolLayer] {
             for row in rows {
                 let root = rules.first { $0.input == [row] }?.kana
                 XCTAssertNotNil(root, row.rawValue)
-                for column in [PhysicalKey.u, .i, .o, .p] {
+                for column in [PhysicalKey.p, .i, .o] {
                     let kana = rules.first { $0.input == [row, column] }?.kana
                     XCTAssertNotNil(kana, "\(row.rawValue)+\(column.rawValue)")
                     XCTAssertNotEqual(kana, root, "\(row.rawValue)+\(column.rawValue)")
+                }
+                if row == .w {
+                    XCTAssertNil(rules.first { $0.input == [row, .n] })
+                } else {
+                    let ye = rules.first { $0.input == [row, .n] }?.kana
+                    XCTAssertNotNil(ye, row.rawValue)
+                    XCTAssertTrue(ye?.hasSuffix("ぇ") == true, row.rawValue)
                 }
             }
         }
@@ -52,11 +52,10 @@ final class LoanwordColumnsTrialTests: XCTestCase {
 
     func testTheDaRowAndTheXRowAreTwinsOnTheSameKeys() {
         let twins: [(PhysicalKey, String, String, String, String)] = [
-            (.u, "でぃ", "deli", "てぃ", "teli"), (.o, "でゅ", "delyu", "てゅ", "telyu"),
+            (.p, "でぃ", "deli", "てぃ", "teli"), (.o, "でゅ", "delyu", "てゅ", "telyu"),
             (.i, "どぅ", "dolu", "とぅ", "tolu"),
-            // Neither row has a ぇ kana for the special column, so it gives the
-            // commonest sequence of each family: で then す, and し then て.
-            (.p, "です", "desu", "して", "site"),
+            // N is the ぇ column, with each row's available kana.
+            (.n, "ぢぇ", "dye", "ふぇ", "fe"),
         ]
         for (key, voiced, voicedRomaji, plain, plainRomaji) in twins {
             XCTAssertEqual(rule([.c, key])?.kana, voiced)
@@ -73,63 +72,53 @@ final class LoanwordColumnsTrialTests: XCTestCase {
         XCTAssertEqual(rule([.x, .j])?.kana, "ふゅ")
     }
 
-    /// Rows with a ぇ loanword kana keep it on the special column; the others
-    /// give a common pair of kana that begins with the row's own. Until
-    /// beta.17 that was the row's あい wherever nothing stood out; beta.18
-    /// tries the pair that looks most useful for each row.
-    func testRowsWithoutALoanwordKanaGiveACommonPair() {
+    /// The P column gives kana, not the old two-kana shortcuts. N gives ぇ.
+    func testRowsHaveYaAndYeKanaRatherThanShortcuts() {
         let cases: [(PhysicalKey, String, String)] = [
-            (.d, "ので", "node"), (.g, "はい", "hai"), (.v, "ます", "masu"),
-            (.r, "れる", "reru"), (.b, "ぶん", "bunn"), (.t, "ぷろ", "puro"), (.a, "がい", "gai"),
-            (.c, "です", "desu"), (.e, "こと", "koto"), (.w, "わけ", "wake"),
+            (.d, "ちゃ", "tya"), (.f, "にゃ", "nya"), (.g, "ひゃ", "hya"), (.v, "みゃ", "mya"),
+            (.r, "りゃ", "rya"), (.b, "びゃ", "bya"), (.t, "ぴゃ", "pya"), (.a, "ぎゃ", "gya"),
+            (.c, "でぃ", "deli"), (.e, "きゃ", "kya"), (.w, "ゐ", "wyi"), (.x, "てぃ", "teli"),
+            (.s, "しゃ", "sha"), (.z, "じゃ", "zya"),
         ]
-        // Every pair begins with its row's kana and is exactly two kana units.
-        for (row, kana, _) in cases {
-            let rowKana = Set(WKRLayout.rules.filter { $0.input.first == row && $0.input.count <= 2 && $0.kana.count == 1 }.map(\.kana))
-            XCTAssertEqual(kana.count, 2, kana)
-            XCTAssertTrue(rowKana.contains(String(kana.prefix(1))), kana)
-        }
-        for (row, kana) in [(PhysicalKey.s, "しぇ"), (.f, "ちぇ"), (.z, "じぇ"), (.x, "して")] {
-            XCTAssertEqual(rule([row, .p])?.kana, kana)
+        for (row, kana) in [(PhysicalKey.s, "しぇ"), (.d, "ちぇ"), (.f, "にぇ"), (.z, "じぇ"), (.x, "ふぇ")] {
+            XCTAssertEqual(rule([row, .n])?.kana, kana)
         }
         for mode in [OutputMode.deferredRomaji, .prefixRomaji] {
             for (row, kana, romaji) in cases {
                 XCTAssertEqual(rule([row, .p])?.kana, kana)
-                let sent = actions(typing: [row, .p], mode: mode)
-                XCTAssertEqual(onScreen(sent), romaji)
-                // They spell with the row's own letter, so nothing is taken back.
-                XCTAssertFalse(sent.contains { if case .backspace = $0 { return true }; return false }, kana)
+                XCTAssertEqual(onScreen(actions(typing: [row, .p], mode: mode)), romaji)
             }
         }
+        XCTAssertNil(rule([.w, .n]))
+        XCTAssertTrue(WKRLayout.rules.allSatisfy { !["こと", "ので", "はい", "ます", "れる", "わけ", "がい", "ぶん", "ぷろ", "です", "して"].contains($0.kana) })
     }
 
-    /// `C` streams `d` and all four loanword kana continue it; `X` streams `f`
-    /// for ふぁ, so its four て kana pay the one Backspace they always paid.
+    /// C keeps its d prefix. X rolls back f for P/I/O, but N keeps f for ふぇ.
     func testPrefixModeCostsAreUnchanged() {
-        for key in [PhysicalKey.u, .i, .o, .p] {
+        for key in [PhysicalKey.p, .i, .o] {
             let voiced = actions(typing: [.c, key], mode: .prefixRomaji)
             XCTAssertEqual(voiced.first, .romaji("d"))
             XCTAssertFalse(voiced.contains { if case .backspace = $0 { return true }; return false })
             let plain = actions(typing: [.x, key], mode: .prefixRomaji)
             XCTAssertEqual(Array(plain.prefix(2)), [.romaji("f"), .backspace(count: 1)])
         }
+        XCTAssertEqual(actions(typing: [.x, .n], mode: .prefixRomaji), [.romaji("f"), .romaji("e")])
+        XCTAssertEqual(actions(typing: [.c, .n], mode: .prefixRomaji), [.romaji("d"), .romaji("ye")])
     }
 
     func testDisplacedSequencesStayTypable() {
         let cases: [([PhysicalKey], String)] = [
             // ぢゃ ぢゅ ぢょ: the base kana and a prefixed small kana.
-            ([.c, .k, .q, .u], "dilya"), ([.c, .k, .q, .o], "dilyu"), ([.c, .k, .q, .i], "dilyo"),
-            // A bare あ-column kana before the symbol prefix or before や よ ゆ
-            // takes its vowel explicitly, in every row alike.
-            ([.d, .h, .p, .l], "nazl"), ([.c, .h, .i], "dayo"), ([.v, .h, .p, .l], "mazl"),
+            ([.c, .k, .q, .p], "dilya"), ([.c, .k, .q, .o], "dilyu"), ([.c, .k, .q, .i], "dilyo"),
+            // A bare あ-column kana before independent や よ ゆ needs H.
+            ([.f, .h, .p, .l], "nayao"), ([.c, .h, .i], "dayo"), ([.v, .h, .p, .l], "mayao"),
             // ー っ ん are not columns, so the bare kana still takes them directly.
-            ([.d, .y], "na-"), ([.c, .n], "dann"),
-            // The sequences a slot now gives can still be spelled out, and まい,
-            // which ます displaced, is the vowel spelled out like かい.
-            ([.d, .h, .k], "nai"), ([.c, .semicolon, .s, .j], "desu"), ([.s, .k, .f, .semicolon], "shite"),
+            ([.f, .y], "na-"), ([.c, .m], "dann"), ([.c, .u], "daltu"),
+            // Words formerly covered by shortcuts remain explicit kana sequences.
+            ([.f, .h, .k], "nai"), ([.c, .semicolon, .s, .j], "desu"), ([.s, .k, .d, .semicolon], "shite"),
             ([.v, .h, .k], "mai"), ([.e, .h, .k], "kai"), ([.v, .s, .j], "masu"),
             // でょ てょ and the six ぇ kana are the base kana and a prefixed small kana.
-            ([.c, .semicolon, .q, .i], "delyo"), ([.d, .k, .q, .semicolon], "nile"),
+            ([.c, .semicolon, .q, .i], "delyo"), ([.f, .k, .q, .semicolon], "nile"),
         ]
         for mode in [OutputMode.deferredRomaji, .prefixRomaji] {
             for (keys, expected) in cases {
@@ -138,11 +127,5 @@ final class LoanwordColumnsTrialTests: XCTestCase {
         }
     }
 
-    /// Days counted under beta.13 keep the three tooltips they were counted
-    /// under: だ行 with ぢゃ, ふぁ行 with てぃ でゅ でぃ, and ■ without the new kana.
-
-
-    /// Legacy beta.14 identifiers preserve the old role labels. The current
-    /// table names sequences from the canonical rules without rewriting them.
 
 }

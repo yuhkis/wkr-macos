@@ -48,6 +48,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var setupWindow: SetupWindowController?
     private var practiceWindow: PracticeWindowController?
     private var userPaused = false
+    private var eventTapRetryTimer: Timer?
+    private var permissionRecheckStarted: DispatchTime?
+    private var predecessorWait: EventTapPredecessorWait?
+    private var predecessorWaitStarted: DispatchTime?
+    private var predecessorExitTimer: Timer?
 
     init(configuration: AppConfiguration) {
         self.configuration = configuration
@@ -57,7 +62,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         installTerminationSignalHandler()
         installStatusItem()
         if configuration.action == .practice { openPractice(); return }
-        startConversion()
+        if let relaunch = configuration.eventTapRelaunch {
+            // Return from AppKit launch before checking for predecessor exit.
+            predecessorWait = EventTapPredecessorWait()
+            predecessorWaitStarted = .now()
+            schedulePredecessorCheck(pid: relaunch.previousPID, after: EventTapPredecessorWait.interval)
+        } else {
+            startConversion()
+        }
     }
 
     private func startConversion(requestPermissions: Bool = false) {
@@ -65,7 +77,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             showSetup(reason: "練習専用で起動しています。変換を使うときは一度終了し、通常起動してください。")
             return
         }
-        guard eventTapController == nil else { return }
+        guard predecessorWait == nil else {
+            showSetup(reason: "前の起動が終了するのを待っています。変換はまだ開始していません。")
+            return
+        }
+        guard eventTapController == nil, !isTerminatingFailClosed else { return }
+        eventTapRetryTimer?.invalidate()
+        eventTapRetryTimer = nil
+        if requestPermissions { permissionRecheckStarted = nil }
         if let blocker = startupBlocker() {
             AppLog.logger.error("conversion-not-started reason=\(blocker, privacy: .public)")
             showSetup(reason: blocker == "not-a-bundle" ? "アプリの構成を確認してください。" : "別のWKR変換アプリが動いています。先に終了してから開始してください。")
@@ -77,18 +96,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         engineLease = lease
         let permissions = PermissionController.check(
-            requestIfNeeded: requestPermissions || configuration.requestPermissions
+            requestIfNeeded: StartupRefusal.requestsPermissions(
+                configured: configuration.requestPermissions,
+                relaunch: configuration.eventTapRelaunch,
+                userRequested: requestPermissions
+            )
         )
         lastPermissionState = permissions
         AppLog.logger.notice("permissions listen=\(permissions.listen, privacy: .public) post=\(permissions.post, privacy: .public)")
 
         guard permissions.isGranted else {
-            AppLog.logger.error("conversion-not-started reason=permissions")
             engineLease = nil
-            showSetup(reason: "入力監視: \(permissions.listen ? "許可済み" : "未許可") / アクセシビリティ: \(permissions.post ? "許可済み" : "未許可")。設定画面で \(AppVersion.name) を許可して、再確認してください。")
+            showSetup(reason: "入力監視: \(permissions.listen ? "許可済み" : "未許可") / アクセシビリティ: \(permissions.post ? "許可済み" : "未許可")。設定画面で \(AppVersion.name) を許可してください。変換を開始せず、一定時間だけ状態を再確認します。")
+            startupRefused(.permissions)
             return
         }
 
+        permissionRecheckStarted = nil
         var recorder = KeyFrequencyRecorder(
             enabled: configuration.keyFrequencyEnabled,
             storeURL: KeyFrequencyReportCommand.storeURL(for: configuration),
@@ -113,7 +137,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.refreshConversionContext()
             },
             fatalErrorHandler: { [weak self] reason in
-                self?.terminateFailClosed(reason: reason)
+                self?.eventTapFailed(reason: reason)
             }
         ) else {
             AppLog.logger.error("conversion-not-started reason=event-source")
@@ -121,11 +145,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        guard controller.start(permissionsGranted: permissions.isGranted) else {
-            AppLog.logger.error("conversion-not-started reason=event-tap")
-            NSApplication.shared.terminate(nil)
-            return
-        }
+        // Prepare all main-thread UI, observers and context before the tap
+        // starts receiving events on this same run loop.
         eventTapController = controller
 
         let monitor = InputSourceMonitor { [weak self] snapshot in
@@ -158,9 +179,154 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         refreshConversionContext()
 
+        guard controller.start(permissionsGranted: permissions.isGranted) else {
+            stopConversionForStartupRetry()
+            startupRefused(.eventTap)
+            return
+        }
+        // Starting the tap preserves the safety context established above.
+        if let relaunch = configuration.eventTapRelaunch {
+            let elapsed = max(0, Int(Date().timeIntervalSince1970 - relaunch.firstFailure))
+            AppLog.logger.notice("event-tap-start relaunched=true attempts=\(relaunch.attempt, privacy: .public) after-seconds=\(elapsed, privacy: .public)")
+        }
         AppLog.logger.notice(
             "conversion-started output-mode=\(self.configuration.outputModeName, privacy: .public) english-fallback=\(self.configuration.englishFallbackTrigger.rawValue, privacy: .public) symbol-layer=\(self.configuration.symbolLayerEnabled ? "on" : "off", privacy: .public) key-frequency=\(self.frequencyRecorder != nil ? "on" : "off", privacy: .public)"
         )
+    }
+
+    private func eventTapFailed(reason: String) {
+        precondition(Thread.isMainThread)
+        let keyHandled = eventTapController?.hasHandledKey ?? true
+        guard StartupRefusal.relaunchesAfterTapFailure(reason: reason, keyHandled: keyHandled),
+              !isTerminatingFailClosed else {
+            terminateFailClosed(reason: reason)
+            return
+        }
+        isTerminatingFailClosed = true
+        AppLog.logger.error("conversion-stopped reason=\(reason, privacy: .public) action=relaunch keys-handled=0")
+        stopConversionForStartupRetry()
+        startupRefused(.eventTapTimeout)
+    }
+
+    /// Only startup failure uses this cleanup. It leaves setup/practice UI
+    /// available and removes the lease before a fresh process can start.
+    private func stopConversionForStartupRetry() {
+        safetyTimer?.invalidate()
+        safetyTimer = nil
+        if let applicationObserver { NSWorkspace.shared.notificationCenter.removeObserver(applicationObserver) }
+        applicationObserver = nil
+        if let peerObserver { NSWorkspace.shared.notificationCenter.removeObserver(peerObserver) }
+        peerObserver = nil
+        inputSourceMonitor = nil
+        eventTapController?.invalidateContext(.tapDisabled)
+        eventTapController?.stop()
+        eventTapController = nil
+        frequencyRecorder?.flushAndStop()
+        frequencyRecorder = nil
+        engineLease = nil
+    }
+
+    private func startupRefused(_ refusal: StartupRefusal) {
+        guard !refusal.keepsPermissionSetup else {
+            schedulePermissionRecheck()
+            return
+        }
+        let now = Date().timeIntervalSince1970
+        let previous = configuration.eventTapRelaunch
+        // The separate attempt cap also bounds recovery after clock changes.
+        let firstFailure = min(previous?.firstFailure ?? now, now)
+        let attempt = previous?.attempt ?? 1
+        let elapsed = max(0, now - firstFailure)
+        switch configuration.eventTapStartupRetry.next(afterFailureAt: elapsed, attempt: attempt) {
+        case .giveUp:
+            AppLog.logger.error("conversion-not-started reason=\(refusal.reason, privacy: .public) attempts=\(attempt, privacy: .public) waited-seconds=\(Int(elapsed), privacy: .public)")
+            NSApplication.shared.terminate(nil)
+        case let .relaunch(after: delay):
+            AppLog.logger.notice("\(refusal.waitEvent, privacy: .public) failed=true action=relaunch attempt=\(attempt, privacy: .public) elapsed-seconds=\(Int(elapsed), privacy: .public) wait-seconds=\(self.configuration.eventTapStartupRetry.waitSeconds, privacy: .public)")
+            let next = EventTapRelaunch(firstFailure: firstFailure, attempt: attempt + 1, previousPID: getpid())
+            let timer = Timer(timeInterval: delay, repeats: false) { [weak self] _ in self?.relaunch(next) }
+            RunLoop.main.add(timer, forMode: .common)
+            eventTapRetryTimer = timer
+        }
+    }
+
+    /// First-time setup must not disappear every time a fresh process starts.
+    /// Recheck here without requesting permissions again, bounded by a
+    /// monotonic clock. After the deadline the window and manual retry remain.
+    private func schedulePermissionRecheck() {
+        let start = permissionRecheckStarted ?? DispatchTime.now()
+        permissionRecheckStarted = start
+        let elapsed = Double(DispatchTime.now().uptimeNanoseconds &- start.uptimeNanoseconds) / Double(NSEC_PER_SEC)
+        switch configuration.eventTapStartupRetry.next(afterFailureAt: elapsed) {
+        case .giveUp:
+            eventTapRetryTimer = nil
+            permissionRecheckStarted = nil
+            AppLog.logger.notice("permissions-check action=setup-wait-ended wait-seconds=\(self.configuration.eventTapStartupRetry.waitSeconds, privacy: .public)")
+        case let .relaunch(after: delay):
+            // The shared delay policy does not require a new process for
+            // permissions: the visible setup remains the user's entry point.
+            let timer = Timer(timeInterval: delay, repeats: false) { [weak self] _ in
+                guard let self else { return }
+                if PermissionController.current().isGranted {
+                    self.startConversion()
+                } else {
+                    self.schedulePermissionRecheck()
+                }
+            }
+            RunLoop.main.add(timer, forMode: .common)
+            eventTapRetryTimer = timer
+        }
+    }
+
+    private func relaunch(_ next: EventTapRelaunch) {
+        let openConfiguration = NSWorkspace.OpenConfiguration()
+        openConfiguration.createsNewApplicationInstance = true
+        openConfiguration.activates = false
+        openConfiguration.addsToRecentItems = false
+        openConfiguration.arguments = EventTapRelaunch.arguments(replacingIn: CommandLine.arguments, with: next)
+        NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: openConfiguration) { _, error in
+            DispatchQueue.main.async {
+                if error != nil {
+                    AppLog.logger.error("conversion-not-started reason=event-tap-relaunch attempts=\(next.attempt - 1, privacy: .public)")
+                }
+                NSApplication.shared.terminate(nil)
+            }
+        }
+    }
+
+    /// The old process can be waiting for Launch Services to finish opening
+    /// this one. Timer checks let AppKit return from launch and process events.
+    /// No lease, input permission request or event tap starts while it is alive.
+    private func schedulePredecessorCheck(pid: pid_t, after delay: TimeInterval) {
+        let timer = Timer(timeInterval: delay, repeats: false) { [weak self] _ in
+            guard let self, var wait = self.predecessorWait,
+                  let started = self.predecessorWaitStarted else { return }
+            let elapsed = Double(DispatchTime.now().uptimeNanoseconds &- started.uptimeNanoseconds) / Double(NSEC_PER_SEC)
+            let alive = kill(pid, 0) == 0 || errno == EPERM
+            let next = wait.next(predecessorAlive: alive, elapsed: elapsed)
+            self.predecessorWait = wait
+            switch next {
+            case let .wait(after: interval):
+                self.schedulePredecessorCheck(pid: pid, after: interval)
+            case .startConversion:
+                self.clearPredecessorWait()
+                // Still use the ordinary peer/lease/permission safety gates.
+                self.startConversion()
+            case .giveUp:
+                self.clearPredecessorWait()
+                AppLog.logger.error("conversion-not-started reason=predecessor-exit-timeout")
+                self.showSetup(reason: "前の起動が終了していないため、変換を開始しませんでした。別のWKRを終了してから状態を再確認してください。")
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        predecessorExitTimer = timer
+    }
+
+    private func clearPredecessorWait() {
+        predecessorExitTimer?.invalidate()
+        predecessorExitTimer = nil
+        predecessorWait = nil
+        predecessorWaitStarted = nil
     }
 
     /// Route SIGTERM through `NSApplication.terminate` so the app shuts down the
@@ -187,6 +353,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        clearPredecessorWait()
+        eventTapRetryTimer?.invalidate()
         safetyTimer?.invalidate()
         if let applicationObserver {
             NSWorkspace.shared.notificationCenter.removeObserver(applicationObserver)
@@ -636,7 +804,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             window.practice = { [weak self] in self?.openPractice() }
             setupWindow = window
         }
-        setupWindow?.show(reason: reason, canStartConversion: configuration.action != .practice)
+        setupWindow?.show(reason: reason, canStartConversion: configuration.action != .practice && predecessorWait == nil)
     }
 
     private func openPractice() {
@@ -688,6 +856,7 @@ do {
         print("""
         \(AppVersion.name) — --version / --print-input-source\(AppVersion.supportsPractice ? " / --practice-only" : "")
         Open the app to set up permissions and start conversion.
+        --event-tap-startup-wait SECONDS (0...3600; default 300)
         --mode prefix|deferred (optimistic requires --allow-unverified-optimistic)
         --key-frequency on|off (default off), --key-frequency-retention all|DAYS
         --key-frequency-report [--open] [--output PATH] [--vil PATH]
