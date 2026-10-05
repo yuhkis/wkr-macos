@@ -1,6 +1,6 @@
 # macOSでの配列と綴り
 
-正本: [wkr-layout](https://github.com/yuhkis/wkr-layout)、固定commit `fedd175d4d397ec39ed586e369552d8debbf884a`。
+正本: [wkr-layout](https://github.com/yuhkis/wkr-layout)、固定commit `137d3d6610501e98ff3aa417bb4313fd27d1bae3`。
 
 # わから配列 v2 配列表
 

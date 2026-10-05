@@ -2,7 +2,7 @@
 
 Apple日本語入力の前段で、わから配列v2のキーを標準ローマ字に置き換えるmacOSアプリです。`W E R` + Enterで「わから」、`E K`で「き」と入力できます。かな漢字変換はApple日本語入力を使います。
 
-**今回の配布候補: v1アプリ0.7.2 / v2アプリ0.8.0-public.beta.8 / 練習帳0.5.0**。配列はそれぞれ1.1.0 / 2.0.0-beta.5です。v2は171規則で、D＝た行、F＝な行、M＝ん、U＝っ、P＝や・拗音列、N＝いぇ・ぇ列です。配列・Web教材・同梱教材は上流の同じ正本から生成します。
+**今回の配布候補: v1アプリ0.7.2 / v2アプリ0.8.0-public.beta.8 / 練習帳0.5.1**。配列はそれぞれ1.1.0 / 2.0.0-beta.5です。v2は171規則で、D＝た行、F＝な行、M＝ん、U＝っ、P＝や・拗音列、N＝いぇ・ぇ列です。配列・Web教材・同梱教材は上流の同じ正本から生成します。
 
 公開済みbeta.5の[アプリzipとSHA256SUMS](https://github.com/yuhkis/wkr-macos/releases/tag/v0.8.0-public.beta.5)を公式Releaseから入手できます。
 
@@ -12,7 +12,7 @@ Apple日本語入力の前段で、わから配列v2のキーを標準ローマ�
 
 | 配列 | macOSアプリ |
 | --- | --- |
-| 2.0.0-beta.5（準備中） | v2 Public Beta 0.8.0-public.beta.8（準備中・未公開） |
+| [2.0.0-beta.5](https://github.com/yuhkis/wkr-layout/releases/tag/v2.0.0-beta.5) | v2 Public Beta 0.8.0-public.beta.8（準備中・未公開） |
 | [2.0.0-beta.4](https://github.com/yuhkis/wkr-layout/releases/tag/v2.0.0-beta.4) | Web練習帳0.4.0。対応するmacOS配布版は未公開 |
 | [2.0.0-beta.1](https://github.com/yuhkis/wkr-layout/releases/tag/v2.0.0-beta.1) | [v2 Public Beta 0.8.0-public.beta.5](https://github.com/yuhkis/wkr-macos/releases/tag/v0.8.0-public.beta.5) |
 | [1.1.0 保存資料](https://github.com/yuhkis/wkr-layout/releases/tag/v1.1.0-archive.1) | [v1 0.7.0-archive.1 保存ソース](https://github.com/yuhkis/wkr-macos/releases/tag/v0.7.0-archive.1) |
@@ -25,7 +25,7 @@ v1保存版は[Legacy/wkr-macos-v1](Legacy/wkr-macos-v1/README.md)へ隔離し�
 
 [ダウンロード・権限設定・停止・アンインストール](docs/distribution.md)の順に進めます。macOS 14以降、Apple日本語入力のローマ字入力・ひらがなモード、JISキーボードを対象とします。今回のローカル配布候補はApple Silicon用です。ソースからのビルドと、専用の自己署名証明書で署名した未公証のアプリDMGによる導入を用意します（公開済みbeta.5はad-hoc署名のzip）。Apple Developer Programへの加入を前提にせず、ダウンロードしたアプリでは初回にmacOSの個別の起動許可が必要です。同じ証明書で署名した版どうしは、入力監視・アクセシビリティの許可を引き継ぎます（macOS 27.2.1で確認）。
 
-起動すると権限不足や別のWKRの起動状態を案内します。変換中はメニューバーで一時停止・再開・終了できます。安全条件を失ったときは状態を捨てて停止します。入力ソースを自動で切り替えません。初回未許可では案内画面を維持し、権限の再確認は有限に行います。監視の起動拒否と最初のキー前のtimeoutだけ有限の再起動対象です。詳細は[起動と権限](docs/install.md)を参照してください。
+起動すると権限不足や別のWKRの起動状態を案内します。メニューにも権限未許可・変換未開始を明示し、見出しと対処を同じ状態にそろえます。変換開始前は一時停止操作を無効にします。変換中はメニューバーで一時停止・再開・終了できます。安全条件を失ったときは状態を捨てて停止します。入力ソースを自動で切り替えません。初回未許可では案内画面を維持し、権限の再確認は有限に行います。監視の起動拒否と最初のキー前のtimeoutだけ有限の再起動対象です。詳細は[起動と権限](docs/install.md)を参照してください。
 
 メニューの「わから v2 を練習する」から、母音・行キーから短文へ進む練習帳を開けます。教材はアプリに同梱され、オフラインで使えます。`--practice-only`なら変換エンジンや入力権限を使わずに練習画面だけを開きます。ブラウザ版・独立したWakaraPractice.appと同じ公開教材です。QWERTY体験はABC・英数で、導入済みWKRでの練習は「WKR・IMEで練習」で使います。
 
@@ -57,7 +57,7 @@ make package-all
 
 - [配列とmacOS用綴り](docs/layout-reference.md)
 - [仕組み](docs/how-it-works.md)・[設計](docs/design.md)・[開発時の確認](docs/development.md)
-- [検証記録](docs/verification.md)・[残件](docs/roadmap.md)・[v2 Release文案](docs/release-0.8.0-public.beta.8.md)・[v1](docs/release-0.7.2.md)・[練習帳](docs/release-practice-0.5.0.md)
+- [検証記録](docs/verification.md)・[残件](docs/roadmap.md)・[v2 Release文案](docs/release-0.8.0-public.beta.8.md)・[v1](docs/release-0.7.2.md)・[練習帳](docs/release-practice-0.5.1.md)
 - [公開作業規約](AGENTS.md)
 
 MIT License。配列と教材の正本は [wkr-layout](https://github.com/yuhkis/wkr-layout)。取り込んだcommitとファイルSHA256は `Resources/upstream-manifest.json` に記録します。

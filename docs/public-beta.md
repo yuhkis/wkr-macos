@@ -12,7 +12,7 @@
 
 - 配列2.0.0-beta.5: `wkr-layout`の171規則JSONが正本。D＝た行・F＝な行。macOSの綴りもそのJSONのdeliveryから生成する。
 - macOS 0.8.0-public.beta.8: 独立した公開履歴を継続する。ビルド番号48。`public.beta` は一般公開の試験版を表し、Privateとは別の系列。未公開のbeta.6・beta.7の番号も別内容に再利用しない。
-- 練習0.5.0: `wkr-layout/practice`が正本。同じHTML / JS / CSS / data.jsをアプリへ同梱し、固定commitとハッシュを記録する。
+- 練習0.5.1: `wkr-layout/practice`が正本。同じHTML / JS / CSS / data.jsをアプリへ同梱し、固定commitとハッシュを記録する。
 - v1アプリ0.7.2: 配列1.1.0の保存規則を維持し、共通の起動安全処理を更新する。以前の未配布候補0.7.1-public.1とは区別する。
 - Public / Privateの変換ロジックは`WKRCore`へ集約する。研究用の変更はこの公開branchへmergeしない。Privateへは公開されたCoreと同じ排他処理を選択して反映する。
 

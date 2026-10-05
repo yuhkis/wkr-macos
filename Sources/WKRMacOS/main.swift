@@ -107,6 +107,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         guard permissions.isGranted else {
             engineLease = nil
+            // Startup blockers take precedence; no input-source query is needed.
+            publishStatus(secureInput: false, applicationAllowed: true, inputSourceMatches: false, inputSourceName: nil)
             showSetup(reason: "入力監視: \(permissions.listen ? "許可済み" : "未許可") / アクセシビリティ: \(permissions.post ? "許可済み" : "未許可")。設定画面で \(AppVersion.name) を許可してください。変換を開始せず、一定時間だけ状態を再確認します。")
             startupRefused(.permissions)
             return
@@ -224,6 +226,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         frequencyRecorder?.flushAndStop()
         frequencyRecorder = nil
         engineLease = nil
+        publishStatus(secureInput: false, applicationAllowed: true, inputSourceMatches: false, inputSourceName: nil)
     }
 
     private func startupRefused(_ refusal: StartupRefusal) {
@@ -431,7 +434,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         publishStatus(
             secureInput: secureInput,
             applicationAllowed: applicationAllowed && !userPaused,
-            inputSourceMatches: matches
+            inputSourceMatches: matches,
+            inputSourceName: snapshot?.localizedName
         )
 
         if lastApplicationAllowed != applicationAllowed {
@@ -471,12 +475,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func publishStatus(
         secureInput: Bool,
         applicationAllowed: Bool,
-        inputSourceMatches: Bool
+        inputSourceMatches: Bool,
+        inputSourceName: String?
     ) {
         precondition(Thread.isMainThread)
         guard let statusItemController else { return }
         let status = ConversionStatus.resolve(
             gateOpen: eventTapController?.isConverting ?? false,
+            permissionsGranted: lastPermissionState?.isGranted,
+            tapOperational: eventTapController?.isOperational ?? false,
             secureInputEnabled: secureInput,
             applicationAllowed: applicationAllowed && !userPaused,
             inputSourceMatches: inputSourceMatches,
@@ -485,7 +492,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         guard lastPublishedStatus != status else { return }
         lastPublishedStatus = status
-        statusItemController.apply(status)
+        // Status changes carry one coherent snapshot without querying a holder
+        // on the safety timer. The menu samples Secure Input details on opening.
+        statusItemController.apply(ConversionMenuContent(status: status, inputSourceName: inputSourceName))
     }
 
     /// Creates the menu bar item.
@@ -510,12 +519,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         controller.openPracticeRequested = { [weak self] in self?.openPractice() }
         controller.openSetupRequested = { [weak self] in self?.showSetup(reason: "権限を確認し、Apple日本語入力の『ひらがな』で使います。") }
         controller.pauseRequested = { [weak self] in
-            guard let self else { return }
+            guard let self, self.eventTapController?.isOperational == true else { return }
             self.userPaused.toggle()
             self.eventTapController?.reset(.explicitStop)
             self.refreshConversionContext()
         }
         controller.pausedProvider = { [weak self] in self?.userPaused ?? false }
+        controller.canPauseProvider = { [weak self] in self?.eventTapController?.isOperational ?? false }
         selectedKeymapPath = configuration.vialKeymapPath
         controller.openHeatmapRequested = { [weak self] in
             self?.openKeyFrequencyReport()
@@ -726,7 +736,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// well clear of the 10 Hz path this must never touch.
     private func currentMenuContent() -> ConversionMenuContent {
         precondition(Thread.isMainThread)
-        let status = lastPublishedStatus ?? .stopping
+        let status = lastPublishedStatus ?? .notStarted
         guard status == .secureInput else {
             return ConversionMenuContent(
                 status: status,

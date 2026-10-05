@@ -5,3 +5,5 @@
 Apple Silicon用ZIP、macOS 14以降、Apple日本語入力、ad-hoc署名・未公証です。v2の教材は同梱しません。設定と日別頻度はv1専用の保存先を使い、旧版・Privateから自動移行しません。他のWKR変換アプリを終了してから起動します。
 
 [配列1.1の保存資料](https://github.com/yuhkis/wkr-layout/releases/tag/v1.1.0-archive.1)、[導入・停止・削除](https://github.com/yuhkis/wkr-macos/blob/main/docs/distribution.md)、[検証記録](https://github.com/yuhkis/wkr-macos/blob/main/docs/verification.md)を参照してください。今回のZIPでの日本語実入力・停止・再開・初回起動許可・更新・アンインストールは未確認です。
+
+権限未許可・入力監視の未開始をメニューに明示し、メニューを開いただけで「変換中」と誤表示しないようにしました。監視開始前の一時停止操作は無効です。

@@ -1,7 +1,59 @@
+import AppKit
 import XCTest
+import WKRCore
 @testable import WKRMacOS
 
 final class EventTapStartupRetryTests: XCTestCase {
+    func testPermissionDeadlineDoesNotTurnMenuIntoConversion() {
+        let retry = EventTapStartupRetry(waitSeconds: 300)
+        XCTAssertEqual(retry.next(afterFailureAt: 0), .relaunch(after: 3))
+        XCTAssertEqual(retry.next(afterFailureAt: 301), .giveUp)
+        for menuOpen in [false, true] {
+            let status = ConversionStatus.resolve(
+                gateOpen: false,
+                permissionsGranted: false,
+                tapOperational: false,
+                secureInputEnabled: false,
+                applicationAllowed: true,
+                inputSourceMatches: true,
+                statusMenuOpen: menuOpen
+            )
+            XCTAssertEqual(status, .waitingForPermissions)
+        }
+    }
+
+    @MainActor
+    func testMenuTransitionToConvertingClearsStoppingRemedy() {
+        let title = NSMenuItem()
+        let details = [NSMenuItem(), NSMenuItem()]
+        let remedy = NSMenuItem()
+        StatusItemController.renderStateRows(ConversionMenuContent(status: .stopping), title: title, details: details, remedy: remedy)
+        XCTAssertFalse(remedy.isHidden)
+        XCTAssertTrue(remedy.title.contains("conversion-stopped"))
+        StatusItemController.renderStateRows(ConversionMenuContent(status: .converting), title: title, details: details, remedy: remedy)
+        XCTAssertEqual(title.title, "変換中")
+        XCTAssertTrue(remedy.isHidden)
+        XCTAssertEqual(remedy.title, "")
+        XCTAssertTrue(details.allSatisfy { $0.isHidden && $0.title.isEmpty })
+    }
+
+    @MainActor
+    func testPermissionMenuRemovesPreviousSecureInputDetails() {
+        let title = NSMenuItem()
+        let details = [NSMenuItem(), NSMenuItem()]
+        let remedy = NSMenuItem()
+        // Only synthetic holder information is supplied; no system query runs.
+        let secure = ConversionMenuContent(status: .secureInput, secureInput: SecureInputDetail(holderPID: 4321, liveness: .alive, heldSeconds: 12, heldSinceLaunch: false))
+        StatusItemController.renderStateRows(secure, title: title, details: details, remedy: remedy)
+        XCTAssertTrue(details.allSatisfy { !$0.isHidden && !$0.title.isEmpty })
+        StatusItemController.renderStateRows(ConversionMenuContent(status: .waitingForPermissions), title: title, details: details, remedy: remedy)
+        XCTAssertEqual(title.title, "待機中：入力権限が未許可")
+        XCTAssertTrue(details.allSatisfy { $0.isHidden && $0.title.isEmpty })
+        XCTAssertFalse(remedy.isHidden)
+        XCTAssertTrue(remedy.title.contains("状態を再確認"))
+        XCTAssertFalse(remedy.title.contains("4321"))
+    }
+
     func testSuccessorDoesNotStartWhilePredecessorIsAlive() {
         var wait = EventTapPredecessorWait()
         XCTAssertEqual(wait.next(predecessorAlive: true, elapsed: 0), .wait(after: 0.05))

@@ -84,6 +84,11 @@ final class EventTapController {
         }
     }
 
+    /// Readiness for status display; this does not widen the conversion gate.
+    var isOperational: Bool {
+        permissionsGranted && tapOperational && eventTap != nil && runLoopSource != nil
+    }
+
     var isConverting: Bool {
         permissionsGranted
             && contextIsCurrent
