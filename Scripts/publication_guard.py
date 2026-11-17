@@ -9,10 +9,13 @@ import re
 import stat
 import subprocess
 import sys
+import tempfile
 import time
 import zipfile
 
 POLICY = '.publication-policy.json'
+# What macOS writes at the top of a mounted HFS+ or APFS volume by itself.
+DISK_IMAGE_SYSTEM_ENTRIES = {'.fseventsd', '.Trashes', '.HFS+ Private Directory Data\r'}
 REVIEW_FIELDS = ('sources_and_comments', 'fixture_provenance', 'identities_and_messages',
                  'archive_contents', 'github_refs_prs_releases_artifacts_lfs_actions',
                  'user_authorized_operations')
@@ -122,6 +125,82 @@ def check_index(root, message=None):
     return count
 
 
+def inspect_member(name, value, policy):
+    """One file of an archive or disk image: text is scanned, binaries must be listed."""
+    require(not zipfile.is_zipfile(__import__('io').BytesIO(value)), 'Nested archives require separate review')
+    scan(value, policy)
+    if b'\0' in value:
+        for offset in (0, 1):
+            for encoding in ('utf-16-le', 'utf-16-be'):
+                scan(value[offset:].decode(encoding, errors='ignore').encode(), policy)
+        require(name in policy.get('binary_archive_members', []),
+                'Unlisted binary archive member')
+
+
+def is_disk_image(path):
+    """A UDIF disk image ends with a 512-byte trailer that starts with 'koly'."""
+    if path.stat().st_size < 512:
+        return False
+    with path.open('rb') as stream:
+        stream.seek(-512, os.SEEK_END)
+        return stream.read(4) == b'koly'
+
+
+def detach(mount):
+    for attempt in range(10):
+        if subprocess.run(['hdiutil', 'detach', str(mount)], stdout=subprocess.DEVNULL,
+                          stderr=subprocess.DEVNULL).returncode == 0:
+            return
+        time.sleep(1)
+    subprocess.run(['hdiutil', 'detach', '-force', str(mount)], stdout=subprocess.DEVNULL,
+                   stderr=subprocess.DEVNULL)
+
+
+def inspect_disk_image(path, policy):
+    """Mount read-only and inspect every name and file; only the /Applications link may be a link."""
+    with tempfile.TemporaryDirectory() as directory:
+        certificates = Path(directory) / 'certificates'
+        certificates.mkdir()
+        # The signature is the one part of the image written outside the volume.
+        subprocess.run(['codesign', '-d', '--extract-certificates=' + str(certificates / 'c'), str(path)],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        for certificate in sorted(certificates.iterdir()):
+            scan(certificate.read_bytes(), policy)
+        mount = Path(directory) / 'mount'
+        mount.mkdir()
+        attached = subprocess.run(['hdiutil', 'attach', '-readonly', '-nobrowse', '-noautoopen',
+                                   '-mountpoint', str(mount), str(path)],
+                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        require(attached.returncode == 0, 'Disk image could not be mounted read-only')
+        try:
+            size = 0
+            for current, directories, files in os.walk(mount):
+                relative = Path(current).relative_to(mount)
+                for name in sorted(directories + files):
+                    full = Path(current) / name
+                    if relative == Path('.') and name in DISK_IMAGE_SYSTEM_ENTRIES:
+                        if name in directories:
+                            directories.remove(name)
+                        continue
+                    member = (relative / name).as_posix()
+                    public_path(member)
+                    require(not any(p in ('.git', 'archive', 'WORKLOG.md', 'AGENTS.local.md')
+                                    for p in PurePosixPath(member).parts), 'Private working material in archive')
+                    mode = full.lstat().st_mode
+                    if stat.S_ISLNK(mode):
+                        require(member == 'Applications' and os.readlink(full) == '/Applications',
+                                'Disk image links other than the Applications link are not permitted')
+                        continue
+                    if stat.S_ISDIR(mode):
+                        continue
+                    require(stat.S_ISREG(mode), 'Special file in disk image')
+                    size += full.stat().st_size
+                    require(size <= 200 * 1024 * 1024, 'Expanded archive exceeds review size limit')
+                    inspect_member(member, full.read_bytes(), policy)
+        finally:
+            detach(mount)
+
+
 def inspect_asset(path, policy):
     require(path.is_file() and not path.is_symlink(), 'Artifact must be a regular file')
     require(path.stat().st_size <= 200 * 1024 * 1024, 'Artifact exceeds review size limit')
@@ -145,15 +224,9 @@ def inspect_asset(path, policy):
                 require(size <= 200 * 1024 * 1024, 'Expanded archive exceeds review size limit')
                 if member.is_dir():
                     continue
-                value = archive.read(member)
-                require(not zipfile.is_zipfile(__import__('io').BytesIO(value)), 'Nested archives require separate review')
-                scan(value, policy)
-                if b'\0' in value:
-                    for offset in (0, 1):
-                        for encoding in ('utf-16-le', 'utf-16-be'):
-                            scan(value[offset:].decode(encoding, errors='ignore').encode(), policy)
-                    require(name in policy.get('binary_archive_members', []),
-                            'Unlisted binary archive member')
+                inspect_member(name, archive.read(member), policy)
+    elif is_disk_image(path):
+        inspect_disk_image(path, policy)
     else:
         require(b'\0' not in data, 'Binary assets must be in an inspected archive')
         scan(data, policy)

@@ -94,6 +94,7 @@
     "Scripts/package-public.py",
     "Scripts/package-v1-archive.py",
     "Scripts/publication_guard.py",
+    "Scripts/release-certificate-leaf.sha1",
     "Scripts/start-app.sh",
     "Scripts/sync-layout.py",
     "Scripts/test_publication_guard.py",
