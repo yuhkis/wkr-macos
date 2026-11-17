@@ -27,13 +27,13 @@
 
 ## 年会費を前提にしない配布
 
-公開ベータは、ソースビルドとad-hoc署名・未公証のアプリzipを候補にする。Apple Developer Programの会費やDeveloper ID取得を公開条件にしない。どの添付物を公開するかは、検証結果を添えて公開承認時に確定する。
+公開ベータは、ソースビルドと、専用の自己署名証明書で署名した未公証のDMGを配布する（beta.5まではad-hoc署名のZIP）。Apple Developer Programの会費やDeveloper ID取得を公開条件にしない。どの添付物を公開するかは、検証結果を添えて公開承認時に確定する。採否と根拠は[設計12節](design.md#12-配布物は自己署名の配布用証明書で署名したdmgにする2026-11-17)。
 
-既定ビルドはad-hoc署名で、`codesign --verify --deep --strict`で構造を検査する。Developer IDによる発行者確認やApple公証ではなく、ダウンロード後の初回起動にmacOSの個別許可が必要になる場合がある。配布物名・Release本文にこの状態を明記し、[導入文書](install.md)でApple公式の個別起動許可手順を案内する。Gatekeeper全体の無効化は求めない。
+自分でビルドする場合の既定はad-hoc署名で、`codesign --verify --deep --strict`で構造を検査する。自己署名証明書もDeveloper IDによる発行者確認やApple公証ではなく、ダウンロード後の初回起動にmacOSの個別許可が必要になる。配布物名・Release本文にこの状態を明記し、[導入手順](distribution.md)でApple公式の個別起動許可手順を案内する。Gatekeeper全体の無効化は求めない。
 
 将来、Developer ID署名・公証済みの配布へ変える場合に限り、利用者が承認したidentity、hardened runtime、公証成功、staple、Gatekeeperの既定評価を確認する。これは今回の無償配布の必須条件ではない。[Appleの配布方法](https://developer.apple.com/documentation/xcode/distributing-your-app-for-beta-testing-and-releases)を参照。
 
-今回の候補はDeveloper ID署名・公証を行わない。配布物名と検証記録にad-hoc署名・未公証を明記する。開発環境の証明書一覧や個人の署名設定は公開資料に含めない。
+Developer ID署名・公証は行わない。Release本文と検証記録に、自己署名・未公証であることと証明書のSHA-1を明記する。開発環境の証明書一覧や個人の署名設定は公開資料に含めない。
 
 ## 公開前
 
@@ -41,7 +41,7 @@
 
 ローカルcommitと配布候補・ハッシュ・Release文案・検証結果が揃ってから、push / PR / Releaseの承認を得る。WKR macOSはbranchとPRを使い、CI `swift-test`成功後、署名付きcommitを残すmerge commitで統合する。mainへの直接push・force pushはしない。空の新規リポジトリにはPRの比較先がないため、初回の最小基点の登録方法も公開操作案に明示して承認を得る。実装をPRなしでmainへ載せない。
 
-配布zipを展開したアプリの `codesign --verify --deep --strict` は成功しました。`stapler validate` は公証チケットなし、`spctl --assess --type execute` は rejected でした。これは未公証候補の既定評価の記録です。公開可否は、この評価だけで決めず、未公証であることの表示、個別起動許可の手順、確認した範囲を含めて判断します。
+beta.5の配布zipを展開したアプリの `codesign --verify --deep --strict` は成功しました。`stapler validate` は公証チケットなし、`spctl --assess --type execute` は rejected でした。これは未公証候補の既定評価の記録です。公開可否は、この評価だけで決めず、未公証であることの表示、個別起動許可の手順、確認した範囲を含めて判断します。
 
 
 ## ベータの実機確認範囲

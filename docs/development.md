@@ -22,7 +22,7 @@
 - Secure Event Input、パスワード欄、権限不足、tap 無効化、対象外の入力ソースでは変換しない。Command / Control / Option、未対応修飾キー、マウス、フォーカス・アプリ・カーソル・入力ソース変更、Escape、Undo / Redo の境界では規定どおり flush / cancel する。
 - deferred の未出力状態に対する Backspace は先に内部の保留を取り消し、既存本文を削除しない。
 - `IsSecureEventInputEnabled()` を event tap callback で直接呼ばず、安全な実行コンテキストで確認した状態を参照する。tap の timeout / 無効化時は [design.md](design.md) 6節どおり自動再有効化せず、状態を捨てて fail closed で終了する。
-- TCC 対象は固定 Bundle ID `io.github.yuhkis.wkr-macos.public` と固定出力先の最小 `.app` とする。署名は既定 ad-hoc、`CODESIGN_IDENTITY` の明示時だけその証明書を使い、キーチェーンから自動選択しない。証明書を操作する承認境界は AGENTS.md に従う。
+- TCC 対象は固定 Bundle ID `io.github.yuhkis.wkr-macos.public` と固定出力先の最小 `.app` とする。署名は既定 ad-hoc、`CODESIGN_IDENTITY` の明示時だけその証明書を使い、キーチェーンから自動選択しない。配布版は専用の自己署名証明書で署名する（[design.md](design.md) 12節、手順は [Scripts/README.md](../Scripts/README.md)）。証明書を操作する承認境界は AGENTS.md に従う。
 
 ## ログと表示
 
@@ -60,4 +60,4 @@ Privateの履歴と研究レコーダーを取り込まない。規則値・共�
 
 旧リポジトリのGitオブジェクトをfetch・mergeしない。旧履歴の調査は別の保全用リポジトリで行う。共通Coreの修正を採用するときは、必要なソース差分だけをレビューし、新しい公開commitとして記録する。`WORKLOG.md`や監査の原記録を公開branchへ追加しない。
 
-公開前は全refの祖先、author / committer、commit本文、tag、全追跡ファイルと配布zipを確認する。PR・Release・Actionsの本文やログにも個人の値を再掲しない。許可する識別子は著作権・公開著者・公開サービスの識別に必要なものに限り、個人メール、機体情報、端末設定、日常の利用記録、実打鍵集計を除く。
+公開前は全refの祖先、author / committer、commit本文、tag、全追跡ファイルと配布DMGを確認する。PR・Release・Actionsの本文やログにも個人の値を再掲しない。許可する識別子は著作権・公開著者・公開サービスの識別に必要なものに限り、個人メール、機体情報、端末設定、日常の利用記録、実打鍵集計を除く。

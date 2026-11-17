@@ -1,9 +1,10 @@
 # 開発用コマンド
 
+- `release-certificate-leaf.sha1`: 配布用の自己署名証明書「WKR macOS Release」のSHA-1（公開値）。差し替えは全利用者の権限再許可を伴うため、失効・漏えい時に限る（[design.md](../docs/design.md) 12節）。
 - `build-app.sh`: releaseビルドを`build/WKRPublic.app`へ組み立て、既定ad-hoc署名で検査する。ローカルパスをcompilerのprefix mapで除き、debug情報を生成せずに配布実行ファイルをstripする。インストールはしない。`CONFIGURATION`で構成、`CODESIGN_IDENTITY`で承認済みidentityだけを明示できる。
 - `sync-layout.py --upstream PATH --revision COMMIT`: 公開`wkr-layout`の指定commitから規則と教材を許可リストで取り込む。`--check`は一致検査。`--imported-on YYYY-MM-DD`で取り込み日を指定でき、省略時は同じpinの記録済み日付（新規pinは当日）を使う。開発時だけ`--working-tree`を使えるが、この状態の配布zip作成は拒否する。
 - `check-public.py`: Publicの実装に禁止された研究レコーダー・設定・CLI・橋渡しが入っていないこと、生成教材のハッシュと版、設定・保存先がPublic専用であることを検査する。全Git履歴の公開監査は別に必要。
-- `package-apps.py` / `make package-all`: cleanなcommitを全履歴監査して3製品をビルドし、固定リストのアプリ本体・LICENSE・導入説明だけをZIPにする。`--product v1|v2|practice`で選択できる。`build/distribution/<アプリ版>/<commit>/`へZIP・manifest.json・SHA256SUMSを出力し、既存の異なる候補を上書きしない。`package-public.py` / `make package`はv2だけの互換入口。ad-hoc署名を明示し、push・公証・インストールはしない。
+- `package-apps.py` / `make package-all`: cleanなcommitを全履歴監査して3製品をビルドし、固定リストのアプリ本体・`/Applications`へのリンク・LICENSE・導入説明（INSTALL.md）だけをDMGにする。`--product v1|v2|practice`で選択できる。`build/distribution/<アプリ版>/<commit>/<release|adhoc>/`へDMG・manifest.json・SHA256SUMSを出力し、空でない出力先には書かない（DMGはバイト単位で再現しないため）。`CODESIGN_IDENTITY`に配布用の自己署名証明書（名前 `WKR macOS Release` かSHA-1）を明示すると、アプリをhardened runtimeとsecure timestampで、DMGをsecure timestampで署名し、アプリ・DMG・DMG内のアプリの葉証明書が`release-certificate-leaf.sha1`と一致しなければ拒否する。未指定ならad-hoc署名の`-adhoc.dmg`（CI・リハーサル用、配布不可）。DMGを読み取り専用でマウントし、中のアプリが検査済みのビルドと全ファイル一致することと公開ガードの検査を確かめる。`package-public.py` / `make package`はv2だけの互換入口。push・公証・インストール・アップロードはしない。
 - `install-app.sh SOURCE [DEST]`: Public IDだけを許可し、既存の同名アプリを控えてからコピーする。実機での承認範囲内だけで使う。
 - `start-app.sh APP [ARGS...]`: 指定Publicアプリを起動する。プロセスが存在しても変換中とは限らないため、メニューと権限・入力源を確認する。
 - `install-login-agent.sh` / `uninstall-login-agent.sh`: Publicのログイン起動だけを登録・解除する。
@@ -14,11 +15,11 @@
 
 `publication_guard.py` はPython標準ライブラリとGitを使います。GitHubの接続先照合には認証済みの`gh`が必要です。新しい公開作業場だけに `python3 Scripts/publication_guard.py install` で設置します。global設定やPrivateの作業場には適用しません。
 
-- `audit --report PATH [--file PATH ...]`: 全refの到達履歴、identity、許可パス、配布zip等を検査し、非公開の監査ファイルへfingerprintを保存します。
+- `audit --report PATH [--file PATH ...]`: 全refの到達履歴、identity、許可パス、配布zip・DMG等を検査し、非公開の監査ファイルへfingerprintを保存します。
 - `install --repository-id ID`: 確認した公開先の数値ID、履歴の基点、検査コードと方針をGit管理外へ固定し、pre-push hookを設定します。IDを省略した設置ではpushを止めたままにします。
 - `authorize --report PATH --evidence PATH --operation push --ref refs/heads/codex/BRANCH [--file PATH ...]`: 同じ対象を再検査し、別途作成した内容確認・利用者承認の記録が揃った場合だけ24時間の承認記録を作ります。監査対象のファイルをすべて同じ`--file`で指定します。
 - `check-upload --operation pr|release --file PATH`: 承認に含めたPR本文・Release本文・配布物が同一かを操作直前に検査します。`authorize`にも該当する`--operation`を追加します。アップロード自体は行いません。
-- `python3 Scripts/test_publication_guard.py`: 実データを使わず、一時Git履歴とZIPで公開拒否条件を確認します。
+- `python3 Scripts/test_publication_guard.py`: 実データを使わず、一時Git履歴とZIP・DMG（macOSのみ）で公開拒否条件を確認します。
 
 履歴・ref・方針・配布物が変わると承認は無効です。方針や検査コードの変更後は、差分レビュー・監査・再設置が必要です。詳細と限界は[公開前監査](../docs/publication-audit.md)を参照してください。
 
@@ -27,6 +28,16 @@
 `python3 Scripts/check-v1-archive.py`は`Legacy/wkr-macos-v1/archive-source.json`の全ファイルSHA256と、詳細ログを残さない境界を検査します。`make -C Legacy/wkr-macos-v1 test`と`make -C Legacy/wkr-macos-v1 app`で保存版を検証・ビルドします。ビルドはad-hoc署名のみで、インストールや起動をしません。
 
 `python3 Scripts/package-v1-archive.py`はcleanなcommitから、`build/distribution/0.7.0-archive.1/<commit>/`へソースzip・manifest・SHA256SUMSを作ります。出力対象は固定manifestのソースだけで、build・Git履歴・ローカル記録を含みません。既存の異なる配布物は上書きせず、保存ソースを変更する場合は保存版を上げます。
+
+## 配布DMGの作成と確認
+
+配布用証明書「WKR macOS Release」は自己署名のコード署名証明書で、秘密鍵はリポジトリにも同期フォルダにも置かず、作成者のログインキーチェーンとパスワード管理ツールの控えにだけ置く。`security find-identity -p codesigning` には信頼されていない証明書として表示されるが、`codesign` の署名には使える。採否は[design.md](../docs/design.md) 12節。
+
+1. 取り込み済みのcleanな `main` で `env CODESIGN_IDENTITY='WKR macOS Release' make package-all` を実行する。3製品それぞれの出力先に、`<アプリ名>-<版>-arm64.dmg`・`manifest.json`・`SHA256SUMS` ができ、manifestの `signing` が `self-signed release certificate`、`certificateSHA1` が `release-certificate-leaf.sha1` の値になる。
+2. 出力先で `shasum -a 256 -c SHA256SUMS` を実行し、DMGを開いて中のアプリに `codesign -d -r-` を実行する。指定要件が `identifier "<Bundle ID>" and certificate leaf = H"<SHA-1>"` であることを確かめる。
+3. 作成したMacとは別のMac（または別ユーザー）で、ブラウザでダウンロードしたときと同じquarantine属性の付いたDMGから、[導入手順](../docs/distribution.md)のとおりに入れる。SHA-256の照合、「このまま開く」、入力監視・アクセシビリティの許可、短い変換を確かめる。
+4. 権限の引き継ぎ: 3.で許可した版を、同じ証明書で署名した別のビルド（版番号だけを変えた試験ビルドでよい）で置き換えて起動する。許可を求められずに変換を始め、統合ログ（`log show --predicate 'subsystem == "<Bundle ID>"' --last 5m`）の `permissions listen=true post=true` を確かめる。結果は [verification.md](../docs/verification.md) に記録する。
+5. Release・tag・assetのアップロードは公開ガードの `authorize` と `check-upload --operation release` を通し、利用者の承認を得てから行う。添付はDMGと `manifest.json`・`SHA256SUMS` だけにする。
 
 ## 個人情報を入れない継続設定
 

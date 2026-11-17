@@ -178,3 +178,13 @@ releaseビルドのWakaraPractice.appで、12課題・配列版・練習版・�
 - `python3 Scripts/check-public.py` と `swift test` が成功しました（Core 242件、macOS 15件）。ん・っ の位置を前提にしていた期待値を、N＝ん、M＝っ に直しました（単打、行キーの後、`Q` と `W` `J` の後、英字への打ち直しで数えるローマ字の長さ）。
 - `make package-all` で3製品のZIP・manifest.json・SHA256SUMSを作成できました。各アプリの `--version` は「WKR macOS Public 0.8.0-public.beta.7 / 配列 2.0.0-beta.2 / 練習 0.2.1」「WKR macOS v1 0.7.1-public.1 / 配列 1.1.0」「わから v2 練習帳 0.2.1 / 配列 2.0.0-beta.2」でした。Releaseの添付は、統合後のcommitから作り直します。
 - 未確認: beta.7・練習帳0.2.1のZIPでの権限付与後の入力・一時停止・再開・終了、同梱練習と独立練習帳の画面確認（前節のbeta.6候補での確認をやり直す）。ダウンロード後の起動許可、物理打鍵、更新・アンインストールも未確認のままです。
+
+## 2026-11-17 — 自己署名の配布用証明書で署名したDMG
+
+配布物をad-hoc署名のZIPから、専用の自己署名証明書「WKR macOS Release」（SHA-1 `A0D1DD008C6E8A07DE11DCA7C2C79B43C926E000`、RSA 3072、2036-11-14まで）で署名したDMGへ変えました（[設計12節](design.md#12-配布物は自己署名の配布用証明書で署名したdmgにする2026-11-17)）。アプリ・配列・教材は変えていません。
+
+- `python3 Scripts/test_publication_guard.py`: 26件成功。合成DMGで、`/Applications` へのリンクだけを許すこと、DMG内の連絡先・他のリンク・許可リスト外のバイナリを拒否することを追加しました。
+- macOS 27.2 / Apple Siliconで、この変更の候補commitから `env CODESIGN_IDENTITY=… python3 Scripts/package-apps.py` で3製品のDMGを作りました。アプリはhardened runtimeとsecure timestampで署名され、指定要件は `identifier "<Bundle ID>" and certificate leaf = H"a0d1dd008c6e8a07de11dca7c2c79b43c926e000"`。DMG内のアプリは検査したビルドと全ファイル一致し、DMG自身もこの証明書で署名され、`shasum -a 256 -c SHA256SUMS` が通りました。`CODESIGN_IDENTITY` なしでは `-adhoc.dmg` を作り、ad-hoc署名であることを確かめます（CIはこちら）。
+- `spctl --assess --type open --context context:primary-signature` は3つのDMGとも rejected（origin=WKR macOS Release）。未公証の既定評価で、想定どおりです。
+- 練習帳WakaraPractice.appはhardened runtimeでも起動し、異常終了しませんでした（画面の表示内容は未確認）。
+- 未確認: 取り込み後のcleanな `main` からのDMG、別のMacでのquarantine属性付きDMGからの初回起動、同じ証明書の次の版への入力監視・アクセシビリティの引き継ぎ。確認後にこの節へ追記します。

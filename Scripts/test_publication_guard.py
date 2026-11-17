@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Synthetic Git/ZIP cases; no real contacts, input records or device data."""
+"""Synthetic Git/ZIP/disk image cases; no real contacts, input records or device data."""
 import importlib.util
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -121,6 +122,45 @@ class PublicationGuardTests(unittest.TestCase):
                              ('private' + '@' + 'example.org').encode('utf-16-le'))
         with self.assertRaisesRegex(guard.Blocked, 'email'):
             guard.inspect_asset(asset, self.policy)
+
+    def disk_image(self, files, links=()):
+        folder = Path(self.temporary.name) / 'image'
+        folder.mkdir()
+        for name, value in files.items():
+            (folder / name).parent.mkdir(parents=True, exist_ok=True)
+            (folder / name).write_bytes(value)
+        for name, target in links:
+            os.symlink(target, folder / name)
+        image = Path(self.temporary.name) / 'Product.dmg'
+        subprocess.run(['hdiutil', 'create', '-quiet', '-volname', 'Synthetic', '-srcfolder', str(folder),
+                        '-fs', 'HFS+', '-format', 'UDZO', '-ov', str(image)], check=True)
+        return image
+
+    @unittest.skipUnless(shutil.which('hdiutil'), 'hdiutil is macOS only')
+    def test_disk_image_with_applications_link_passes(self):
+        image = self.disk_image({'Product.app/Contents/Info.plist': b'Synthetic'},
+                                [('Applications', '/Applications')])
+        self.assertTrue(guard.is_disk_image(image))
+        guard.inspect_asset(image, self.policy)
+
+    @unittest.skipUnless(shutil.which('hdiutil'), 'hdiutil is macOS only')
+    def test_disk_image_contact_is_blocked(self):
+        image = self.disk_image({'Product.app/Contents/Resources/README.md':
+                                 ('private' + '@' + 'example.org').encode()})
+        with self.assertRaisesRegex(guard.Blocked, 'email'):
+            guard.inspect_asset(image, self.policy)
+
+    @unittest.skipUnless(shutil.which('hdiutil'), 'hdiutil is macOS only')
+    def test_disk_image_other_link_is_blocked(self):
+        image = self.disk_image({'README.md': b'Synthetic'}, [('Home', '/Users')])
+        with self.assertRaisesRegex(guard.Blocked, 'links'):
+            guard.inspect_asset(image, self.policy)
+
+    @unittest.skipUnless(shutil.which('hdiutil'), 'hdiutil is macOS only')
+    def test_disk_image_unlisted_binary_is_blocked(self):
+        image = self.disk_image({'Product.app/Contents/MacOS/Product': b'\0Synthetic'})
+        with self.assertRaisesRegex(guard.Blocked, 'Unlisted binary'):
+            guard.inspect_asset(image, self.policy)
 
     def test_reviewed_history_passes(self):
         self.assertEqual(guard.audit(self.root)['counts']['commits'], 2)
