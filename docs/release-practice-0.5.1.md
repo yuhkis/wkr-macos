@@ -6,6 +6,6 @@ WKRを導入していない方はABC・英数の「QWERTYで体験」を使え�
 
 単独練習帳は変換エンジンを起動せず、入力監視・アクセシビリティの許可を要求しません。入力本文・誤入力・キー列・時刻・所要時間を保存・送信しません。保存は既定オフで、有効にした場合だけ配列版・課題ID・完了回数・最高正答率をローカルに保存します。画面の削除操作で消せます。旧配列の成績は保持し、新配列へ自動移行しません。
 
-Apple Silicon用ZIP、macOS 14以降、ad-hoc署名・未公証です。[導入・更新・削除方法](https://github.com/yuhkis/wkr-macos/blob/main/docs/distribution.md)と[検証記録](https://github.com/yuhkis/wkr-macos/blob/main/docs/verification.md)を参照してください。今回のZIPの画面操作・ダウンロード後の起動許可・実機WKRとの組み合わせは未確認です。
+Apple Silicon用DMG、macOS 14以降です。DMGと中のアプリはWKRと同じ自己署名証明書「WKR macOS Release」（SHA-1 `a0d1dd008c6e8a07de11dca7c2c79b43c926e000`）で署名した未公証のものです。[導入・更新・削除方法](https://github.com/yuhkis/wkr-macos/blob/main/docs/distribution.md)と[検証記録](https://github.com/yuhkis/wkr-macos/blob/main/docs/verification.md)を参照してください。今回のDMGの画面操作・ダウンロード後の起動許可・実機WKRとの組み合わせは未確認です。
 
 IME確定キーと採点キーの区別を改善し、「採点」ボタンを追加しました。IMEがキー情報を返さずEnterが採点に使えない場合は、かなを確定してからボタンを使います。未確定の文字を採点しない保護を維持します。

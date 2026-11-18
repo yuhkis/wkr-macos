@@ -10,9 +10,11 @@
 
 詳細なキー列・入力本文・時刻・研究用計測は保存しません。日別頻度と課題別成績は既定オフ・明示的有効化・ローカル保存です。設定や既存データは自動移行しません。[導入・保存・削除](https://github.com/yuhkis/wkr-macos/blob/main/docs/distribution.md)を参照してください。
 
-配布形式はApple Silicon用ZIP、ad-hoc署名・未公証、macOS 14以降です。Apple Developer Program加入や証明書の登録を必要とせず、開発元の証明・公証は提供しません。macOSがブロックした場合は公式ReleaseとSHA256を確認し、そのアプリだけ起動を許可します。Gatekeeper全体を無効にしません。
+配布形式はApple Silicon用DMG、macOS 14以降です。DMGと中のアプリは、本プロジェクト専用の自己署名証明書「WKR macOS Release」（SHA-1 `a0d1dd008c6e8a07de11dca7c2c79b43c926e000`）で署名しています。Apple Developer Programには加入しておらず、Developer ID署名・公証はありません。macOSがDMGやアプリをブロックした場合は公式ReleaseとSHA256を確認し、そのDMG・アプリだけを開くことを許可します。Gatekeeper全体を無効にしません。
 
-自動検証と未確認事項は[検証記録](https://github.com/yuhkis/wkr-macos/blob/main/docs/verification.md)を参照してください。以前の候補の実機確認を、このZIPの確認として引き継ぎません。今回の権限付与後の日本語実入力・停止・再開・終了、ダウンロード後の起動許可、物理打鍵、更新・アンインストールは未確認です。初回の対象はApple日本語入力です。Google日本語入力・azooKeyは専用テーブルによる導入経路を別に案内します。
+公開済みbeta.5まではad-hoc署名のZIPでした。beta.5以前や自分でビルドしたアプリから切り替えるときは、署名が変わるため入力監視・アクセシビリティの許可を一度だけやり直します。古い登録は「−」で削除し、「＋」では追加せず、新しいアプリの案内から「状態を再確認して変換を開始」を選んでください（[導入手順](https://github.com/yuhkis/wkr-macos/blob/main/docs/distribution.md)）。同じ証明書で署名した次の版へ置き換えたときは、許可を引き継げることをmacOS 27.2.1で確認しています。
+
+自動検証と未確認事項は[検証記録](https://github.com/yuhkis/wkr-macos/blob/main/docs/verification.md)を参照してください。以前の候補の実機確認を、このDMGの確認として引き継ぎません。今回の権限付与後の日本語実入力・停止・再開・終了、ダウンロード後の起動許可、物理打鍵、更新・アンインストールは未確認です。初回の対象はApple日本語入力です。Google日本語入力・azooKeyは専用テーブルによる導入経路を別に案内します。
 
 既存のタグ・Release・配布ファイルは保持し、未公開候補beta.6・beta.7の番号は別内容に再利用しません。
 

@@ -49,11 +49,11 @@ make practice-app
 make package-all
 ```
 
-`make app`は専用の`build/WKRPublic.app`をad-hoc署名で作ります。証明書を自動選択せず、インストールや起動はしません。`make app-v1`はWKRV1.app、`make practice-app`はWakaraPractice.appを作ります。`make package`はv2のみ、`make package-all`は3製品を`build/distribution/<アプリ版>/<commit>/`へ出力します。公開対象はその版のzip・manifest.json・SHA256SUMSを明示します。配布時はad-hoc署名・未公証であることと初回起動手順を明記します。[配布方式と公開前の確認](docs/public-beta.md)を参照してください。
+`make app`は専用の`build/WKRPublic.app`をad-hoc署名で作ります。証明書を自動選択せず、インストールや起動はしません。`make app-v1`はWKRV1.app、`make practice-app`はWakaraPractice.appを作ります。`make package`はv2のみ、`make package-all`は3製品を`build/distribution/<アプリ版>/<commit>/`へ出力します。公開対象はその版のDMG・manifest.json・SHA256SUMSを明示します。配布用DMGは`CODESIGN_IDENTITY`で専用の自己署名証明書を明示したときだけ作り、未公証であることと初回起動手順を明記します。[配布方式と公開前の確認](docs/public-beta.md)を参照してください。
 
 配列と教材の同期は `python3 Scripts/sync-layout.py --upstream ../wkr-layout --revision <commit>`、手順は[Scripts/README.md](Scripts/README.md)。`--check`で一致を検査し、取り込み日は同じpinの記録を保ちます。日付の明示指定には`--imported-on YYYY-MM-DD`を使います。純粋な変換処理は`WKRCore`へ集約し、Public/Privateで別の配列表を手書きしません。
 
-以前の候補での入力・練習の確認は[検証記録](docs/verification.md)に保持しています。今回の候補は配列・教材と起動時の安全処理を更新するため、以前の実機確認を今回の確認済み結果には繰り上げません。自動検証と、今回のZIPで未確認の導入・権限・実入力・停止・ダウンロード後の起動許可を区別して記録します。
+以前の候補での入力・練習の確認は[検証記録](docs/verification.md)に保持しています。今回の候補は配列・教材と起動時の安全処理を更新するため、以前の実機確認を今回の確認済み結果には繰り上げません。自動検証と、今回のDMGで未確認の導入・権限・実入力・停止・ダウンロード後の起動許可を区別して記録します。
 
 - [配列とmacOS用綴り](docs/layout-reference.md)
 - [仕組み](docs/how-it-works.md)・[設計](docs/design.md)・[開発時の確認](docs/development.md)
