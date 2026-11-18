@@ -72,12 +72,12 @@ v1時点では、TextEdit・Notes・Safariでの基本かな、TextEditでの記
 
 `make package` はcleanなcommitからreleaseアプリを生成し、同梱文書と一緒にzipへ収録します。`build/distribution/<アプリ版>/`へ出力し、manifestにはソースcommit、アプリ・配列・教材の版、SHA256を記録します。今回のreleaseビルド、`--version`のアプリ・配列・教材の表示、ad-hoc署名のdeep / strict検査は成功しました。zip生成後はmanifest・全収録ファイル・展開後の署名を別に照合します。
 
-配布方式は **ad-hoc署名・未公証** です。署名の構造検査と、Developer IDによる発行者確認・Apple公証は別です。以前の候補では署名のdeep / strict検査が成功し、公証チケットはなく、Gatekeeperの既定評価はrejectedでした。証明書の取得・変更を今回の条件にしません。個別起動許可は [install.md](install.md) を参照してください。
+配布方式は **ad-hoc署名・未公証** です。署名の構造検査と、Developer IDによる発行者確認・Apple公証は別です。以前の候補では署名のdeep / strict検査が成功し、公証チケットはなく、Gatekeeperの既定評価はrejectedでした。証明書の取得・変更を今回の条件にしません。個別起動許可は [install.md](install.md) を参照してください。2026-11-17以降の配布物は自己署名の配布用証明書で署名したDMGで、確認結果は下の2026-11-17・2026-11-18の節にあります。
 
 ## 未確認事項
 
 - beta.5での物理打鍵、変換候補、停止直後・終了直後の通常入力、スリープ復帰。
-- 実インストール、権限の取消し、アンインストール、ダウンロードしたzipからの初回起動許可。
+- 権限の取消し、アンインストール、v1・練習帳のダウンロードしたDMGからの初回起動許可（v2は2026-11-18に確認）。
 - Intel、macOSの全対応版、他のキーボード配列、他ブラウザ・支援技術、長時間運用。
 - Google日本語入力・azooKeyのv2テーブルによる実IME入力、仮想マシンとの入力モード同期。
 - 既存Private版への共通排他ロック・保存先移行の反映。
@@ -187,4 +187,24 @@ releaseビルドのWakaraPractice.appで、12課題・配列版・練習版・�
 - macOS 27.2 / Apple Siliconで、この変更の候補commitから `env CODESIGN_IDENTITY=… python3 Scripts/package-apps.py` で3製品のDMGを作りました。アプリはhardened runtimeとsecure timestampで署名され、指定要件は `identifier "<Bundle ID>" and certificate leaf = H"a0d1dd008c6e8a07de11dca7c2c79b43c926e000"`。DMG内のアプリは検査したビルドと全ファイル一致し、DMG自身もこの証明書で署名され、`shasum -a 256 -c SHA256SUMS` が通りました。`CODESIGN_IDENTITY` なしでは `-adhoc.dmg` を作り、ad-hoc署名であることを確かめます（CIはこちら）。
 - `spctl --assess --type open --context context:primary-signature` は3つのDMGとも rejected（origin=WKR macOS Release）。未公証の既定評価で、想定どおりです。
 - 練習帳WakaraPractice.appはhardened runtimeでも起動し、異常終了しませんでした（画面の表示内容は未確認）。
-- 未確認: 取り込み後のcleanな `main` からのDMG、別のMacでのquarantine属性付きDMGからの初回起動、同じ証明書の次の版への入力監視・アクセシビリティの引き継ぎ。確認後にこの節へ追記します。
+- 取り込み後のcleanな `main` からのDMG、別のMacでのquarantine属性付きDMGからの初回起動、同じ証明書の次の版への権限の引き継ぎは、[2026-11-18の節](#2026-11-18--取り込み後のdmgと権限の引き継ぎ)に記録しました。
+
+## 2026-11-18 — 取り込み後のDMGと権限の引き継ぎ
+
+PR #7の取り込み後のcleanな `main`（`843f75c`）で `env CODESIGN_IDENTITY='WKR macOS Release' make package-all` を実行し、3製品のDMGを作りました。`package-apps.py` の検査（DMG・DMG内のアプリの葉証明書が固定値と一致、hardened runtime、DMG内のアプリがビルドと全ファイル一致、`shasum -a 256 -c SHA256SUMS`）はすべて通りました。DMGは同じ入力からでもバイトが一致しないため、下のハッシュはこの候補だけのものです。
+
+| DMG | SHA-256 |
+| --- | --- |
+| `WKRV1-0.7.1-public.1-arm64.dmg` | `cd4990b0ab5512f9505cfe02464564ff5b63e5f661365787986f3d5ff0a2ab2d` |
+| `WKRPublic-0.8.0-public.beta.7-arm64.dmg` | `55916f592346297713ffd0c3b31f781da1dbf0545fdb9c7c357e3bcd8188a607` |
+| `WakaraPractice-0.2.1-arm64.dmg` | `68f08834aabd231aa22bbf922501b3b1057f1ac25b5f81126b35641836e40675` |
+
+作成したMacとは別のApple Silicon Mac（macOS 27.2.1）で、v2のDMGをダウンロード時と同じquarantine属性付きで置き、次を確認しました。
+
+- **DMGの初回承認**: FinderでDMGを開くと「“<DMG名>”は開いていません」で止まりました。「完了」→ システム設定 → プライバシーとセキュリティ →「このまま開く」→ 確認画面の「このまま開く」と管理者認証で開けました。アプリの初回起動も同じ2段階で止まり、初回はDMGとアプリで計2回の承認が必要でした。
+- **版A（`main` のビルド47）の許可**: このMacには、2026-09-22の節と同じad-hoc署名の候補の許可登録が残っていました。設定画面ではオンでも、アプリは `permissions listen=false post=false` を記録して変換を始めませんでした。
+  - 「−」で削除して「＋」で `/Applications/WKRPublic.app` を追加し直しても、登録は別のフォルダに残っていた同じBundle IDの古いad-hocコピーのcdhashになり、未許可のままでした。
+  - 「−」で削除だけ行い、案内画面の「状態を再確認して変換を開始」を選ぶと、macOSが起動中のアプリを入力監視とイベント送信の一覧に加えました。それをオンにすると、登録の指定要件は `identifier "io.github.yuhkis.wkr-macos.public" and certificate leaf = H"a0d1dd008c6e8a07de11dca7c2c79b43c926e000"` になり、再起動後に `permissions listen=true post=true` と `conversion-started` を記録しました。
+  - macOS 27.2.1の日本語表示では、アクセシビリティの一覧は「デバイスの制御とデータへのアクセス」という名前でした。同じ操作で付いたアクセシビリティAPIの登録は古いコピーのcdhashでしたが、本アプリが確かめるのは入力監視とイベント送信の2つで、変換の開始に影響しませんでした。
+- **次の版への引き継ぎ**: 検証専用の版B（版Aと同じアプリの `CFBundleVersion` だけを47.1に変え、同じ証明書で署名し直したもの。公開しない）を、quarantine属性付きで `/Applications` の版Aと置き換えました。Gatekeeperは新しい版として再び止め、「このまま開く」と管理者認証が必要でした。権限の画面には触れずに起動すると、許可を求めずに `permissions listen=true post=true` と `conversion-started` を記録しました。許可登録の更新時刻と指定要件は版Aで許可したときのままで、再起動しても同じでした。
+- 未確認: 物理キーでの入力（今回の確認はログ上の変換開始まで）、Finderのドラッグによる導入（今回はコマンドでコピーしたため、承認後も一時的な場所から起動しました）、版BのDMG自体の初回承認（コマンドでマウントしました）、v1・練習帳のダウンロード後の起動、アンインストール。
