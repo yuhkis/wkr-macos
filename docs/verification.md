@@ -258,3 +258,15 @@ PR #7の取り込み後のcleanな `main`（`843f75c`）で `env CODESIGN_IDENTI
   - macOS 27.2.1の日本語表示では、アクセシビリティの一覧は「デバイスの制御とデータへのアクセス」という名前でした。同じ操作で付いたアクセシビリティAPIの登録は古いコピーのcdhashでしたが、本アプリが確かめるのは入力監視とイベント送信の2つで、変換の開始に影響しませんでした。
 - **次の版への引き継ぎ**: 検証専用の版B（版Aと同じアプリの `CFBundleVersion` だけを47.1に変え、同じ証明書で署名し直したもの。公開しない）を、quarantine属性付きで `/Applications` の版Aと置き換えました。Gatekeeperは新しい版として再び止め、「このまま開く」と管理者認証が必要でした。権限の画面には触れずに起動すると、許可を求めずに `permissions listen=true post=true` と `conversion-started` を記録しました。許可登録の更新時刻と指定要件は版Aで許可したときのままで、再起動しても同じでした。
 - 未確認: 物理キーでの入力（今回の確認はログ上の変換開始まで）、Finderのドラッグによる導入（今回はコマンドでコピーしたため、承認後も一時的な場所から起動しました）、版BのDMG自体の初回承認（コマンドでマウントしました）、v1・練習帳のダウンロード後の起動、アンインストール。
+
+## 2026-11-18 — beta.8候補を自己署名DMGの配布へ載せ替え
+
+v2 0.8.0-public.beta.8 / build 49（配列2.0.0-beta.5・練習0.5.1）、v1 0.7.2 / build 14、練習帳0.5.1 / build 4の未公開候補を、PR #7・#8を取り込んだ `main` に載せ替えました。ソース・テスト・配列・教材は2026-10-05の候補と同じで、配布形式だけが[設計12節](design.md#12-配布物は自己署名の配布用証明書で署名したdmgにする2026-11-17)の自己署名DMGに変わります。配布済みの版・タグ・添付は変更していません。
+
+- `Scripts/sync-layout.py --check` で、取り込んだ171規則と教材が `Resources/upstream-manifest.json` のwkr-layout `137d3d6610501e98ff3aa417bb4313fd27d1bae3` と一致しました。配列規則は上流タグ v2.0.0-beta.5（`fedd175d4d397ec39ed586e369552d8debbf884a`）と同じで、違いは練習帳0.5.1の採点処理と版表示です。
+- v2のSwift全テスト271件（Core245・macOS26）、v1の全テスト230件（保存Core181・共有Core43・公開境界6）、`Scripts/test_publication_guard.py` 26件、`Scripts/check-public.py`、`Scripts/check-v1-archive.py` が成功しました。
+- macOS 27.2 / Apple Siliconで、この記録を加える直前の候補commit（アプリのソースと同梱するINSTALL.mdはこのcommitと同じ）から `env CODESIGN_IDENTITY='WKR macOS Release' make package-all` で3製品のDMGを作り、`package-apps.py` の検査がすべて通りました。別に、3つのDMGで `shasum -a 256 -c SHA256SUMS`、DMGとDMG内のアプリの指定要件 `identifier "<Bundle ID>" and certificate leaf = H"a0d1dd008c6e8a07de11dca7c2c79b43c926e000"`、hardened runtime、secure timestamp、arm64、`codesign --verify --deep --strict`、収録物がアプリ・`/Applications` へのリンク・LICENSE・INSTALL.mdだけであること、公開ガードの `check-assets` を確かめました。
+- 各アプリの `--version` は「WKR macOS v2 Public Beta 0.8.0-public.beta.8 / 配列 2.0.0-beta.5 / 練習 0.5.1」「WKR macOS v1 0.7.2 / 配列 1.1.0」「わから v2 練習帳 0.5.1 / 配列 2.0.0-beta.5」でした。`spctl --assess --type open --context context:primary-signature` は3つとも rejected で、未公証の既定評価です。
+- DMGは同じ入力からでもバイトが一致しないため、この候補のハッシュは記録しません。Releaseに添付するDMGは、取り込み後のcleanな `main` から作り直します。
+
+今回のDMGで未確認: ダウンロード後のDMGとアプリの起動許可、権限付与後のApple日本語入力での短い入力・停止・再開・終了、物理打鍵、同梱・単独練習の画面と採点、更新・アンインストール。同じ証明書の版どうしで許可が引き継がれることは前節の版A・版Bで確かめた仕組みで、beta.8自身では確かめていません。
