@@ -35,7 +35,7 @@
 
 1. 取り込み済みのcleanな `main` で `env CODESIGN_IDENTITY='WKR macOS Release' make package-all` を実行する。3製品それぞれの出力先に、`<アプリ名>-<版>-arm64.dmg`・`manifest.json`・`SHA256SUMS` ができ、manifestの `signing` が `self-signed release certificate`、`certificateSHA1` が `release-certificate-leaf.sha1` の値になる。
 2. 出力先で `shasum -a 256 -c SHA256SUMS` を実行し、DMGを開いて中のアプリに `codesign -d -r-` を実行する。指定要件が `identifier "<Bundle ID>" and certificate leaf = H"<SHA-1>"` であることを確かめる。
-3. 作成したMacとは別のMac（または別ユーザー）で、ブラウザでダウンロードしたときと同じquarantine属性の付いたDMGから、[導入手順](../docs/distribution.md)のとおりに入れる。SHA-256の照合、「このまま開く」、入力監視・アクセシビリティの許可、短い変換を確かめる。
+3. 作成したMacとは別のMac（または別ユーザー）で、ブラウザでダウンロードしたときと同じquarantine属性の付いたDMGから、[導入手順](../docs/distribution.md)のとおりに入れる。SHA-256の照合、DMGとアプリそれぞれの「このまま開く」、入力監視・アクセシビリティの許可、短い変換を確かめる。ad-hoc版の許可登録が残っているMacでは「−」で削除し、「＋」ではなくアプリの「状態を再確認して変換を開始」から登録させる（「＋」は同じBundle IDの別のコピーに結び付くことがある）。
 4. 権限の引き継ぎ: 3.で許可した版を、同じ証明書で署名した別のビルド（版番号だけを変えた試験ビルドでよい）で置き換えて起動する。許可を求められずに変換を始め、統合ログ（`log show --predicate 'subsystem == "<Bundle ID>"' --last 5m`）の `permissions listen=true post=true` を確かめる。結果は [verification.md](../docs/verification.md) に記録する。
 5. Release・tag・assetのアップロードは公開ガードの `authorize` と `check-upload --operation release` を通し、利用者の承認を得てから行う。添付はDMGと `manifest.json`・`SHA256SUMS` だけにする。
 
