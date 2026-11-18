@@ -1,13 +1,7 @@
 import XCTest
 @testable import WKRCore
 
-/// beta.17: three-key rules, only after ゔ (`WJ`) and ヵ (`QE`), and `EP` かい.
-/// beta.18 kept them after ゔ alone: `WJJ` finishes the row, `QE` is final at
-/// once, and `WU` `WO` went back to ゐ ゑ. ヶ had no rule for that one build;
-/// beta.19 made it the two-key `QP`.
 final class ThreeKeyTrialTests: XCTestCase {
-    private let beta17 = "wkr-layout@03cba20+ga-pa-small-io-yp-y-slash-question-swap-long-question-nm-swap-wp-vi-qw-small-wa-dt-loanwords-p-column-p-ai-words-w-va-ve-p-words-w-vowels-three-key-vu-ep-kai"
-    private let beta16 = "wkr-layout@03cba20+ga-pa-small-io-yp-y-slash-question-swap-long-question-nm-swap-wp-vi-qw-small-wa-dt-loanwords-p-column-p-ai-words-w-va-ve-p-words-w-vowels"
     private let modes: [OutputMode] = [.deferredRomaji, .prefixRomaji, .optimisticRomaji(.fullLayoutExperimental)]
 
     /// The romaji left in the pre-edit. Optimistic mode takes back a composed
@@ -36,16 +30,16 @@ final class ThreeKeyTrialTests: XCTestCase {
     func testTheVuRowAfterWJInEveryMode() {
         let cases: [([PhysicalKey], String)] = [
             ([.w, .j, .h], "va"), ([.w, .j, .k], "vi"), ([.w, .j, .semicolon], "ve"), ([.w, .j, .l], "vo"),
-            ([.w, .j, .u], "vya"), ([.w, .j, .o], "vyu"), ([.w, .j, .i], "vyo"),
+            ([.w, .j, .p], "vya"), ([.w, .j, .o], "vyu"), ([.w, .j, .i], "vyo"),
             // The row's own う column, finished on the spot, and what follows it.
             ([.w, .j, .j], "vu"), ([.w, .j, .j, .r], "vura"), ([.w, .j, .j, .h], "vua"),
             ([.w, .j, .j, .j], "vuu"), ([.w, .j, .j, .w, .j, .j], "vuvu"),
             // ゔ alone, and ゔ before anything that is not a column key.
-            ([.w, .j], "vu"), ([.w, .j, .r], "vura"), ([.w, .j, .n], "vunn"), ([.w, .j, .y], "vu-"),
+            ([.w, .j], "vu"), ([.w, .j, .r], "vura"), ([.w, .j, .m], "vunn"), ([.w, .j, .n], "vuye"), ([.w, .j, .y], "vu-"),
             // The old way still works: the small kana prefix is not a column key.
             ([.w, .j, .q, .l], "vulo"),
             // The two-key ゔぁ ゔぃ ゔぇ are gone: the row under `WJ` is the one way in.
-            ([.w, .u], "wyi"), ([.w, .o], "wye"), ([.w, .p], "wake"),
+            ([.w, .p], "wyi"), ([.w, .o], "wye"), ([.w, .u], "waltu"),
             // わ then う still needs its あ spelled out, as か then う does.
             ([.w, .h, .j], "wau"),
         ]
@@ -58,27 +52,26 @@ final class ThreeKeyTrialTests: XCTestCase {
         }
     }
 
-    /// beta.24: `Q` is the key of the small kana row. Alone it is ぁ, a row key
-    /// after it completes that ぁ, `QP` is ゎ, and ヵ ヶ have no rule.
+    /// Q is the small kana row: QP is ゃ, QW is ゎ, and ヵ・ヶ come from conversion.
     func testQIsARowKeyAndSmallKaKeComeFromConversion() {
         let cases: [([PhysicalKey], String)] = [
-            ([.q], "la"), ([.q, .h], "la"), ([.q, .k], "li"), ([.q, .u], "lya"), ([.q, .p], "lwa"),
-            ([.q, .w, .e], "lawaka"), ([.q, .e], "laka"), ([.q, .s], "lasa"),
-            ([.q, .n], "lann"), ([.q, .m], "laltu"), ([.q, .y], "la-"), ([.q, .q], "lala"),
+            ([.q], "la"), ([.q, .h], "la"), ([.q, .k], "li"), ([.q, .p], "lya"), ([.q, .w], "lwa"),
+            ([.q, .w, .e], "lwaka"), ([.q, .e], "laka"), ([.q, .s], "lasa"),
+            ([.q, .m], "lann"), ([.q, .u], "laltu"), ([.q, .n], "laye"), ([.q, .y], "la-"), ([.q, .q], "lala"),
             // もーつぁると: つ, ぁ, る with no vowel key for the ぁ.
-            ([.f, .j, .q, .r, .j], "tularu"),
-            // くゎ, and ぁ before an arrow needs its vowel spelled out like any row.
-            ([.e, .j, .q, .p], "kulwa"), ([.q, .h, .p, .l], "lazl"),
+            ([.d, .j, .q, .r, .j], "tularu"),
+            // くゎ, and an independent や after ぁ needs H to finish the small row.
+            ([.e, .j, .q, .w], "kulwa"), ([.q, .h, .p, .l], "layao"),
         ]
         for rules in [WKRLayout.rules, WKRLayout.rulesWithoutSymbolLayer] {
             XCTAssertTrue(rules.allSatisfy { $0.kana != "ヶ" && $0.kana != "ヵ" })
-            XCTAssertEqual(rules.filter { $0.kana == "ゎ" }.map(\.input), [[.q, .p]])
+            XCTAssertEqual(rules.filter { $0.kana == "ゎ" }.map(\.input), [[.q, .w]])
             XCTAssertEqual(Set(rules.filter { $0.kana == "ぁ" }.map(\.input)), [[.q], [.q, .h]])
         }
         // `lwa` continues the row's `l`, so prefix mode takes nothing back.
         let engine = WKRTransducer(mode: .prefixRomaji)
         XCTAssertEqual(engine.process(.physical(.q)).actions, [.romaji("l")])
-        XCTAssertEqual(engine.process(.physical(.p)).actions, [.romaji("wa")])
+        XCTAssertEqual(engine.process(.physical(.w)).actions, [.romaji("wa")])
         XCTAssertFalse(engine.hasPendingInput)
         for mode in modes {
             for (keys, expected) in cases {
@@ -96,7 +89,7 @@ final class ThreeKeyTrialTests: XCTestCase {
         XCTAssertEqual(long.count, 8)
         XCTAssertTrue(long.allSatisfy { $0.input.count == 3 })
         XCTAssertEqual(Set(long.map { Array($0.input.prefix(2)) }), [[.w, .j]])
-        XCTAssertEqual(Set(long.map { $0.input[2] }), [.h, .k, .j, .semicolon, .l, .u, .o, .i])
+        XCTAssertEqual(Set(long.map { $0.input[2] }), [.h, .k, .j, .semicolon, .l, .p, .o, .i])
         XCTAssertEqual(long.map(\.kana), ["ゔぁ", "ゔぃ", "ゔ", "ゔぇ", "ゔぉ", "ゔゃ", "ゔゅ", "ゔょ"])
         XCTAssertEqual(typed([.e, .k, .h], mode: .prefixRomaji), "kia")
         XCTAssertEqual(typed([.w, .k, .h], mode: .prefixRomaji), "wia")
@@ -128,22 +121,21 @@ final class ThreeKeyTrialTests: XCTestCase {
 
 
 
-    /// A digit is passed through. The following QP uses the same current
+    /// A digit is passed through. The following QW uses the same current
     /// delivery sequence as it would at the start of input. This assertion
     /// covers WKR's output events, not the input method's composition behavior.
-    func testADigitBeforeQPChangesNothingWKRSends() {
+    func testADigitBeforeQWChangesNothingWKRSends() {
         let engine = WKRTransducer(mode: .prefixRomaji)
         let digit = engine.process(.physical(.digit2))
         XCTAssertEqual(digit.actions, [])
         XCTAssertEqual(digit.disposition, .passThrough)
         XCTAssertFalse(engine.hasPendingInput)
         XCTAssertEqual(engine.process(.physical(.q)).actions, [.romaji("l")])
-        XCTAssertEqual(engine.process(.physical(.p)).actions, [.romaji("wa")])
+        XCTAssertEqual(engine.process(.physical(.w)).actions, [.romaji("wa")])
         XCTAssertFalse(engine.hasPendingInput)
     }
 
-    /// Legacy identifiers retain their prefix labels independently of the
-    /// current Q row and symbol labels.
+
 
 
 

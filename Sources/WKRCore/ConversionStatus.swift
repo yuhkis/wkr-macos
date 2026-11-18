@@ -12,6 +12,10 @@ import Foundation
 public enum ConversionStatus: String, Sendable, CaseIterable {
     /// The gate is open and keys are being converted.
     case converting
+    /// An actual permission check found that input access is missing.
+    case waitingForPermissions = "permissions"
+    /// Permission checking or event-tap startup has not completed.
+    case notStarted = "not-started"
     /// The current input source is not the one named at launch. The common,
     /// expected case: it happens on every 英数 press.
     case inputSourceMismatch = "input-source"
@@ -19,11 +23,9 @@ public enum ConversionStatus: String, Sendable, CaseIterable {
     case excludedApplication = "excluded-app"
     /// Some process in this login session holds Secure Event Input.
     case secureInput = "secure-input"
-    /// The gate is shut with none of the reasons above set. Reachable while the
-    /// tap is tearing itself down: `failClosed` clears its flags synchronously
-    /// and only then hops to the main queue, so a timer tick can land in that
-    /// window. Naming the state is better than inventing a reason for it.
+    /// The user explicitly paused an operational conversion engine.
     case paused
+    /// The gate is shut with none of the reasons above set.
     case stopping
 }
 
@@ -79,11 +81,11 @@ extension ConversionStatus {
     /// `EventTapController.isConverting`, which this function never modifies and
     /// only reads through `gateOpen`.
     ///
-    /// Secure Event Input comes first because it is the only cause the user
-    /// neither chose nor can see, and it is the cause of every stoppage measured
-    /// so far. The excluded application comes before the input source because it
-    /// is the durable condition, and the one where converting would push romaji
-    /// into a guest system.
+    /// Startup blockers come first: missing permission or an unstarted tap
+    /// must never be presented as an active conversion engine. Once the tap is
+    /// operational, Secure Event Input takes precedence as a system-level block.
+    /// An excluded application comes before the input source because conversion
+    /// there could send romaji into a guest system.
     ///
     /// Testing the three reasons before `gateOpen` is equivalent rather than
     /// weaker: the caller has just handed the same three values to
@@ -92,18 +94,25 @@ extension ConversionStatus {
     ///
     /// - Parameters:
     ///   - gateOpen: `EventTapController.isConverting`, passed through verbatim.
+    ///   - permissionsGranted: The last actual permission check; nil before checking.
+    ///   - tapOperational: A successfully started tap that has not stopped.
     ///   - statusMenuOpen: `true` while this app's own menu is tracking. The
     ///     menu shuts the gate so that converted romaji cannot land in the
     ///     menu's type-select, and this keeps the menu from explaining that
-    ///     self-inflicted closure back to the user as a fault.
+    ///     self-inflicted closure back to the user as a fault, only after the
+    ///     permissions and operational tap checks have passed.
     public static func resolve(
         gateOpen: Bool,
+        permissionsGranted: Bool?,
+        tapOperational: Bool,
         secureInputEnabled: Bool,
         applicationAllowed: Bool,
         inputSourceMatches: Bool,
         statusMenuOpen: Bool,
         userPaused: Bool = false
     ) -> ConversionStatus {
+        if permissionsGranted == false { return .waitingForPermissions }
+        guard permissionsGranted == true, tapOperational else { return .notStarted }
         if userPaused { return .paused }
         if secureInputEnabled { return .secureInput }
         if !applicationAllowed { return .excludedApplication }
@@ -128,6 +137,8 @@ public enum ConversionStatusText {
     public static func statusTitle(_ status: ConversionStatus) -> String {
         switch status {
         case .converting: return "変換中"
+        case .waitingForPermissions: return "待機中：入力権限が未許可"
+        case .notStarted: return "待機中：変換は未開始"
         case .inputSourceMismatch: return "待機中：入力ソースが対象外"
         case .excludedApplication: return "待機中：除外アプリが前面"
         case .secureInput: return "停止中：Secure Event Input"
@@ -141,6 +152,8 @@ public enum ConversionStatusText {
     public static func symbolName(_ status: ConversionStatus) -> String {
         switch status {
         case .converting: return "keyboard.fill"
+        case .waitingForPermissions: return "lock.circle"
+        case .notStarted: return "hourglass"
         case .inputSourceMismatch: return "keyboard"
         case .excludedApplication: return "keyboard.macwindow"
         case .secureInput: return "lock.fill"
@@ -155,6 +168,8 @@ public enum ConversionStatusText {
     public static func fallbackGlyph(_ status: ConversionStatus) -> String {
         switch status {
         case .converting: return "変"
+        case .waitingForPermissions: return "権"
+        case .notStarted: return "未"
         case .inputSourceMismatch: return "待"
         case .excludedApplication: return "外"
         case .secureInput: return "鍵"
@@ -166,7 +181,7 @@ public enum ConversionStatusText {
     /// The lines between the title and the remedy. Empty for `converting`.
     public static func detailLines(_ content: ConversionMenuContent) -> [String] {
         switch content.status {
-        case .converting, .stopping, .paused:
+        case .converting, .stopping, .paused, .waitingForPermissions, .notStarted:
             return []
         case .excludedApplication:
             return []
@@ -216,6 +231,10 @@ public enum ConversionStatusText {
         switch content.status {
         case .converting:
             return nil
+        case .waitingForPermissions:
+            return "対処：「導入・権限の案内」で許可し、「状態を再確認して変換を開始」を選んでください"
+        case .notStarted:
+            return "対処：「導入・権限の案内」で状態を確認してください"
         case .inputSourceMismatch:
             return "対処：入力ソースを Apple日本語入力の「ひらがな」に戻してください"
         case .excludedApplication:

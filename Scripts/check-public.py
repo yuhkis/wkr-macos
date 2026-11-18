@@ -60,10 +60,11 @@ supported = {'--practice-only', '--help', '--version', '--print-input-source',
     '--key-frequency', '--key-frequency-retention', '--key-frequency-store',
     '--key-frequency-report-output', '--output', '--vil', '--open', '--input-source-id',
     '--input-mode-id', '--mode', '--exclude-app', '--english-fallback', '--symbol-layer',
-    '--request-permissions', '--allow-unverified-optimistic'}
-require(set(re.findall(r'"(--[a-z][a-z-]*)"', config)) == supported, 'CLI changed: review public allowlist')
+    '--request-permissions', '--event-tap-startup-wait', '--event-tap-relaunch', '--allow-unverified-optimistic'}
+retry = (root / 'Sources/WKRMacOS/EventTapStartupRetry.swift').read_text()
+require(set(re.findall(r'"(--[a-z][a-z-]*)"', config + retry)) == supported, 'CLI changed: review public allowlist')
 defaults = set(re.findall(r'static let \w+DefaultsKey = "([^"]+)"', config))
-require(defaults == {'EnglishFallbackTrigger', 'SymbolLayer', 'KeyFrequencyLog', 'KeyFrequencyRetentionDays', 'VialKeymapPath'}, 'Defaults changed: review public allowlist')
+require(defaults == {'EnglishFallbackTrigger', 'SymbolLayer', 'KeyFrequencyLog', 'KeyFrequencyRetentionDays', 'VialKeymapPath', 'EventTapStartupWaitSeconds'}, 'Defaults changed: review public allowlist')
 require('case nil, "off"' in config, 'Key frequency default must remain off')
 require('unsupportedOption' in config, 'Unknown long options must fail closed')
 recorder = (root / 'Sources/WKRMacOS/KeyFrequencyRecorder.swift').read_text()

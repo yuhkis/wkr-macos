@@ -8,8 +8,8 @@ final class WKRTransducerTests: XCTestCase {
             ("EK", [.e, .k], ["ki"]),
             ("ESK", [.e, .s, .k], ["ka", "shi"]),
             ("WER", [.w, .e, .r], ["wa", "ka", "ra"]),
-            ("SU", [.s, .u], ["sha"]),
-            ("FO", [.f, .o], ["tyu"]),
+            ("SP", [.s, .p], ["sha"]),
+            ("DO", [.d, .o], ["tyu"]),
             ("QH", [.q, .h], ["la"]),
         ]
 
@@ -29,7 +29,7 @@ final class WKRTransducerTests: XCTestCase {
     func testSingleKeyRulesTableDriven() {
         let cases: [(PhysicalKey, String)] = [
             (.h, "a"), (.j, "u"), (.k, "i"), (.l, "o"), (.semicolon, "e"),
-            (.n, "nn"), (.m, "ltu"), (.y, "-"), (.slash, "?"), (.shiftedSlash, "/"),
+            (.m, "nn"), (.u, "ltu"), (.n, "ye"), (.p, "ya"), (.y, "-"), (.slash, "?"), (.shiftedSlash, "/"),
         ]
 
         for (key, expected) in cases {
@@ -137,16 +137,10 @@ final class WKRTransducerTests: XCTestCase {
     }
 
     func testFullLayoutSnapshotContainsEveryUniqueNormalizedRule() {
-        // Pinned so an unintended re-pin fails here first. wkr-layout ver 1.1.
-        XCTAssertEqual(WKRLayout.layoutVersion, "2.0.0-beta.2")
-        // 217 upstream rules, plus `QW → ゎ` and `QE → ヵ`, which `WP → ゔぃ` and
-        // `AP → がい` displaced, plus the special column of the six rows that had
-        // none. ゐ and ゑ lost their rules to ゔぁ and ゔぇ and have them back,
-        // which changes no count. beta.17 added eight three-key rules, the ゔ row
-        // after `WJ` and `QE;` for ヶ; beta.18 dropped `QE;` and added `WJJ`.
-        // beta.19 added `QP → ヶ`. beta.24 made `Q` a row key (ぁ alone) with ゎ
-        // on `QP`, and dropped `QW` `QE` and ヶ: one in, two out.
-        XCTAssertEqual(WKRLayout.rules.count, 233)
+        // The public canonical table has 171 kana-only rules.
+        XCTAssertEqual(WKRLayout.layoutVersion, "2.0.0-beta.5")
+        XCTAssertEqual(WKRLayout.rules.count, 171)
+        XCTAssertTrue(WKRLayout.rules.allSatisfy { if case .romaji = $0.action { return true }; return false })
 
         let inputs = WKRLayout.rules.map { rule in
             rule.input.map(\.rawValue).joined(separator: "\u{0}")
@@ -255,7 +249,7 @@ final class WKRTransducerTests: XCTestCase {
         ]
 
         for (keys, expected) in cases {
-            let engine = WKRTransducer(mode: .deferredRomaji)
+            let engine = WKRTransducer(mode: .deferredRomaji, rules: SyntheticSymbolRules.rules)
             var actions: [SyntheticAction] = []
             for key in keys {
                 actions.append(contentsOf: engine.process(.physical(key)).actions)
@@ -265,10 +259,7 @@ final class WKRTransducerTests: XCTestCase {
         }
     }
 
-    /// The `P` layer rows that were only in the Google table and had no azooKey
-    /// counterpart. They are the last upstream symbol rows to be implemented, so
-    /// pin both the output and the fact that they cost exactly one Backspace to
-    /// take back the provisional `y`.
+    /// Synthetic Unicode branches pin delivery and rollback without adding them to the public table.
     func testGoogleOnlySymbolLayerRows() {
         let cases: [([PhysicalKey], String)] = [
             ([.p, .y], "〒"),
@@ -281,7 +272,7 @@ final class WKRTransducerTests: XCTestCase {
         for (keys, expected) in cases {
             let name = keys.map(\.rawValue).joined(separator: "+")
 
-            let deferred = WKRTransducer(mode: .deferredRomaji)
+            let deferred = WKRTransducer(mode: .deferredRomaji, rules: SyntheticSymbolRules.rules)
             var actions: [SyntheticAction] = []
             for key in keys {
                 actions.append(contentsOf: deferred.process(.physical(key)).actions)
@@ -289,7 +280,7 @@ final class WKRTransducerTests: XCTestCase {
             actions.append(contentsOf: deferred.process(.boundary(.enter)).actions)
             XCTAssertEqual(actions, [.unicode(expected)], name)
 
-            let prefix = WKRTransducer(mode: .prefixRomaji)
+            let prefix = WKRTransducer(mode: .prefixRomaji, rules: SyntheticSymbolRules.rules)
             var prefixActions: [SyntheticAction] = []
             for key in keys {
                 prefixActions.append(contentsOf: prefix.process(.physical(key)).actions)
@@ -311,7 +302,7 @@ final class WKRTransducerTests: XCTestCase {
         ]
 
         for (first, second, expected) in cases {
-            let engine = WKRTransducer(mode: .deferredRomaji)
+            let engine = WKRTransducer(mode: .deferredRomaji, rules: SyntheticSymbolRules.rules)
             var actions: [SyntheticAction] = []
             for key in [first, second] {
                 actions.append(contentsOf: engine.process(.physical(key)).actions)
@@ -325,7 +316,7 @@ final class WKRTransducerTests: XCTestCase {
     /// which stay with Apple Japanese Input so Space can still convert them.
     func testSymbolLayerBracketsDoNotCaptureBareBracketKeys() {
         for key in [PhysicalKey.leftBracket, .rightBracket, .leftBrace, .rightBrace] {
-            let engine = WKRTransducer(mode: .prefixRomaji)
+            let engine = WKRTransducer(mode: .prefixRomaji, rules: SyntheticSymbolRules.rules)
             let result = engine.process(.physical(key))
 
             XCTAssertEqual(result.actions, [], key.rawValue)
@@ -346,7 +337,7 @@ final class WKRTransducerTests: XCTestCase {
             ("WJ QK", [.w, .j, .q, .k], "vuli"),      // ゔぃ
             ("WJ T;", [.w, .j, .q, .semicolon], "vule"),  // ゔぇ
             ("WJ TL", [.w, .j, .q, .l], "vulo"),      // ゔぉ
-            ("WJ TU", [.w, .j, .q, .u], "vulya"),     // ゔゃ
+            ("WJ QP", [.w, .j, .q, .p], "vulya"),     // ゔゃ
             ("WJ QO", [.w, .j, .q, .o], "vulyu"),     // ゔゅ
             ("WJ QI", [.w, .j, .q, .i], "vulyo"),     // ゔょ
         ]
@@ -363,12 +354,9 @@ final class WKRTransducerTests: XCTestCase {
         }
     }
 
-    /// `ヵ` has no hiragana form, so no base kana plus a small kana can build
-    /// it. It needs a rule of its own. It was the が row's special column until
-    /// that became がい, and now reads like `QW → ゎ`: the small kana prefix,
-    /// then the か row key.
+    /// ヵ・ヶ come from IME conversion; Q then E remains independent ぁ and か.
     func testSmallKaHasNoRuleAndQIsARowKey() {
-        // ヵ had `QE` from beta.15 to beta.23. It comes from conversion now, and
+        // ヵ comes from conversion, and
         // `Q` then the か row key is ぁ and か, as after any row key.
         let engine = WKRTransducer(mode: .deferredRomaji)
         var actions: [SyntheticAction] = []
@@ -401,9 +389,9 @@ final class WKRTransducerTests: XCTestCase {
     /// All eight trailing small kana are gone. Each swallowed the `T` of a
     /// following prefix small kana, so no base kana could be followed by one.
     func testNoTrailingSmallKanaRemain() {
-        // `PQ` is the symbol layer, not a trailing small kana.
+        // No canonical rule ends in the Q prefix.
         let trailing = WKRLayout.rules.filter {
-            $0.input.count == 2 && $0.input[1] == .q && $0.input[0] != .p
+            $0.input.count == 2 && $0.input[1] == .q
         }
 
         XCTAssertEqual(trailing.map(\.id), [])
@@ -414,11 +402,11 @@ final class WKRTransducerTests: XCTestCase {
     func testEveryBaseVowelAcceptsAFollowingSmallKana() {
         let bases: [(PhysicalKey, String)] = [
             (.h, "a"), (.k, "i"), (.j, "u"), (.semicolon, "e"), (.l, "o"),
-            (.u, "ya"), (.o, "yu"), (.i, "yo"),
+            (.p, "ya"), (.o, "yu"), (.i, "yo"),
         ]
         let smalls: [(PhysicalKey, String)] = [
             (.h, "la"), (.k, "li"), (.j, "lu"), (.semicolon, "le"), (.l, "lo"),
-            (.u, "lya"), (.o, "lyu"), (.i, "lyo"),
+            (.p, "lya"), (.o, "lyu"), (.i, "lyo"),
         ]
 
         for (baseKey, baseRomaji) in bases {
@@ -433,7 +421,7 @@ final class WKRTransducerTests: XCTestCase {
                 XCTAssertEqual(
                     concatenatedRomaji(actions),
                     baseRomaji + smallRomaji,
-                    "\(baseKey.rawValue)+T+\(smallKey.rawValue)"
+                    "\(baseKey.rawValue)+Q+\(smallKey.rawValue)"
                 )
             }
         }
@@ -459,37 +447,23 @@ final class WKRTransducerTests: XCTestCase {
         }
     }
 
-    // MARK: - Turning the `P` symbol layer off
+    // MARK: - Canonical table and synthetic Unicode filtering
 
-    func testDisablingTheSymbolLayerRemovesExactlyThoseRules() {
-        let full = Set(WKRLayout.rules.map(\.id))
-        let reduced = Set(WKRLayout.rulesWithoutSymbolLayer.map(\.id))
-
-        XCTAssertEqual(full.subtracting(reduced).count, 55)
-        XCTAssertTrue(reduced.isSubset(of: full))
-        // Everything removed injects Unicode, and nothing that does is left.
-        XCTAssertTrue(
-            WKRLayout.rules
-                .filter { !reduced.contains($0.id) }
-                .allSatisfy { rule in
-                    guard case .unicode = rule.action else { return false }
-                    return rule.input.first == .p
-                }
-        )
-        XCTAssertFalse(
-            WKRLayout.rulesWithoutSymbolLayer.contains { rule in
-                guard case .unicode = rule.action else { return false }
-                return rule.input.first == .p
-            }
-        )
+    func testPublishedTableHasNoSymbolRulesAndSyntheticFilteringKeepsKana() {
+        XCTAssertEqual(WKRLayout.rulesWithoutSymbolLayer, WKRLayout.rules)
+        let removed = SyntheticSymbolRules.rules.filter { if case .unicode = $0.action { return true }; return false }
+        XCTAssertEqual(removed.count, 14)
+        XCTAssertEqual(SyntheticSymbolRules.rules.count - SyntheticSymbolRules.withoutUnicode.count, 14)
+        XCTAssertTrue(SyntheticSymbolRules.withoutUnicode.allSatisfy { if case .romaji = $0.action { return true }; return false })
+        XCTAssertTrue(SyntheticSymbolRules.withoutUnicode.contains { $0.input == [.e, .p] && $0.kana == "きゃ" })
     }
 
-    func testDisabledSymbolLayerKeepsTheArrowsOnTheYKey() {
+    func testSyntheticUnicodeFilteringKeepsRomajiArrows() {
         // The arrows are romaji, so none of the reasons for turning the layer
         // off apply to them and `P` stays their prefix.
         let engine = WKRTransducer(
             mode: .prefixRomaji,
-            rules: WKRTransducer.rulesWithoutSymbolLayer
+            rules: SyntheticSymbolRules.withoutUnicode
         )
 
         XCTAssertEqual(engine.process(.physical(.p)).actions, [.romaji("z")])
@@ -498,10 +472,10 @@ final class WKRTransducerTests: XCTestCase {
         XCTAssertFalse(engine.hasPendingInput)
     }
 
-    func testDisabledSymbolLayerDropsTheSymbolsUnderY() {
+    func testSyntheticUnicodeFilteringReprocessesAnUnmatchedSelector() {
         let engine = WKRTransducer(
             mode: .prefixRomaji,
-            rules: WKRTransducer.rulesWithoutSymbolLayer
+            rules: SyntheticSymbolRules.withoutUnicode
         )
         _ = engine.process(.physical(.p))
 
@@ -512,17 +486,17 @@ final class WKRTransducerTests: XCTestCase {
         XCTAssertEqual(result.actions, [.romaji("g")])
     }
 
-    func testDisabledSymbolLayerKeepsRulesWhereYIsTheSecondKey() {
-        // `SP → しぇ` and `EP → こと` are row variants, not the symbol layer.
+    func testSyntheticUnicodeFilteringKeepsKanaColumnVariants() {
+        // SP = しゃ and EP = きゃ are kana variants, independent of the fixture symbols.
         let cases: [(keys: [PhysicalKey], last: SyntheticAction)] = [
-            ([.s, .p], .romaji("he")),
-            ([.e, .p], .romaji("oto")),
+            ([.s, .p], .romaji("ha")),
+            ([.e, .p], .romaji("ya")),
         ]
 
         for testCase in cases {
             let engine = WKRTransducer(
                 mode: .prefixRomaji,
-                rules: WKRTransducer.rulesWithoutSymbolLayer
+                rules: SyntheticSymbolRules.withoutUnicode
             )
             var actions: [SyntheticAction] = []
             for key in testCase.keys {
@@ -554,8 +528,8 @@ final class WKRTransducerTests: XCTestCase {
             .e, .s, .f, .d, .g, .v, .r, .w, .t, .z, .c, .b, .a, .x,
         ]
         let suffixes: [(PhysicalKey, SyntheticAction)] = [
-            (.n, .romaji("nn")),
-            (.m, .romaji("ltu")),
+            (.m, .romaji("nn")),
+            (.u, .romaji("ltu")),
             (.y, .romaji("-")),
             (.slash, .romaji("?")),
             (.shiftedSlash, .romaji("/")),
@@ -594,14 +568,14 @@ final class WKRTransducerTests: XCTestCase {
                 [.w, .e, .r],
                 [[.romaji("w")], [.romaji("a"), .romaji("k")], [.romaji("a"), .romaji("r")]]
             ),
-            ("FK", [.f, .k], [[.romaji("t")], [.romaji("i")]]),
+            ("DK", [.d, .k], [[.romaji("t")], [.romaji("i")]]),
             ("GJ", [.g, .j], [[.romaji("h")], [.romaji("u")]]),
             ("ZK", [.z, .k], [[.romaji("z")], [.romaji("i")]]),
             ("H", [.h], [[.romaji("a")]]),
             // や・ゆ・よ must appear on the first keystroke like あ・い・う・え・お,
             // so the whole output is streamed and one kana is taken back when
             // the postfix small-kana branch follows.
-            ("U", [.u], [[.romaji("ya")]]),
+            ("P", [.p], [[.romaji("ya")]]),
             ("O", [.o], [[.romaji("yu")]]),
             ("I", [.i], [[.romaji("yo")]]),
             // The X row keeps streaming one letter, because ふぁ / ふぃ / ふゅ /
@@ -695,9 +669,9 @@ final class WKRTransducerTests: XCTestCase {
 
     func testOptimisticModeRomanTransliterationExposesAProvisionalOnlyPrefix() {
         let engine = WKRTransducer(
-            mode: .optimisticRomaji(.fullLayoutExperimental)
+            mode: .optimisticRomaji(.fullLayoutExperimental), rules: SyntheticSymbolRules.rules
         )
-        // `P` is the one bare prefix left; `Q` shows ぁ at once since beta.24.
+        // P is outputless only in this synthetic fixture.
         XCTAssertEqual(engine.process(.physical(.p)).actions, [])
 
         let transliteration = engine.process(.romanTransliteration)
@@ -734,7 +708,7 @@ final class WKRTransducerTests: XCTestCase {
     /// computation and `testNoRuleTakesBackAComposedKana`.
     func testPrefixModeDeletesDisplayedUnitsNotRawLetters() {
         let cases: [(name: String, keys: [PhysicalKey], expected: [SyntheticAction])] = [
-            ("XU", [.x, .u], [.romaji("f"), .backspace(count: 1), .romaji("teli")]),
+            ("XP", [.x, .p], [.romaji("f"), .backspace(count: 1), .romaji("teli")]),
             ("WJ;", [.w, .j, .semicolon], [.romaji("w"), .backspace(count: 1), .romaji("v"), .romaji("e")]),
         ]
 
@@ -749,7 +723,7 @@ final class WKRTransducerTests: XCTestCase {
     }
 
     /// The first keystroke has to produce visible feedback for every root,
-    /// including the `P` symbol layer, which streams its own letter.
+    /// including the independent P = や. A synthetic prefix is checked separately.
     func testPrefixModeShowsSomethingOnTheFirstKeystroke() {
         var rootKeys: [PhysicalKey] = []
         var seen = Set<PhysicalKey>()
@@ -772,7 +746,7 @@ final class WKRTransducerTests: XCTestCase {
         // Kana that a single letter cannot display are streamed in full.
         let wholeOutputRoots: [(PhysicalKey, String)] = [
             (.h, "a"), (.k, "i"), (.j, "u"), (.semicolon, "e"), (.l, "o"),
-            (.u, "ya"), (.o, "yu"), (.i, "yo"),
+            (.p, "ya"), (.o, "yu"), (.i, "yo"),
         ]
         for (key, expected) in wholeOutputRoots {
             let engine = WKRTransducer(mode: .prefixRomaji)
@@ -783,42 +757,21 @@ final class WKRTransducerTests: XCTestCase {
             )
         }
 
-        // `P` streams `z`, the prefix its four arrow rules share.
-        let symbolLayer = WKRTransducer(mode: .prefixRomaji)
+        // The synthetic P prefix streams z shared by its romaji branches.
+        let symbolLayer = WKRTransducer(mode: .prefixRomaji, rules: SyntheticSymbolRules.rules)
         XCTAssertEqual(symbolLayer.process(.physical(.p)).actions, [.romaji("z")])
     }
 
     /// Rollbacks are the price of always showing a letter, so the rules that
     /// pay it stay an explicit, reviewed inventory instead of a surprise.
     func testPrefixModeRollbackInventoryIsExactlyTheDeclaredRules() {
-        var expectedRollbacks: Set<String> = [
-            // The X row mixes ふ and the て loanword kana, so only ふ keeps the
-            // streamed `f`. Their で twins after `C` continue that row's `d`.
-            "xp-site", "xu-thi", "xo-thu", "xi-twu",
-            // Outputs that cannot continue the letter their row streamed: the
-            // full-width punctuation is Unicode, and `ゔ` starts with `v`, not
-            // the row's `w`. `ゐ` `ゑ` and `わけ` continue `w` and cost nothing, so
-            // the inventory lost the three entries `ゔぁ` `ゔぃ` `ゔぇ` had on `WU`
-            // `WO` `WP`. `ゎ` and `ヵ` pay nothing either: `QW` and `QE` let them
-            // continue the `l` of the small kana prefix, and every pair on the
-            // special column but `XP → して` continues its row's letter.
-            "wj-vu",
-            // The ゔ row after `WJ`: the Backspace is the one `J` already pays.
-            "wjh-va", "wjk-vi", "wjj-vu", "wjsemicolon-ve", "wjl-vo", "wju-vya", "wjo-vyu", "wji-vyo",
-            "qcomma-fullwidth-comma", "qperiod-fullwidth-period", "qslash-fullwidth-slash",
+        let expectedRollbacks: Set<String> = [
+            // X retains f for ふ kana and replaces it for the て loanword columns.
+            "xp-thi", "xo-thu", "xi-twu",
+            // WJ replaces the w prefix with v; every third key shares that rollback.
+            "wj-vu", "wjh-va", "wjk-vi", "wjj-vu", "wjsemicolon-ve", "wjl-vo",
+            "wjp-vya", "wjo-vyu", "wji-vyo",
         ]
-        // The `P` symbol layer streams `z` and every symbol has to take it
-        // back before injecting the character. The four arrows continue `z`
-        // into their own romaji instead, so they are not in this set.
-        expectedRollbacks.formUnion(
-            WKRTransducer.fullRules
-                .filter { rule in
-                    guard rule.input.first == .p else { return false }
-                    guard case .unicode = rule.action else { return false }
-                    return true
-                }
-                .map(\.id)
-        )
 
         var actualRollbacks: Set<String> = []
         for rule in WKRTransducer.fullRules {
@@ -845,10 +798,10 @@ final class WKRTransducerTests: XCTestCase {
     /// Unicode rules cannot share a romaji prefix, so prefix mode deletes
     /// exactly the letters it streamed itself before injecting the character.
     func testPrefixModeRollsBackExactlyItsOwnLettersForUnicodeRules() {
-        for rule in WKRTransducer.fullRules {
+        for rule in SyntheticSymbolRules.rules {
             guard case let .unicode(expected) = rule.action else { continue }
 
-            let engine = WKRTransducer(mode: .prefixRomaji)
+            let engine = WKRTransducer(mode: .prefixRomaji, rules: SyntheticSymbolRules.rules)
             var actions: [SyntheticAction] = []
             for key in rule.input {
                 actions.append(contentsOf: engine.process(.physical(key)).actions)
@@ -866,30 +819,31 @@ final class WKRTransducerTests: XCTestCase {
 
     func testPrefixModeRepresentativeRollbacks() {
         let cases: [(name: String, keys: [PhysicalKey], expected: [SyntheticAction])] = [
-            ("EP", [.e, .p], [.romaji("k"), .romaji("oto")]),
+            ("EP", [.e, .p], [.romaji("k"), .romaji("ya")]),
             ("PJ", [.p, .j], [.romaji("z"), .romaji("j")]),
-            ("WP", [.w, .p], [.romaji("w"), .romaji("ake")]),
+            ("WP", [.w, .p], [.romaji("w"), .romaji("yi")]),
             ("WO", [.w, .o], [.romaji("w"), .romaji("ye")]),
             ("WI", [.w, .i], [.romaji("w"), .romaji("ho")]),
             ("Q,", [.q, .comma], [.romaji("l"), .backspace(count: 1), .unicode("，")]),
-            ("P1", [.p, .digit1], [.romaji("z"), .backspace(count: 1), .unicode("○")]),
+            ("PShift1", [.p, .shiftedDigit1], [.romaji("z"), .backspace(count: 1), .unicode("●")]),
             ("XH", [.x, .h], [.romaji("f"), .romaji("a")]),
-            ("XU", [.x, .u], [.romaji("f"), .backspace(count: 1), .romaji("teli")]),
+            ("XP", [.x, .p], [.romaji("f"), .backspace(count: 1), .romaji("teli")]),
             // ゔ waits for a third key, so only the shared letter shows.
             ("WJ", [.w, .j], [.romaji("w"), .backspace(count: 1), .romaji("v")]),
             ("WJL", [.w, .j, .l], [.romaji("w"), .backspace(count: 1), .romaji("v"), .romaji("o")]),
             ("WJJ", [.w, .j, .j], [.romaji("w"), .backspace(count: 1), .romaji("v"), .romaji("u")]),
             ("WJR", [.w, .j, .r], [.romaji("w"), .backspace(count: 1), .romaji("v"), .romaji("u"), .romaji("r")]),
-            ("AP", [.a, .p], [.romaji("g"), .romaji("ai")]),
+            ("AP", [.a, .p], [.romaji("g"), .romaji("ya")]),
             ("QE", [.q, .e], [.romaji("l"), .romaji("a"), .romaji("k")]),
-            ("QP", [.q, .p], [.romaji("l"), .romaji("wa")]),
+            ("QW", [.q, .w], [.romaji("l"), .romaji("wa")]),
             ("QE;", [.q, .e, .semicolon], [.romaji("l"), .romaji("a"), .romaji("k"), .romaji("e")]),
             ("QES", [.q, .e, .s], [.romaji("l"), .romaji("a"), .romaji("k"), .romaji("a"), .romaji("s")]),
-            ("WU", [.w, .u], [.romaji("w"), .romaji("yi")]),
+            ("WU", [.w, .u], [.romaji("w"), .romaji("a"), .romaji("ltu")]),
         ]
 
         for testCase in cases {
-            let engine = WKRTransducer(mode: .prefixRomaji)
+            let rules = ["PJ", "Q,", "PShift1"].contains(testCase.name) ? SyntheticSymbolRules.rules : WKRLayout.rules
+            let engine = WKRTransducer(mode: .prefixRomaji, rules: rules)
             var actions: [SyntheticAction] = []
             for key in testCase.keys {
                 actions.append(contentsOf: engine.process(.physical(key)).actions)
@@ -901,8 +855,8 @@ final class WKRTransducerTests: XCTestCase {
     /// Nothing WKR already showed may vanish on its own, so a key that cannot
     /// complete the layer leaves the streamed letter to Apple Japanese Input.
     func testPrefixModeUndefinedNextKeyLeavesUncompletableLetters() {
-        // `P` is the bare prefix: `z` is on screen and `R` is not one of its keys.
-        let engine = WKRTransducer(mode: .prefixRomaji)
+        // In the synthetic fixture P is a bare prefix: `z` is on screen and `R` is not one of its keys.
+        let engine = WKRTransducer(mode: .prefixRomaji, rules: SyntheticSymbolRules.rules)
         XCTAssertEqual(engine.process(.physical(.p)).actions, [.romaji("z")])
 
         let result = engine.process(.physical(.r))
@@ -913,7 +867,7 @@ final class WKRTransducerTests: XCTestCase {
         XCTAssertTrue(engine.hasPendingInput)
 
         // `Q` is a row key now, so a key that is not WKR's settles ぁ first.
-        let small = WKRTransducer(mode: .prefixRomaji)
+        let small = WKRTransducer(mode: .prefixRomaji, rules: SyntheticSymbolRules.rules)
         XCTAssertEqual(small.process(.physical(.q)).actions, [.romaji("l")])
         let digit = small.process(.physical(.digit0))
         XCTAssertEqual(digit.actions, [.romaji("a")])
@@ -922,7 +876,7 @@ final class WKRTransducerTests: XCTestCase {
     }
 
     func testPrefixModeBackspaceRemovesOnlyStreamedLetters() {
-        let engine = WKRTransducer(mode: .prefixRomaji)
+        let engine = WKRTransducer(mode: .prefixRomaji, rules: SyntheticSymbolRules.rules)
         _ = engine.process(.physical(.e))
 
         let result = engine.process(.backspace)
@@ -932,22 +886,21 @@ final class WKRTransducerTests: XCTestCase {
         XCTAssertEqual(result.stateCode, .canceledPending)
         XCTAssertFalse(engine.hasPendingInput)
 
-        let pendingWithoutOutput = WKRTransducer(mode: .prefixRomaji)
+        let pendingWithoutOutput = WKRTransducer(mode: .prefixRomaji, rules: SyntheticSymbolRules.rules)
         XCTAssertEqual(pendingWithoutOutput.process(.physical(.p)).actions, [.romaji("z")])
         let symbolCancel = pendingWithoutOutput.process(.backspace)
         XCTAssertEqual(symbolCancel.actions, [.backspace(count: 1)])
         XCTAssertEqual(symbolCancel.disposition, .suppress)
     }
 
-    /// Space after `P` must not make the streamed letter disappear. Only an
-    /// explicit Backspace cancels it. (`Q` was the other bare prefix until
-    /// beta.24; Space after it now settles ぁ, as after any row key.)
+    /// A synthetic P prefix keeps its streamed placeholder on Space. Q has
+    /// a real kana output and completes ぁ at the boundary.
     func testPrefixModeBoundaryLeavesPlaceholderInPlace() {
-        let small = WKRTransducer(mode: .prefixRomaji)
+        let small = WKRTransducer(mode: .prefixRomaji, rules: SyntheticSymbolRules.rules)
         _ = small.process(.physical(.q))
         XCTAssertEqual(small.process(.boundary(.space)).actions, [.romaji("a")])
         for key in [PhysicalKey.p] {
-            let engine = WKRTransducer(mode: .prefixRomaji)
+            let engine = WKRTransducer(mode: .prefixRomaji, rules: SyntheticSymbolRules.rules)
             XCTAssertFalse(engine.process(.physical(key)).actions.isEmpty, key.rawValue)
 
             let boundary = engine.process(.boundary(.space))

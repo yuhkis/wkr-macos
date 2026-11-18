@@ -19,7 +19,7 @@ final class PublicLayoutTests: XCTestCase {
         }
     }
     func testPauseDisplayCannotClaimConversion() {
-        XCTAssertEqual(ConversionStatus.resolve(gateOpen:false,secureInputEnabled:false,applicationAllowed:false,inputSourceMatches:true,statusMenuOpen:false,userPaused:true),.paused)
+        XCTAssertEqual(ConversionStatus.resolve(gateOpen:false,permissionsGranted:true,tapOperational:true,secureInputEnabled:false,applicationAllowed:false,inputSourceMatches:true,statusMenuOpen:false,userPaused:true),.paused)
     }
     func testProgressRejectsOutOfBoundsValuesAndUnknownLessons() throws {
         for lessons in [["vowels":["completed":-1,"bestAccuracy":50]], ["vowels":["completed":1,"bestAccuracy":101]], ["unknown":["completed":1,"bestAccuracy":50]]] {

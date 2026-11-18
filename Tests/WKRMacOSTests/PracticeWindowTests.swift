@@ -18,7 +18,7 @@ final class PracticeWindowTests: XCTestCase {
         webView.navigationDelegate = probe
         await fulfillment(of: [loaded], timeout: 12)
         XCTAssertNil(probe.failureCode, "Navigation error code: \(probe.failureCode ?? 0)")
-        XCTAssertEqual(probe.lessonCount, 12)
+        XCTAssertEqual(probe.lessonCount, 11)
         XCTAssertEqual(controller.loadState, .ready)
         XCTAssertFalse(webView.isHidden)
         controller.webViewWebContentProcessDidTerminate(webView)

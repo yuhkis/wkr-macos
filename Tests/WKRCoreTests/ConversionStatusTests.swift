@@ -24,6 +24,8 @@ final class ConversionStatusTests: XCTestCase {
     ) -> ConversionStatus {
         ConversionStatus.resolve(
             gateOpen: row.gate,
+            permissionsGranted: true,
+            tapOperational: true,
             secureInputEnabled: row.secure,
             applicationAllowed: row.allowed,
             inputSourceMatches: row.matches,
@@ -68,10 +70,12 @@ final class ConversionStatusTests: XCTestCase {
 
     /// While our own menu is open the gate is shut on purpose. The menu must not
     /// report that self-inflicted closure back as a fault.
-    func testOpenMenuAloneReportsConverting() {
+    func testOpenMenuWithAnOperationalTapReportsConverting() {
         XCTAssertEqual(
             ConversionStatus.resolve(
                 gateOpen: false,
+                permissionsGranted: true,
+                tapOperational: true,
                 secureInputEnabled: false,
                 applicationAllowed: true,
                 inputSourceMatches: true,
@@ -81,12 +85,55 @@ final class ConversionStatusTests: XCTestCase {
         )
     }
 
+    func testDeniedPermissionsCannotBeHiddenByMenuOrPause() {
+        for menuOpen in [false, true] {
+            for paused in [false, true] {
+                for tapOperational in [false, true] {
+                    let status = ConversionStatus.resolve(
+                        gateOpen: false,
+                        permissionsGranted: false,
+                        tapOperational: tapOperational,
+                        secureInputEnabled: false,
+                        applicationAllowed: true,
+                        inputSourceMatches: true,
+                        statusMenuOpen: menuOpen,
+                        userPaused: paused
+                    )
+                    XCTAssertEqual(status, .waitingForPermissions)
+                    XCTAssertEqual(ConversionStatusText.statusTitle(status), "待機中：入力権限が未許可")
+                    XCTAssertTrue(ConversionStatusText.remedyLine(ConversionMenuContent(status: status))!.contains("状態を再確認"))
+                }
+            }
+        }
+    }
+
+    func testAbsentOrUnstartedTapCannotUseMenuException() {
+        for permissions in [nil, true] as [Bool?] {
+            for menuOpen in [false, true] {
+                let status = ConversionStatus.resolve(
+                    gateOpen: false,
+                    permissionsGranted: permissions,
+                    tapOperational: false,
+                    secureInputEnabled: false,
+                    applicationAllowed: true,
+                    inputSourceMatches: true,
+                    statusMenuOpen: menuOpen,
+                    userPaused: true
+                )
+                XCTAssertEqual(status, .notStarted)
+                XCTAssertEqual(ConversionStatusText.statusTitle(status), "待機中：変換は未開始")
+            }
+        }
+    }
+
     // MARK: - Precedence
 
     func testPrecedenceIsPinned() {
         func r(secure: Bool, allowed: Bool, matches: Bool) -> ConversionStatus {
             ConversionStatus.resolve(
                 gateOpen: false,
+                permissionsGranted: true,
+                tapOperational: true,
                 secureInputEnabled: secure,
                 applicationAllowed: allowed,
                 inputSourceMatches: matches,
@@ -249,6 +296,9 @@ final class ConversionStatusTests: XCTestCase {
         }
         let templates: Set<String> = [
             "変換中",
+            "待機中：入力権限が未許可", "待機中：変換は未開始",
+            "対処：「導入・権限の案内」で許可し、「状態を再確認して変換を開始」を選んでください",
+            "対処：「導入・権限の案内」で状態を確認してください",
             "待機中：入力ソースが対象外",
             "待機中：除外アプリが前面",
             "停止中：Secure Event Input",

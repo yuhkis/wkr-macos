@@ -20,9 +20,9 @@ final class LongVowelTrialTests: XCTestCase {
         }
     }
 
-    func testSymbolSelectorsRetainTheirPhysicalPositions() {
-        for (keys, expected) in [([PhysicalKey.p, .y], "〒"), ([.p, .slash], "／"), ([.q, .slash], "／")] {
-            XCTAssertEqual(WKRLayout.rules.first { $0.input == keys }?.kana, expected)
+    func testSyntheticSymbolSelectorsDoNotUseThePublishedLayout() {
+        for (keys, expected) in [([PhysicalKey.p, .y], "〒"), ([.q, .slash], "／")] {
+            XCTAssertEqual(SyntheticSymbolRules.rules.first { $0.input == keys }?.kana, expected)
         }
     }
 
@@ -59,7 +59,7 @@ extension LongVowelTrialTests {
 
 
 extension LongVowelTrialTests {
-    func testBeta11LegendRemainsDistinctAndLongVowelKeepsRewriteHistory() throws {
+    func testLongVowelKeepsRewriteHistory() throws {
         let engine = WKRTransducer(mode: .prefixRomaji)
         var journal = EnglishFallbackJournal()
         for key in [PhysicalKey.e, .k, .y] {

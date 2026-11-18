@@ -21,7 +21,8 @@
 - `かな` / `英数` の押下だけで判断せず、ユーザーが選んだ Apple日本語入力の実際の TIS 入力ソースと変更通知を照合する。`TISSelectInputSource` で自動選択しない。
 - Secure Event Input、パスワード欄、権限不足、tap 無効化、対象外の入力ソースでは変換しない。Command / Control / Option、未対応修飾キー、マウス、フォーカス・アプリ・カーソル・入力ソース変更、Escape、Undo / Redo の境界では規定どおり flush / cancel する。
 - deferred の未出力状態に対する Backspace は先に内部の保留を取り消し、既存本文を削除しない。
-- `IsSecureEventInputEnabled()` を event tap callback で直接呼ばず、安全な実行コンテキストで確認した状態を参照する。tap の timeout / 無効化時は [design.md](design.md) 6節どおり自動再有効化せず、状態を捨てて fail closed で終了する。
+- `IsSecureEventInputEnabled()` を event tap callback で直接呼ばず、安全な実行コンテキストで確認した状態を参照する。tap の timeout / 無効化時は [design.md](design.md) 6節どおり同じtapを自動再有効化せず、状態を捨てる。キーを受け取る前のtimeoutだけ有限な起動回復へ進み、それ以外は fail closed で終了する。
+- tapはUI・監視通知・安全timer・初期コンテキストを準備してから最後に開始する。初回未許可の案内を維持し、権限の有限再確認と新プロセスのtap再試行を分ける。後継の前プロセス終了待ちは起動処理から戻った後の有限timerで行い、main threadをsleepで塞がない。生存中はengine lease・許可要求・tapを開始しない。`EventTapStartupRetryTests`で前プロセスの生存／終了／期限後の状態遷移、上限、引数解析、初回案内の維持、初キー後の回復禁止を確認する。v1共有処理は`StartupBoundaryTests`で同じ境界を確認する。
 - TCC 対象は固定 Bundle ID `io.github.yuhkis.wkr-macos.public` と固定出力先の最小 `.app` とする。署名は既定 ad-hoc、`CODESIGN_IDENTITY` の明示時だけその証明書を使い、キーチェーンから自動選択しない。配布版は専用の自己署名証明書で署名する（[design.md](design.md) 12節、手順は [Scripts/README.md](../Scripts/README.md)）。証明書を操作する承認境界は AGENTS.md に従う。
 
 ## ログと表示
@@ -30,6 +31,7 @@
 
 - 権限状態、モード、入力ソースID、エラー種別、集計件数、変換ゲートが閉じていた秒数。
 - Secure Event Input の保持 PID の数値と生死。プロセス名・パス・バンドルIDはログにも画面にも出さない。画面共有・スクリーンショットへの写り込みを考慮する。理由は [design.md](design.md) 7節。
+- 起動回復は固定の失敗種別、試行回数、待機秒数だけ。`permissions-check action=setup-wait-ended`、`event-tap-start` / `event-tap-timeout` の `failed=true action=relaunch attempt= elapsed-seconds= wait-seconds=`、`event-tap-start relaunched=true attempts= after-seconds=`、`conversion-not-started reason= attempts= waited-seconds=`を許可する。前プロセスの待機上限では固定理由`conversion-not-started reason=predecessor-exit-timeout`だけを出し、PID・名前・パスは追加しない。timeout直後は`event-tap-disabled type= action=fail-closed`、最初のキー前だけ`conversion-stopped reason=event-tap-disabled-timeout action=relaunch keys-handled=0`。実行中のキー数や時刻は追加しない。
 - メニューバー生成結果 `status-item created= glyph= reason=`、メニュー開閉 `status-menu open=`。
 - キーマップ指定の有無 `heatmap-keymap selected=`、過去の集計を開いたこと `key-frequency-archive opened=`。ログへパスを出さない。メニューのキーマップ表示はファイル名だけにする。
 - 打鍵頻度は `key-frequency flush=ok days=<日数>`、退避 `key-frequency rotate=ok days=<日数>` / `rotate=ok reason=unreadable` / `rotate=failed`、退避できず書き出しを見送った `key-frequency flush=failed stage=archive` のような処理結果だけ（値は書式上のplaceholder）。キー別集計そのものはログへ出さない。退避ファイル名もログへ出さない。
@@ -42,6 +44,8 @@
 [install.md](install.md) も更新する。
 
 ## 検証と記録
+
+- 状態表示の回帰では、権限未許可・tapなし・作成後未開始・稼働tapを分け、メニューの開閉で未開始を変換中と表示しないことを確認する。権限待機の期限前後と、見出し・詳細・対処が一つの状態を表すことも対象にする。`ConversionStatus.resolve`の権限・稼働状態と`StatusItemController.renderStateRows`を検査し、行のテストは`NSMenuItem`だけで行って実際のステータス項目を作らない。実機確認は新しく生成した候補ZIPで別に行う。
 
 - FST、曖昧接頭辞、未定義キーの再処理、リセット条件の変更はユニットテストで確認する。変換の代表ケースは `E`、`EK`、`ESK`、`WER`、`QH`、`QP`、`Y`、`WJH`。
 - 入力動作や互換性を判断する実機テストは TextEdit を起点とし、Notes と Safari の通常テキスト欄でも再現する。表示文字だけでなく、Space の変換候補、Enter 確定、Backspace、カーソル移動、アプリ切替後の状態を確認する。
