@@ -6,10 +6,11 @@ final class EnglishFallbackJournalTests: XCTestCase {
     /// exactly as the controller does.
     private func journal(
         typing keys: [PhysicalKey],
+        rules: [NormalizedRule] = WKRLayout.rules,
         limit: Int = EnglishFallbackJournal.defaultKeyLimit,
         at now: Double = 0
     ) -> EnglishFallbackJournal {
-        let engine = WKRTransducer(mode: .prefixRomaji)
+        let engine = WKRTransducer(mode: .prefixRomaji, rules: rules)
         var journal = EnglishFallbackJournal(keyLimit: limit)
         for key in keys {
             let event = WKRInputEvent.physical(key)
@@ -25,19 +26,16 @@ final class EnglishFallbackJournalTests: XCTestCase {
         let snapshot = journal(typing: keys).snapshot(at: 0)
 
         XCTAssertEqual(snapshot?.keys, keys)
-        // `pa` + `yo` + `nn` + `h`, the `payonnh` the connect-back puts on
-        // screen for the `thing` the user meant to type.
+        // `pa` + `yo` + `ye` + pending `h`: seven raw romaji characters.
         XCTAssertEqual(snapshot?.romajiCharacterCount, 7)
     }
 
-    /// The arrows are romaji now, so a mistyped `Y` `J` stays recoverable. It
-    /// used to inject Unicode, which stopped the journal for the rest of the
-    /// pre-edit and left the connect-back with nothing to replace.
-    func testArrowKeysKeepTheJournalUsable() {
+    /// Independent terminal kana remain recoverable in the memory-only journal.
+    func testIndependentYaAndUKeepTheJournalUsable() {
         let snapshot = journal(typing: [.p, .j]).snapshot(at: 0)
 
         XCTAssertEqual(snapshot?.keys, [.p, .j])
-        XCTAssertEqual(snapshot?.romajiCharacterCount, 2)  // `z` + `j`
+        XCTAssertEqual(snapshot?.romajiCharacterCount, 3)  // `ya` + `u`
         XCTAssertEqual(
             snapshot.map { String($0.keys.map(\.jisCharacter)) },
             "pj"
@@ -46,8 +44,8 @@ final class EnglishFallbackJournalTests: XCTestCase {
 
     /// A symbol still stops it: the character commits on the spot, so there is
     /// nothing left in the pre-edit for the connect-back to hand back.
-    func testSymbolLayerStillStopsTheJournal() {
-        XCTAssertNil(journal(typing: [.p, .a]).snapshot(at: 0))
+    func testSyntheticUnicodeStopsTheJournal() {
+        XCTAssertNil(journal(typing: [.p, .a], rules: SyntheticSymbolRules.rules).snapshot(at: 0))
     }
 
     /// A rollback branch replaces the letter its row streamed, and the
@@ -55,21 +53,21 @@ final class EnglishFallbackJournalTests: XCTestCase {
     /// instead of giving up, so the keys stay recoverable.
     func testRollbackBranchesStayRecoverable() {
         let cases: [(name: String, keys: [PhysicalKey], count: Int, letters: String)] = [
-            // `koto` continues the row's `k`, so the screen holds `koto`.
-            ("EP", [.e, .p], 4, "ep"),
-            ("EPWP", [.e, .p, .w, .p], 8, "epwp"),  // `koto` + `wake`, nothing taken back
+            // `kya` continues the row's `k`.
+            ("EP", [.e, .p], 3, "ep"),
+            ("EPWP", [.e, .p, .w, .p], 6, "epwp"),  // `kya` + `wyi`, nothing taken back
             // `lwa` continues the prefix's `l`, so nothing is taken back here.
-            ("EPQW", [.e, .p, .q, .w], 7, "epqw"),  // `koto` + `lwa`
-            ("AP", [.a, .p], 3, "ap"),  // `gai` continues the row's `g`
-            ("QE", [.q, .e], 3, "qe"),  // `lka` continues the prefix's `l`
-            ("QP", [.q, .p], 3, "qp"),  // `lke` likewise
+            ("EPQW", [.e, .p, .q, .w], 6, "epqw"),  // `kya` + `lwa`
+            ("AP", [.a, .p], 3, "ap"),  // `gya` continues the row's `g`
+            ("QE", [.q, .e], 3, "qe"),  // `l` + pending `k` continues the prefix's `l`
+            ("QP", [.q, .p], 3, "qp"),  // `lya` likewise
             ("WJL", [.w, .j, .l], 2, "wjl"),  // `w` taken back at `J`, then `vo`
             ("WJJ", [.w, .j, .j], 2, "wjj"),  // likewise, then `vu`
-            ("WP", [.w, .p], 4, "wp"),  // `wake` continues the row's `w`
+            ("WU", [.w, .u], 5, "wu"),  // `wa` + independent `ltu`
             ("WJ;", [.w, .j, .semicolon], 2, "wj;"),  // ゔぇ: `w` taken back at `J`, then `ve`
-            ("WU", [.w, .u], 3, "wu"),  // `wyi` continues the row's `w`
+            ("WP", [.w, .p], 3, "wp"),  // `wyi` continues the row's `w`
             // The X row keeps `f` for ふぁ and rolls it back for てぃ.
-            ("XU", [.x, .u], 4, "xu"),  // `teli`
+            ("XP", [.x, .p], 4, "xp"),  // `teli`
         ]
 
         for testCase in cases {
@@ -120,7 +118,7 @@ final class EnglishFallbackJournalTests: XCTestCase {
 
     func testRecordedRomajiLengthMatchesWhatTheTransducerStreamed() {
         let cases: [(name: String, keys: [PhysicalKey], expected: Int)] = [
-            ("THING", [.t, .h, .i, .n, .g], 7),  // pa yo nn h
+            ("THING", [.t, .h, .i, .n, .g], 7),  // pa yo ye h
             ("WER", [.w, .e, .r], 5),            // w a  k a  r, shown as `わかr`
             ("EK", [.e, .k], 2),                 // k i
             ("H", [.h], 1),                      // a
@@ -222,9 +220,8 @@ final class EnglishFallbackJournalTests: XCTestCase {
     }
 
     func testUnicodeOutputStopsTheJournal() {
-        // `T` `,` is `，`, injected as a Unicode string, so it commits on the
-        // spot instead of joining the romaji the connect-back can return.
-        XCTAssertNil(journal(typing: [.q, .comma]).snapshot(at: 0))
+        // A synthetic Unicode branch ends the recoverable romaji pre-edit.
+        XCTAssertNil(journal(typing: [.q, .comma], rules: SyntheticSymbolRules.rules).snapshot(at: 0))
     }
 
     func testAnUnexplainedBackspaceStopsTheJournal() {
@@ -285,7 +282,7 @@ final class EnglishFallbackJournalTests: XCTestCase {
     }
 
     func testAnInvalidatedJournalStaysClosedUntilABoundary() {
-        var journal = self.journal(typing: [.q, .comma])
+        var journal = self.journal(typing: [.q, .comma], rules: SyntheticSymbolRules.rules)
         let event = WKRInputEvent.physical(.e)
         let engine = WKRTransducer(mode: .prefixRomaji)
         journal.record(event, result: engine.process(event), at: 0)

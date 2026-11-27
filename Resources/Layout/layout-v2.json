@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "name": "わから配列 v2",
-  "version": "2.0.0-beta.2",
+  "version": "2.0.0-beta.5",
   "status": "public-beta",
-  "description": "P特殊列は公開ベータで評価中。版を固定して利用し、変更時は配列版を更新する。",
+  "description": "2.0.0-beta.5でDをた行、Fをな行へ入れ替えた。D/Fから始まる20規則を変更し、ほかの151規則は2.0.0-beta.4と同じ。版を固定して利用し、変更時は配列版を更新する。",
   "rules": [
     {
       "id": "e-ka",
@@ -71,10 +71,10 @@
       "group": "kana"
     },
     {
-      "id": "eu-kya",
+      "id": "ep-kya",
       "keys": [
         "e",
-        "u"
+        "p"
       ],
       "output": "きゃ",
       "delivery": "romaji",
@@ -104,15 +104,15 @@
       "group": "kana"
     },
     {
-      "id": "ep-koto",
+      "id": "en-kye",
       "keys": [
         "e",
-        "p"
+        "n"
       ],
-      "output": "こと",
+      "output": "きぇ",
       "delivery": "romaji",
-      "romaji": "koto",
-      "group": "shortcuts"
+      "romaji": "kye",
+      "group": "kana"
     },
     {
       "id": "s-sa",
@@ -180,10 +180,10 @@
       "group": "kana"
     },
     {
-      "id": "su-sha",
+      "id": "sp-sha",
       "keys": [
         "s",
-        "u"
+        "p"
       ],
       "output": "しゃ",
       "delivery": "romaji",
@@ -213,139 +213,30 @@
       "group": "kana"
     },
     {
-      "id": "sp-she",
+      "id": "sn-she",
       "keys": [
         "s",
-        "p"
+        "n"
       ],
       "output": "しぇ",
       "delivery": "romaji",
-      "romaji": "she",
+      "romaji": "sye",
       "group": "kana"
     },
     {
-      "id": "f-ta",
+      "id": "f-na",
       "keys": [
         "f"
       ],
-      "output": "た",
-      "delivery": "romaji",
-      "romaji": "ta",
-      "group": "kana"
-    },
-    {
-      "id": "fh-ta",
-      "keys": [
-        "f",
-        "h"
-      ],
-      "output": "た",
-      "delivery": "romaji",
-      "romaji": "ta",
-      "group": "kana"
-    },
-    {
-      "id": "fk-chi",
-      "keys": [
-        "f",
-        "k"
-      ],
-      "output": "ち",
-      "delivery": "romaji",
-      "romaji": "ti",
-      "group": "kana"
-    },
-    {
-      "id": "fj-tsu",
-      "keys": [
-        "f",
-        "j"
-      ],
-      "output": "つ",
-      "delivery": "romaji",
-      "romaji": "tu",
-      "group": "kana"
-    },
-    {
-      "id": "fsemicolon-te",
-      "keys": [
-        "f",
-        ";"
-      ],
-      "output": "て",
-      "delivery": "romaji",
-      "romaji": "te",
-      "group": "kana"
-    },
-    {
-      "id": "fl-to",
-      "keys": [
-        "f",
-        "l"
-      ],
-      "output": "と",
-      "delivery": "romaji",
-      "romaji": "to",
-      "group": "kana"
-    },
-    {
-      "id": "fu-cha",
-      "keys": [
-        "f",
-        "u"
-      ],
-      "output": "ちゃ",
-      "delivery": "romaji",
-      "romaji": "tya",
-      "group": "kana"
-    },
-    {
-      "id": "fo-chu",
-      "keys": [
-        "f",
-        "o"
-      ],
-      "output": "ちゅ",
-      "delivery": "romaji",
-      "romaji": "tyu",
-      "group": "kana"
-    },
-    {
-      "id": "fi-cho",
-      "keys": [
-        "f",
-        "i"
-      ],
-      "output": "ちょ",
-      "delivery": "romaji",
-      "romaji": "tyo",
-      "group": "kana"
-    },
-    {
-      "id": "fp-che",
-      "keys": [
-        "f",
-        "p"
-      ],
-      "output": "ちぇ",
-      "delivery": "romaji",
-      "romaji": "tye",
-      "group": "kana"
-    },
-    {
-      "id": "d-na",
-      "keys": [
-        "d"
-      ],
       "output": "な",
       "delivery": "romaji",
       "romaji": "na",
       "group": "kana"
     },
     {
-      "id": "dh-na",
+      "id": "fh-na",
       "keys": [
-        "d",
+        "f",
         "h"
       ],
       "output": "な",
@@ -354,9 +245,9 @@
       "group": "kana"
     },
     {
-      "id": "dk-ni",
+      "id": "fk-ni",
       "keys": [
-        "d",
+        "f",
         "k"
       ],
       "output": "に",
@@ -365,9 +256,9 @@
       "group": "kana"
     },
     {
-      "id": "dj-nu",
+      "id": "fj-nu",
       "keys": [
-        "d",
+        "f",
         "j"
       ],
       "output": "ぬ",
@@ -376,9 +267,9 @@
       "group": "kana"
     },
     {
-      "id": "dsemicolon-ne",
+      "id": "fsemicolon-ne",
       "keys": [
-        "d",
+        "f",
         ";"
       ],
       "output": "ね",
@@ -387,9 +278,9 @@
       "group": "kana"
     },
     {
-      "id": "dl-no",
+      "id": "fl-no",
       "keys": [
-        "d",
+        "f",
         "l"
       ],
       "output": "の",
@@ -398,10 +289,10 @@
       "group": "kana"
     },
     {
-      "id": "du-nya",
+      "id": "fp-nya",
       "keys": [
-        "d",
-        "u"
+        "f",
+        "p"
       ],
       "output": "にゃ",
       "delivery": "romaji",
@@ -409,9 +300,9 @@
       "group": "kana"
     },
     {
-      "id": "do-nyu",
+      "id": "fo-nyu",
       "keys": [
-        "d",
+        "f",
         "o"
       ],
       "output": "にゅ",
@@ -420,9 +311,9 @@
       "group": "kana"
     },
     {
-      "id": "di-nyo",
+      "id": "fi-nyo",
       "keys": [
-        "d",
+        "f",
         "i"
       ],
       "output": "にょ",
@@ -431,15 +322,124 @@
       "group": "kana"
     },
     {
-      "id": "dp-node",
+      "id": "fn-nye",
+      "keys": [
+        "f",
+        "n"
+      ],
+      "output": "にぇ",
+      "delivery": "romaji",
+      "romaji": "nye",
+      "group": "kana"
+    },
+    {
+      "id": "d-ta",
+      "keys": [
+        "d"
+      ],
+      "output": "た",
+      "delivery": "romaji",
+      "romaji": "ta",
+      "group": "kana"
+    },
+    {
+      "id": "dh-ta",
+      "keys": [
+        "d",
+        "h"
+      ],
+      "output": "た",
+      "delivery": "romaji",
+      "romaji": "ta",
+      "group": "kana"
+    },
+    {
+      "id": "dk-chi",
+      "keys": [
+        "d",
+        "k"
+      ],
+      "output": "ち",
+      "delivery": "romaji",
+      "romaji": "ti",
+      "group": "kana"
+    },
+    {
+      "id": "dj-tsu",
+      "keys": [
+        "d",
+        "j"
+      ],
+      "output": "つ",
+      "delivery": "romaji",
+      "romaji": "tu",
+      "group": "kana"
+    },
+    {
+      "id": "dsemicolon-te",
+      "keys": [
+        "d",
+        ";"
+      ],
+      "output": "て",
+      "delivery": "romaji",
+      "romaji": "te",
+      "group": "kana"
+    },
+    {
+      "id": "dl-to",
+      "keys": [
+        "d",
+        "l"
+      ],
+      "output": "と",
+      "delivery": "romaji",
+      "romaji": "to",
+      "group": "kana"
+    },
+    {
+      "id": "dp-cha",
       "keys": [
         "d",
         "p"
       ],
-      "output": "ので",
+      "output": "ちゃ",
       "delivery": "romaji",
-      "romaji": "node",
-      "group": "shortcuts"
+      "romaji": "tya",
+      "group": "kana"
+    },
+    {
+      "id": "do-chu",
+      "keys": [
+        "d",
+        "o"
+      ],
+      "output": "ちゅ",
+      "delivery": "romaji",
+      "romaji": "tyu",
+      "group": "kana"
+    },
+    {
+      "id": "di-cho",
+      "keys": [
+        "d",
+        "i"
+      ],
+      "output": "ちょ",
+      "delivery": "romaji",
+      "romaji": "tyo",
+      "group": "kana"
+    },
+    {
+      "id": "dn-che",
+      "keys": [
+        "d",
+        "n"
+      ],
+      "output": "ちぇ",
+      "delivery": "romaji",
+      "romaji": "tye",
+      "group": "kana"
     },
     {
       "id": "g-ha",
@@ -507,10 +507,10 @@
       "group": "kana"
     },
     {
-      "id": "gu-hya",
+      "id": "gp-hya",
       "keys": [
         "g",
-        "u"
+        "p"
       ],
       "output": "ひゃ",
       "delivery": "romaji",
@@ -540,15 +540,15 @@
       "group": "kana"
     },
     {
-      "id": "gp-hai",
+      "id": "gn-hye",
       "keys": [
         "g",
-        "p"
+        "n"
       ],
-      "output": "はい",
+      "output": "ひぇ",
       "delivery": "romaji",
-      "romaji": "hai",
-      "group": "shortcuts"
+      "romaji": "hye",
+      "group": "kana"
     },
     {
       "id": "v-ma",
@@ -616,10 +616,10 @@
       "group": "kana"
     },
     {
-      "id": "vu-mya",
+      "id": "vp-mya",
       "keys": [
         "v",
-        "u"
+        "p"
       ],
       "output": "みゃ",
       "delivery": "romaji",
@@ -649,15 +649,15 @@
       "group": "kana"
     },
     {
-      "id": "vp-masu",
+      "id": "vn-mye",
       "keys": [
         "v",
-        "p"
+        "n"
       ],
-      "output": "ます",
+      "output": "みぇ",
       "delivery": "romaji",
-      "romaji": "masu",
-      "group": "shortcuts"
+      "romaji": "mye",
+      "group": "kana"
     },
     {
       "id": "r-ra",
@@ -725,10 +725,10 @@
       "group": "kana"
     },
     {
-      "id": "ru-rya",
+      "id": "rp-rya",
       "keys": [
         "r",
-        "u"
+        "p"
       ],
       "output": "りゃ",
       "delivery": "romaji",
@@ -758,15 +758,15 @@
       "group": "kana"
     },
     {
-      "id": "rp-reru",
+      "id": "rn-rye",
       "keys": [
         "r",
-        "p"
+        "n"
       ],
-      "output": "れる",
+      "output": "りぇ",
       "delivery": "romaji",
-      "romaji": "reru",
-      "group": "shortcuts"
+      "romaji": "rye",
+      "group": "kana"
     },
     {
       "id": "w-wa",
@@ -834,10 +834,10 @@
       "group": "kana"
     },
     {
-      "id": "wu-archaic-wi",
+      "id": "wp-archaic-wi",
       "keys": [
         "w",
-        "u"
+        "p"
       ],
       "output": "ゐ",
       "delivery": "romaji",
@@ -865,17 +865,6 @@
       "delivery": "romaji",
       "romaji": "who",
       "group": "kana"
-    },
-    {
-      "id": "wp-wake",
-      "keys": [
-        "w",
-        "p"
-      ],
-      "output": "わけ",
-      "delivery": "romaji",
-      "romaji": "wake",
-      "group": "shortcuts"
     },
     {
       "id": "a-ga",
@@ -943,10 +932,10 @@
       "group": "kana"
     },
     {
-      "id": "au-gya",
+      "id": "ap-gya",
       "keys": [
         "a",
-        "u"
+        "p"
       ],
       "output": "ぎゃ",
       "delivery": "romaji",
@@ -976,15 +965,15 @@
       "group": "kana"
     },
     {
-      "id": "ap-gai",
+      "id": "an-gye",
       "keys": [
         "a",
-        "p"
+        "n"
       ],
-      "output": "がい",
+      "output": "ぎぇ",
       "delivery": "romaji",
-      "romaji": "gai",
-      "group": "shortcuts"
+      "romaji": "gye",
+      "group": "kana"
     },
     {
       "id": "z-za",
@@ -1052,10 +1041,10 @@
       "group": "kana"
     },
     {
-      "id": "zu-ja",
+      "id": "zp-ja",
       "keys": [
         "z",
-        "u"
+        "p"
       ],
       "output": "じゃ",
       "delivery": "romaji",
@@ -1085,10 +1074,10 @@
       "group": "kana"
     },
     {
-      "id": "zp-je",
+      "id": "zn-je",
       "keys": [
         "z",
-        "p"
+        "n"
       ],
       "output": "じぇ",
       "delivery": "romaji",
@@ -1161,10 +1150,10 @@
       "group": "kana"
     },
     {
-      "id": "cu-dhi",
+      "id": "cp-dhi",
       "keys": [
         "c",
-        "u"
+        "p"
       ],
       "output": "でぃ",
       "delivery": "romaji",
@@ -1194,15 +1183,15 @@
       "group": "kana"
     },
     {
-      "id": "cp-desu",
+      "id": "cn-dye",
       "keys": [
         "c",
-        "p"
+        "n"
       ],
-      "output": "です",
+      "output": "ぢぇ",
       "delivery": "romaji",
-      "romaji": "desu",
-      "group": "shortcuts"
+      "romaji": "dye",
+      "group": "kana"
     },
     {
       "id": "b-ba",
@@ -1270,10 +1259,10 @@
       "group": "kana"
     },
     {
-      "id": "bu-bya",
+      "id": "bp-bya",
       "keys": [
         "b",
-        "u"
+        "p"
       ],
       "output": "びゃ",
       "delivery": "romaji",
@@ -1303,15 +1292,15 @@
       "group": "kana"
     },
     {
-      "id": "bp-bun",
+      "id": "bn-bye",
       "keys": [
         "b",
-        "p"
+        "n"
       ],
-      "output": "ぶん",
+      "output": "びぇ",
       "delivery": "romaji",
-      "romaji": "bunn",
-      "group": "shortcuts"
+      "romaji": "bye",
+      "group": "kana"
     },
     {
       "id": "t-pa",
@@ -1379,10 +1368,10 @@
       "group": "kana"
     },
     {
-      "id": "tu-pya",
+      "id": "tp-pya",
       "keys": [
         "t",
-        "u"
+        "p"
       ],
       "output": "ぴゃ",
       "delivery": "romaji",
@@ -1412,15 +1401,15 @@
       "group": "kana"
     },
     {
-      "id": "tp-puro",
+      "id": "tn-pye",
       "keys": [
         "t",
-        "p"
+        "n"
       ],
-      "output": "ぷろ",
+      "output": "ぴぇ",
       "delivery": "romaji",
-      "romaji": "puro",
-      "group": "shortcuts"
+      "romaji": "pye",
+      "group": "kana"
     },
     {
       "id": "x-fa",
@@ -1488,10 +1477,10 @@
       "group": "kana"
     },
     {
-      "id": "xu-thi",
+      "id": "xp-thi",
       "keys": [
         "x",
-        "u"
+        "p"
       ],
       "output": "てぃ",
       "delivery": "romaji",
@@ -1521,15 +1510,15 @@
       "group": "kana"
     },
     {
-      "id": "xp-site",
+      "id": "xn-fe",
       "keys": [
         "x",
-        "p"
+        "n"
       ],
-      "output": "して",
+      "output": "ふぇ",
       "delivery": "romaji",
-      "romaji": "site",
-      "group": "shortcuts"
+      "romaji": "fe",
+      "group": "kana"
     },
     {
       "id": "h-a",
@@ -1582,9 +1571,9 @@
       "group": "kana"
     },
     {
-      "id": "u-ya",
+      "id": "p-ya",
       "keys": [
-        "u"
+        "p"
       ],
       "output": "や",
       "delivery": "romaji",
@@ -1612,23 +1601,33 @@
       "group": "kana"
     },
     {
-      "id": "n-n",
+      "id": "n-ye",
       "keys": [
         "n"
       ],
-      "output": "ん",
+      "output": "いぇ",
       "delivery": "romaji",
-      "romaji": "nn",
+      "romaji": "ye",
       "group": "kana"
     },
     {
-      "id": "m-small-tsu",
+      "id": "u-small-tsu",
       "keys": [
-        "m"
+        "u"
       ],
       "output": "っ",
       "delivery": "romaji",
       "romaji": "ltu",
+      "group": "kana"
+    },
+    {
+      "id": "m-n",
+      "keys": [
+        "m"
+      ],
+      "output": "ん",
+      "delivery": "romaji",
+      "romaji": "nn",
       "group": "kana"
     },
     {
@@ -1717,10 +1716,10 @@
       "group": "kana"
     },
     {
-      "id": "qu-small-ya",
+      "id": "qp-small-ya",
       "keys": [
         "q",
-        "u"
+        "p"
       ],
       "output": "ゃ",
       "delivery": "romaji",
@@ -1760,44 +1759,14 @@
       "group": "kana"
     },
     {
-      "id": "qp-small-wa",
+      "id": "qw-small-wa",
       "keys": [
         "q",
-        "p"
+        "w"
       ],
       "output": "ゎ",
       "delivery": "romaji",
       "romaji": "lwa",
-      "group": "kana"
-    },
-    {
-      "id": "qcomma-fullwidth-comma",
-      "keys": [
-        "q",
-        ","
-      ],
-      "output": "，",
-      "delivery": "unicode",
-      "group": "kana"
-    },
-    {
-      "id": "qperiod-fullwidth-period",
-      "keys": [
-        "q",
-        "."
-      ],
-      "output": "．",
-      "delivery": "unicode",
-      "group": "kana"
-    },
-    {
-      "id": "qslash-fullwidth-slash",
-      "keys": [
-        "q",
-        "/"
-      ],
-      "output": "／",
-      "delivery": "unicode",
       "group": "kana"
     },
     {
@@ -1861,11 +1830,11 @@
       "group": "kana"
     },
     {
-      "id": "wju-vya",
+      "id": "wjp-vya",
       "keys": [
         "w",
         "j",
-        "u"
+        "p"
       ],
       "output": "ゔゃ",
       "delivery": "romaji",
@@ -1895,600 +1864,6 @@
       "delivery": "romaji",
       "romaji": "vyo",
       "group": "kana"
-    },
-    {
-      "id": "ph-left",
-      "keys": [
-        "p",
-        "h"
-      ],
-      "output": "←",
-      "delivery": "romaji",
-      "romaji": "zh",
-      "group": "arrows"
-    },
-    {
-      "id": "pj-down",
-      "keys": [
-        "p",
-        "j"
-      ],
-      "output": "↓",
-      "delivery": "romaji",
-      "romaji": "zj",
-      "group": "arrows"
-    },
-    {
-      "id": "pk-up",
-      "keys": [
-        "p",
-        "k"
-      ],
-      "output": "↑",
-      "delivery": "romaji",
-      "romaji": "zk",
-      "group": "arrows"
-    },
-    {
-      "id": "pl-right",
-      "keys": [
-        "p",
-        "l"
-      ],
-      "output": "→",
-      "delivery": "romaji",
-      "romaji": "zl",
-      "group": "arrows"
-    },
-    {
-      "id": "p1-open-circle",
-      "keys": [
-        "p",
-        "1"
-      ],
-      "output": "○",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "p-shift1-filled-circle",
-      "keys": [
-        "p",
-        "Shift+1"
-      ],
-      "output": "●",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "p2-open-down-triangle",
-      "keys": [
-        "p",
-        "2"
-      ],
-      "output": "▽",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "p-shift2-filled-down-triangle",
-      "keys": [
-        "p",
-        "Shift+2"
-      ],
-      "output": "▼",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "p3-open-up-triangle",
-      "keys": [
-        "p",
-        "3"
-      ],
-      "output": "△",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "p-shift3-filled-up-triangle",
-      "keys": [
-        "p",
-        "Shift+3"
-      ],
-      "output": "▲",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "p4-open-square",
-      "keys": [
-        "p",
-        "4"
-      ],
-      "output": "□",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "p-shift4-filled-square",
-      "keys": [
-        "p",
-        "Shift+4"
-      ],
-      "output": "■",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "p5-open-diamond",
-      "keys": [
-        "p",
-        "5"
-      ],
-      "output": "◇",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "p-shift5-filled-diamond",
-      "keys": [
-        "p",
-        "Shift+5"
-      ],
-      "output": "◆",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "p6-open-star",
-      "keys": [
-        "p",
-        "6"
-      ],
-      "output": "☆",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "p-shift6-filled-star",
-      "keys": [
-        "p",
-        "Shift+6"
-      ],
-      "output": "★",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "p7-double-circle",
-      "keys": [
-        "p",
-        "7"
-      ],
-      "output": "◎",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "p-shift7-pound",
-      "keys": [
-        "p",
-        "Shift+7"
-      ],
-      "output": "￡",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "p8-cent",
-      "keys": [
-        "p",
-        "8"
-      ],
-      "output": "￠",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "p-shift8-bracket-open",
-      "keys": [
-        "p",
-        "Shift+8"
-      ],
-      "output": "【",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "p9-male",
-      "keys": [
-        "p",
-        "9"
-      ],
-      "output": "♂",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "p-shift9-bracket-close",
-      "keys": [
-        "p",
-        "Shift+9"
-      ],
-      "output": "】",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "p0-female",
-      "keys": [
-        "p",
-        "0"
-      ],
-      "output": "♀",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "p-underscore-therefore",
-      "keys": [
-        "p",
-        "JIS-_"
-      ],
-      "output": "∴",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "p-equals-approximately",
-      "keys": [
-        "p",
-        "Shift+-"
-      ],
-      "output": "≒",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "p-plus-plus-minus",
-      "keys": [
-        "p",
-        "Shift+;"
-      ],
-      "output": "±",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "p-yen-fullwidth-backslash",
-      "keys": [
-        "p",
-        "JIS-Yen"
-      ],
-      "output": "＼",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "p-bar-parallel",
-      "keys": [
-        "p",
-        "Shift+JIS-Yen"
-      ],
-      "output": "∥",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "p-backtick-acute",
-      "keys": [
-        "p",
-        "Shift+@"
-      ],
-      "output": "´",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "p-tilde-diaeresis",
-      "keys": [
-        "p",
-        "Shift+^"
-      ],
-      "output": "¨",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "pq-dakuten",
-      "keys": [
-        "p",
-        "q"
-      ],
-      "output": "゛",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "pp-wave-dash",
-      "keys": [
-        "p",
-        "p"
-      ],
-      "output": "～",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "p-colon-handakuten",
-      "keys": [
-        "p",
-        ":"
-      ],
-      "output": "゜",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "pn-prime",
-      "keys": [
-        "p",
-        "n"
-      ],
-      "output": "′",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "pm-double-prime",
-      "keys": [
-        "p",
-        "m"
-      ],
-      "output": "″",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "p-semicolon-fullwidth",
-      "keys": [
-        "p",
-        ";"
-      ],
-      "output": "；",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "p-comma-fullwidth",
-      "keys": [
-        "p",
-        ","
-      ],
-      "output": "，",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "p-less-equal",
-      "keys": [
-        "p",
-        "Shift+,"
-      ],
-      "output": "≦",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "p-period-fullwidth",
-      "keys": [
-        "p",
-        "."
-      ],
-      "output": "．",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "p-greater-equal",
-      "keys": [
-        "p",
-        "Shift+."
-      ],
-      "output": "≧",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "p-slash-fullwidth",
-      "keys": [
-        "p",
-        "/"
-      ],
-      "output": "／",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "pe-iteration",
-      "keys": [
-        "p",
-        "e"
-      ],
-      "output": "々",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "pt-shime",
-      "keys": [
-        "p",
-        "t"
-      ],
-      "output": "〆",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "ps-katakana-repeat",
-      "keys": [
-        "p",
-        "s"
-      ],
-      "output": "ヽ",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "pd-hiragana-repeat",
-      "keys": [
-        "p",
-        "d"
-      ],
-      "output": "ゝ",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "pf-ditto",
-      "keys": [
-        "p",
-        "f"
-      ],
-      "output": "〃",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "pg-hyphen",
-      "keys": [
-        "p",
-        "g"
-      ],
-      "output": "‐",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "pc-ideographic-zero",
-      "keys": [
-        "p",
-        "c"
-      ],
-      "output": "〇",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "px-multiply",
-      "keys": [
-        "p",
-        "x"
-      ],
-      "output": "×",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "pa-reference-mark",
-      "keys": [
-        "p",
-        "a"
-      ],
-      "output": "※",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "pb-degree",
-      "keys": [
-        "p",
-        "b"
-      ],
-      "output": "°",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "pw-literal-w",
-      "keys": [
-        "p",
-        "w"
-      ],
-      "output": "w",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "py-postal-mark",
-      "keys": [
-        "p",
-        "y"
-      ],
-      "output": "〒",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "p-leftbracket-fullwidth",
-      "keys": [
-        "p",
-        "["
-      ],
-      "output": "［",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "p-rightbracket-fullwidth",
-      "keys": [
-        "p",
-        "]"
-      ],
-      "output": "］",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "p-leftbrace-double-angle",
-      "keys": [
-        "p",
-        "Shift+["
-      ],
-      "output": "《",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "p-rightbrace-double-angle",
-      "keys": [
-        "p",
-        "Shift+]"
-      ],
-      "output": "》",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "pi-lenticular-open",
-      "keys": [
-        "p",
-        "i"
-      ],
-      "output": "【",
-      "delivery": "unicode",
-      "group": "symbols"
-    },
-    {
-      "id": "po-lenticular-close",
-      "keys": [
-        "p",
-        "o"
-      ],
-      "output": "】",
-      "delivery": "unicode",
-      "group": "symbols"
     }
   ]
 }

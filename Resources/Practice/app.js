@@ -8,7 +8,9 @@
   let progress = aggregate.clean(null, ids, data.layoutVersion), save = false;
   let lessonIndex = 0, itemIndex = 0, keyIndex = 0, correct = 0, total = 0, mode = 'trial';
   const trial = window.WKRTrial.create(data.rules), freeTrial = window.WKRTrial.create(data.rules, 1000);
-  let composing = false, justComposed = false, itemDone = false, lessonDone = false;
+  let composing = false, justComposed = false, compositionEnter = 'none', itemDone = false, lessonDone = false;
+  const isEnter = e => e.key === 'Enter' || e.code === 'Enter' || e.code === 'NumpadEnter' || e.keyCode === 13;
+  const shortcut = e => e.metaKey || e.ctrlKey || e.altKey;
   const native = message => { if (bridge) bridge.postMessage(message); };
   const status = text => { el('storage-status').textContent = text; };
   function read() {
@@ -53,7 +55,7 @@
     });
   }
   function start(i) {
-    lessonIndex=i;itemIndex=0;keyIndex=0;correct=0;total=0;lessonDone=false;composing=false;justComposed=false;
+    lessonIndex=i;itemIndex=0;keyIndex=0;correct=0;total=0;lessonDone=false;composing=false;justComposed=false;compositionEnter='none';
     trial.reset();freeTrial.reset();el('free-typing').value='';
     el('score').textContent='';renderNav();render();
   }
@@ -62,8 +64,8 @@
     el('lesson-title').textContent=l.title;el('tip').textContent=l.tip;el('stage').textContent=l.stage;
     el('position').textContent=(itemIndex+1)+' / '+l.exercises.length;
     el('target').textContent=x.text;el('typing').value='';el('typing').disabled=false;el('next').disabled=true;
-    el('next').textContent='次へ';
-    el('mode-help').textContent=mode==='trial' ? 'ABC・英数で入力すると、この欄だけでかなが出ます。行キーは続くキーで変化します。Enterで採点、Backspaceで修正できます。WKRを起動したままでも使えます。' : 'WKR v2とApple日本語入力のひらがなを使います。確定してからEnterで採点。練習帳側では変換しません。Google日本語入力・azooKeyは専用テーブルを設定して使う方式です（実IME未確認）。';
+    el('next').textContent='次へ';el('grade').disabled=false;
+    el('mode-help').textContent=mode==='trial' ? 'ABC・英数で入力すると、この欄だけでかなが出ます。行キーは続くキーで変化します。Enterか「採点」で採点、Backspaceで修正できます。WKRを起動したままでも使えます。' : 'WKR v2とApple日本語入力のひらがなを使います。確定してからEnterで採点。反応しない場合は「採点」を押します。練習帳側では変換しません。Google日本語入力・azooKeyは専用テーブルを設定して使う方式です（実IME未確認）。';
     el('free-help').textContent=mode==='trial' ? 'ABC・英数で自由に体験。Hで「あ」、E→Kで「き」、W→E→Rで「わから」。Enterで区切ります。かな入力の体験で、漢字変換はしません。' : 'WKRで自由に入力できます。この欄は採点・保存しません。';
     el('feedback').textContent='練習欄を選んで始めましょう。';renderKeys();
   }
@@ -72,7 +74,7 @@
     x.keys.forEach((k,i)=>{const n=document.createElement('kbd');n.textContent=k.toUpperCase();el('keys').append(n);});
   }
   function finishItem() {
-    itemDone=true;trial.reset();el('typing').value='';el('typing').disabled=true;el('next').disabled=false;
+    itemDone=true;trial.reset();el('typing').value='';el('typing').disabled=true;el('grade').disabled=true;el('next').disabled=false;
     const l=data.lessons[lessonIndex];el('feedback').textContent='できました。次のことばへ進みましょう。';
     if(itemIndex===l.exercises.length-1){
       lessonDone=true;const accuracy=total?Math.round(correct/total*100):100;
@@ -82,9 +84,18 @@
     }
     el('next').focus();
   }
-  el('typing').addEventListener('compositionstart',()=>{composing=true;justComposed=false;});
-  el('typing').addEventListener('compositionend',()=>{composing=false;justComposed=true;});
+  el('typing').addEventListener('compositionstart',()=>{
+    composing=true;justComposed=false;compositionEnter='none';el('grade').disabled=true;
+  });
+  el('typing').addEventListener('compositionupdate',()=>{
+    if(compositionEnter==='released')compositionEnter='none';
+  });
+  el('typing').addEventListener('compositionend',()=>{
+    composing=false;justComposed=compositionEnter!=='released';compositionEnter='none';
+    el('grade').disabled=itemDone;
+  });
   function grade() {
+    if(composing||itemDone)return;
     const input=el('typing').value.normalize('NFC').trim();
     if(!input)return;total++;
     if(input===data.lessons[lessonIndex].exercises[itemIndex].text){correct++;finishItem();}
@@ -94,7 +105,7 @@
     if(e.metaKey||e.ctrlKey||e.altKey||e.key==='Tab')return;
     if(e.repeat){e.preventDefault();return;}
     if(e.key==='Backspace'){e.preventDefault();field.value=engine.backspace();return;}
-    if(e.key==='Enter'){e.preventDefault();field.value=engine.flush();if(graded)grade();return;}
+    if(isEnter(e)){e.preventDefault();field.value=engine.flush();if(graded)grade();return;}
     if(e.key==='Escape'){e.preventDefault();engine.reset();field.value='';return;}
     const key=window.WKRTrial.token(e);
     if(key!==null){e.preventDefault();field.value=engine.feed(key);field.setSelectionRange(field.value.length,field.value.length);}
@@ -112,23 +123,44 @@
   });
   el('free-clear').addEventListener('click',()=>{freeTrial.reset();el('free-typing').value='';});
   el('typing').addEventListener('keydown',e=>{
-    if(itemDone||composing||e.isComposing||e.keyCode===229)return;
-    if(e.key==='Tab'||e.metaKey||e.ctrlKey||e.altKey)return;
+    if(itemDone)return;
+    if(composing||e.isComposing||e.keyCode===229){
+      // Retain only evidence for the current confirmation key, in memory.
+      // Unknown 229 events never release the post-composition guard.
+      compositionEnter=isEnter(e)&&!shortcut(e)&&!e.repeat?'down':'none';
+      return;
+    }
+    if(e.key==='Tab'||shortcut(e))return;
     if(mode==='trial'){simulate(e,el('typing'),trial,true);return;}
     if(e.repeat)return;
-    if(e.key!=='Enter'){justComposed=false;return;}
-    if(justComposed){justComposed=false;return;}
+    if(!isEnter(e)){
+      if(e.key.length===1||e.key==='Backspace'||e.key==='Delete'){justComposed=false;compositionEnter='none';}
+      return;
+    }
+    if(justComposed)return;
     e.preventDefault();grade();
   });
-  // A separate Enter after IME confirmation is accepted. Composition's Enter
-  // keyup clears the guard, without a timing heuristic or stored timestamps.
-  el('typing').addEventListener('keyup',e=>{if(e.key==='Enter'&&!composing)justComposed=false;});
+  // WebKit may deliver confirmation keyup before compositionend. Accept only
+  // identified Enter release; an ambiguous sequence keeps the guard until an
+  // explicit button action. No timer or event history is retained.
+  el('typing').addEventListener('keyup',e=>{
+    if(!isEnter(e)||shortcut(e)||e.repeat)return;
+    if(composing){
+      if(compositionEnter==='down')compositionEnter='released';
+    } else {justComposed=false;compositionEnter='none';}
+  });
+  el('grade').addEventListener('click',()=>{
+    if(composing||itemDone)return;
+    justComposed=false;compositionEnter='none';
+    if(mode==='trial')el('typing').value=trial.flush();
+    grade();
+  });
   el('next').addEventListener('click',()=>{if(!itemDone)return;if(lessonDone)start((lessonIndex+1)%data.lessons.length);else{itemIndex++;render();}el('typing').focus();});
   el('retry').addEventListener('click',()=>{start(lessonIndex);el('typing').focus();});
   document.querySelectorAll('input[name=mode]').forEach(n=>n.addEventListener('change',()=>{mode=n.value;start(lessonIndex);}));
   el('save').addEventListener('change',()=>{if(el('save').checked){save=true;persist();}else clearSaved();});
   el('delete').addEventListener('click',clearSaved);
-  window.addEventListener('pagehide',()=>{trial.reset();freeTrial.reset();el('typing').value='';el('free-typing').value='';});
+  window.addEventListener('pagehide',()=>{trial.reset();freeTrial.reset();composing=false;justComposed=false;compositionEnter='none';el('grade').disabled=itemDone;el('typing').value='';el('free-typing').value='';});
   el('versions').textContent='練習 '+data.practiceVersion+' / 配列 '+data.layoutVersion;
   data.keyboard.forEach(row=>{const line=document.createElement('div');line.className='keyrow';row.forEach(k=>{const cap=document.createElement('div');cap.className='keycap';const b=document.createElement('b');b.textContent=k.key.toUpperCase();const s=document.createElement('span');s.textContent=k.label;cap.append(b,s);line.append(cap);});el('keyboard').append(line);});
   start(0);read();

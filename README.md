@@ -2,7 +2,7 @@
 
 Apple日本語入力の前段で、わから配列v2のキーを標準ローマ字に置き換えるmacOSアプリです。`W E R` + Enterで「わから」、`E K`で「き」と入力できます。かな漢字変換はApple日本語入力を使います。
 
-**今回の配布候補: v1アプリ0.7.1-public.1 / v2アプリ0.8.0-public.beta.7 / 練習帳0.2.1**。配列はそれぞれ1.1.0 / 2.0.0-beta.2です。2.0.0-beta.2では、2.0.0-beta.1で入れ替えていた ん・っ をv1と同じ ん＝N、っ＝M に戻しました（[変更点](https://github.com/yuhkis/wkr-layout/blob/v2.0.0-beta.2/docs/compatibility.md#200-beta2-での変更)）。配列は233規則です。Pの短縮形はベータで評価中です。
+**今回の配布候補: v1アプリ0.7.2 / v2アプリ0.8.0-public.beta.8 / 練習帳0.5.1**。配列はそれぞれ1.1.0 / 2.0.0-beta.5です。v2は171規則で、D＝た行、F＝な行、M＝ん、U＝っ、P＝や・拗音列、N＝いぇ・ぇ列です。配列・Web教材・同梱教材は上流の同じ正本から生成します。
 
 公開済みbeta.5の[アプリzipとSHA256SUMS](https://github.com/yuhkis/wkr-macos/releases/tag/v0.8.0-public.beta.5)を公式Releaseから入手できます。
 
@@ -12,7 +12,8 @@ Apple日本語入力の前段で、わから配列v2のキーを標準ローマ�
 
 | 配列 | macOSアプリ |
 | --- | --- |
-| [2.0.0-beta.2](https://github.com/yuhkis/wkr-layout/releases/tag/v2.0.0-beta.2) | v2 Public Beta 0.8.0-public.beta.7（準備中・未公開） |
+| [2.0.0-beta.5](https://github.com/yuhkis/wkr-layout/releases/tag/v2.0.0-beta.5) | v2 Public Beta 0.8.0-public.beta.8（準備中・未公開） |
+| [2.0.0-beta.4](https://github.com/yuhkis/wkr-layout/releases/tag/v2.0.0-beta.4) | Web練習帳0.4.0。対応するmacOS配布版は未公開 |
 | [2.0.0-beta.1](https://github.com/yuhkis/wkr-layout/releases/tag/v2.0.0-beta.1) | [v2 Public Beta 0.8.0-public.beta.5](https://github.com/yuhkis/wkr-macos/releases/tag/v0.8.0-public.beta.5) |
 | [1.1.0 保存資料](https://github.com/yuhkis/wkr-layout/releases/tag/v1.1.0-archive.1) | [v1 0.7.0-archive.1 保存ソース](https://github.com/yuhkis/wkr-macos/releases/tag/v0.7.0-archive.1) |
 
@@ -24,13 +25,13 @@ v1保存版は[Legacy/wkr-macos-v1](Legacy/wkr-macos-v1/README.md)へ隔離し�
 
 [ダウンロード・権限設定・停止・アンインストール](docs/distribution.md)の順に進めます。macOS 14以降、Apple日本語入力のローマ字入力・ひらがなモード、JISキーボードを対象とします。今回のローカル配布候補はApple Silicon用です。ソースからのビルドと、専用の自己署名証明書で署名した未公証のアプリDMGによる導入を用意します（公開済みbeta.5はad-hoc署名のzip）。Apple Developer Programへの加入を前提にせず、ダウンロードしたアプリでは初回にmacOSの個別の起動許可が必要です。同じ証明書で署名した版どうしは、入力監視・アクセシビリティの許可を引き継ぎます（macOS 27.2.1で確認）。
 
-起動すると権限不足や別のWKRの起動状態を案内します。変換中はメニューバーで一時停止・再開・終了できます。安全条件を失ったときは状態を捨てて停止します。入力ソースを自動で切り替えません。
+起動すると権限不足や別のWKRの起動状態を案内します。メニューにも権限未許可・変換未開始を明示し、見出しと対処を同じ状態にそろえます。変換開始前は一時停止操作を無効にします。変換中はメニューバーで一時停止・再開・終了できます。安全条件を失ったときは状態を捨てて停止します。入力ソースを自動で切り替えません。初回未許可では案内画面を維持し、権限の再確認は有限に行います。入力監視がタイムアウトした場合は、変換中でも保留入力を破棄し、新しいプロセスで変換を再開します。一時停止中や、復旧後60秒未満で再発した場合は終了します。詳細は[起動と権限](docs/install.md)を参照してください。
 
 メニューの「わから v2 を練習する」から、母音・行キーから短文へ進む練習帳を開けます。教材はアプリに同梱され、オフラインで使えます。`--practice-only`なら変換エンジンや入力権限を使わずに練習画面だけを開きます。ブラウザ版・独立したWakaraPractice.appと同じ公開教材です。QWERTY体験はABC・英数で、導入済みWKRでの練習は「WKR・IMEで練習」で使います。
 
 ## 記録とPublic / Private
 
-入力本文・キー列・規則実行履歴・細かな時刻・2キー計測・規則ペア計測・RSft Enter推定補正は実装しません。旧設定や旧CLIで有効化する経路はありません。日別キー頻度は既定オフで、明示的な有効化時だけローカルに保存します。キーボードの図は論理キー集計の表示で、実際に打った機器を識別しません。機器別の集計はこのベータでは保留です。
+入力本文・キー列・規則実行履歴・細かな時刻・2キー計測・規則ペア計測・RSft Enter推定補正は実装しません。旧設定や旧CLIで有効化する経路はありません。日別キー頻度は既定オフで、明示的な有効化時だけローカルに保存します。集計レポートの作成日も日単位で、HTMLと埋め込みJSONに時分秒を保存しません。キーボードの図は論理キー集計の表示で、実際に打った機器を識別しません。機器別の集計はこのベータでは保留です。
 
 練習成績も既定では保存しません。有効化時だけ課題別の完了回数・最高正答率をローカル保存し、画面から削除できます。[保存内容と境界](docs/public-beta.md)を参照してください。
 
@@ -48,15 +49,15 @@ make practice-app
 make package-all
 ```
 
-`make app`は専用の`build/WKRPublic.app`をad-hoc署名で作ります。証明書を自動選択せず、インストールや起動はしません。`make app-v1`はWKRV1.app、`make practice-app`はWakaraPractice.appを作ります。`make package`はv2のみ、`make package-all`は3製品を`build/distribution/<アプリ版>/<commit>/`へ出力します。公開対象はその版のzip・manifest.json・SHA256SUMSを明示します。配布時はad-hoc署名・未公証であることと初回起動手順を明記します。[配布方式と公開前の確認](docs/public-beta.md)を参照してください。
+`make app`は専用の`build/WKRPublic.app`をad-hoc署名で作ります。証明書を自動選択せず、インストールや起動はしません。`make app-v1`はWKRV1.app、`make practice-app`はWakaraPractice.appを作ります。`make package`はv2のみ、`make package-all`は3製品を`build/distribution/<アプリ版>/<commit>/`へ出力します。公開対象はその版のDMG・manifest.json・SHA256SUMSを明示します。配布用DMGは`CODESIGN_IDENTITY`で専用の自己署名証明書を明示したときだけ作り、未公証であることと初回起動手順を明記します。[配布方式と公開前の確認](docs/public-beta.md)を参照してください。
 
 配列と教材の同期は `python3 Scripts/sync-layout.py --upstream ../wkr-layout --revision <commit>`、手順は[Scripts/README.md](Scripts/README.md)。`--check`で一致を検査し、取り込み日は同じpinの記録を保ちます。日付の明示指定には`--imported-on YYYY-MM-DD`を使います。純粋な変換処理は`WKRCore`へ集約し、Public/Privateで別の配列表を手書きしません。
 
-練習帳0.2.0の表示・入力・採点は画面で確認済みです。v1候補0.7.1-public.1とv2候補0.8.0-public.beta.6（配列2.0.0-beta.1、未公開）は、許可後の短い日本語入力、一時停止・再開、終了後の通常入力を画面共有経由で確認しました。v2同梱練習での入力・採点も確認しています。v2 0.8.0-public.beta.7と練習帳0.2.1は配列・教材データと版の記載だけを変えた候補で、同じ確認を公開前にやり直します。物理打鍵やダウンロード後の起動許可とは区別し、v1の権限設定直後に一度起きた監視タイムアウトを含め、[検証記録](docs/verification.md)に範囲と残件を記載します。
+以前の候補での入力・練習の確認は[検証記録](docs/verification.md)に保持しています。今回の候補は配列・教材と起動時の安全処理を更新するため、以前の実機確認を今回の確認済み結果には繰り上げません。自動検証と、今回のDMGで未確認の導入・権限・実入力・停止・ダウンロード後の起動許可を区別して記録します。
 
 - [配列とmacOS用綴り](docs/layout-reference.md)
 - [仕組み](docs/how-it-works.md)・[設計](docs/design.md)・[開発時の確認](docs/development.md)
-- [検証記録](docs/verification.md)・[残件](docs/roadmap.md)・[v2 Release文案](docs/release-0.8.0-public.beta.7.md)・[v1](docs/release-0.7.1-public.1.md)・[練習帳](docs/release-practice-0.2.1.md)
+- [検証記録](docs/verification.md)・[残件](docs/roadmap.md)・[v2 Release文案](docs/release-0.8.0-public.beta.8.md)・[v1](docs/release-0.7.2.md)・[練習帳](docs/release-practice-0.5.1.md)
 - [公開作業規約](AGENTS.md)
 
 MIT License。配列と教材の正本は [wkr-layout](https://github.com/yuhkis/wkr-layout)。取り込んだcommitとファイルSHA256は `Resources/upstream-manifest.json` に記録します。

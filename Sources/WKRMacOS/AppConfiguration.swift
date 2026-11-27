@@ -12,6 +12,7 @@ enum AppConfigurationError: LocalizedError {
     case invalidSymbolLayer(String)
     case invalidKeyFrequency(String)
     case invalidKeyFrequencyRetention(String)
+    case invalidEventTapStartupWait
 
     var errorDescription: String? {
         switch self {
@@ -35,6 +36,8 @@ enum AppConfigurationError: LocalizedError {
             return "unsupported symbol layer setting: \(value) (supported: on, off)"
         case let .invalidKeyFrequency(value):
             return "unsupported key frequency setting: \(value) (supported: on, off)"
+        case .invalidEventTapStartupWait:
+            return "event tap startup wait must be 0...3600 seconds"
         case let .invalidKeyFrequencyRetention(value):
             return "unsupported key frequency retention: \(value) (supported: all, or a positive number of days)"
         }
@@ -63,6 +66,9 @@ struct AppConfiguration {
     let outputMode: OutputMode
     let outputModeName: String
     let requestPermissions: Bool
+    /// Bounded startup recovery; no input or user settings are carried here.
+    let eventTapStartupRetry: EventTapStartupRetry
+    let eventTapRelaunch: EventTapRelaunch?
     /// Bundle identifiers that must never be converted, however the input
     /// source is set. Virtual machines and remote desktops forward keystrokes
     /// to a guest with its own input method, so rewriting them here produces
@@ -110,6 +116,7 @@ struct AppConfiguration {
     static let symbolLayerDefaultsKey = "SymbolLayer"
     static let keyFrequencyDefaultsKey = "KeyFrequencyLog"
     static let keyFrequencyRetentionDefaultsKey = "KeyFrequencyRetentionDays"
+    static let eventTapStartupWaitDefaultsKey = "EventTapStartupWaitSeconds"
     static let vialKeymapPathDefaultsKey = "VialKeymapPath"
 
     static func parse(
@@ -121,6 +128,8 @@ struct AppConfiguration {
         var inputModeID: String? = "com.apple.inputmethod.Japanese"
         var modeName = "prefix"
         var requestPermissions = false
+        var eventTapStartupWaitName = defaults.string(forKey: eventTapStartupWaitDefaultsKey)
+        var eventTapRelaunch: EventTapRelaunch?
         var allowOptimistic = false
         var excludedApplications: Set<String> = []
         var englishFallbackName = defaults.string(forKey: englishFallbackDefaultsKey)
@@ -231,6 +240,14 @@ struct AppConfiguration {
                     throw AppConfigurationError.missingValue("--symbol-layer")
                 }
                 symbolLayerName = tokens[index]
+            case EventTapRelaunch.argument:
+                index += 1
+                guard index < tokens.count else { throw AppConfigurationError.missingValue(EventTapRelaunch.argument) }
+                eventTapRelaunch = EventTapRelaunch(argument: tokens[index])
+            case "--event-tap-startup-wait":
+                index += 1
+                guard index < tokens.count else { throw AppConfigurationError.missingValue("--event-tap-startup-wait") }
+                eventTapStartupWaitName = tokens[index]
             case "--request-permissions":
                 requestPermissions = true
             case "--allow-unverified-optimistic":
@@ -301,6 +318,14 @@ struct AppConfiguration {
             keyFrequencyRetainedDays = days
         }
 
+        let waitSeconds: Int
+        if let name = eventTapStartupWaitName {
+            guard let value = Int(name), (0...EventTapStartupRetry.maximumWaitSeconds).contains(value) else {
+                throw AppConfigurationError.invalidEventTapStartupWait
+            }
+            waitSeconds = value
+        } else { waitSeconds = EventTapStartupRetry.defaultWaitSeconds }
+
         if action == .run, inputSourceID == nil {
             throw AppConfigurationError.missingInputSource
         }
@@ -315,6 +340,8 @@ struct AppConfiguration {
             outputMode: outputMode,
             outputModeName: modeName,
             requestPermissions: requestPermissions,
+            eventTapStartupRetry: EventTapStartupRetry(waitSeconds: waitSeconds),
+            eventTapRelaunch: eventTapRelaunch,
             excludedApplications: excludedApplications,
             englishFallbackTrigger: englishFallbackTrigger,
             symbolLayerEnabled: symbolLayerEnabled,

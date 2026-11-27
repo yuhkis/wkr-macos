@@ -2,7 +2,7 @@
 
 | 項目 | 新Public | 旧公開版・従来のPrivate | 今後のPrivateで採用する契約 |
 | --- | --- | --- | --- |
-| アプリ | WKRPublic.app（WKR macOS Public） | WKRMacOS.app | WKRPrivate.app |
+| アプリ | WKRPublic.app（WKR macOS v2 Public Beta） | WKRMacOS.app | WKRPrivate.app |
 | Bundle ID / defaults | io.github.yuhkis.wkr-macos.public | io.github.yuhkis.wkr-macos | io.github.yuhkis.wkr-macos.private |
 | Application Support | 同名の.publicフォルダ | 旧IDフォルダ | 同名の.privateフォルダ |
 | ログイン起動 | .public.login | 旧ID.login | .private.login |
@@ -41,3 +41,9 @@ Publicは旧Bundle ID・Public・Privateの起動状態も確認し、別版が�
 v1用WKRV1.appは`io.github.yuhkis.wkr-macos.v1`、独立練習帳WakaraPractice.appは`io.github.yuhkis.wkr-practice`を使います。v2のIDは従来のままです。[配布手順](distribution.md)に全製品の保存先をまとめています。v1の保存ソース版（v1-archive ID）の設定は自動移行しません。新v1・v2は同じ排他ロックと旧版検知を持ちます。独立練習帳は変換を行わず排他ロックの対象外で、どちらの変換アプリとも同時に起動できます。教材はv2なのでv1での実入力練習には使いません。
 
 0.2.0は提出した回答の正答率で採点するため、キー数を数えた0.1.0の成績を合算しません。保存先をpractice-progress-v2.jsonへ分け、旧ファイルを保持します。Webの保存キーも分かれています。新画面の削除操作は新しい成績だけが対象です。旧ファイルも削除したい場合は、旧版の画面か、アプリ終了後に対象ファイルだけを本人が選びます。
+
+## 配列2.0.0-beta.5への更新
+
+公開macOS 0.8.0-public.beta.5は配列2.0.0-beta.1です。今回の候補では171規則へ更新し、D＝た行、F＝な行、M＝ん、U＝っ、P＝や・拗音列、N＝いぇ・ぇ列にそろえます。専用の記号・矢印・短縮列は廃止しました。配列表と練習の案内を確認してから使ってください。
+
+配列版が変わるため、日別頻度は既存ファイルをarchiveへ退避してから新しく数えます。退避失敗時は元ファイルを保持します。旧成績は新しい配列へ自動移行せず、保存先に保持します。入力監視・アクセシビリティを含む実機の反映は、この公開ソースの準備とは別の作業です。

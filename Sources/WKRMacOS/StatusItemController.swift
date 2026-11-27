@@ -18,6 +18,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     var openSetupRequested: (() -> Void)?
     var pauseRequested: (() -> Void)?
     var pausedProvider: (() -> Bool)?
+    var canPauseProvider: (() -> Bool)?
     private let pauseItem = NSMenuItem()
     var menuContentProvider: (() -> ConversionMenuContent)?
     /// Called with `true` while the menu tracks and `false` when it stops, so
@@ -156,7 +157,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.addItem(quit)
 
         statusItem.menu = menu
-        apply(.stopping)
+        apply(ConversionMenuContent(status: .notStarted))
     }
 
     func removeFromStatusBar() {
@@ -167,7 +168,8 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     ///
     /// Called from the 0.10 s safety timer, which shares the main run loop with
     /// the event tap source, so the steady state must touch no AppKit at all.
-    func apply(_ status: ConversionStatus) {
+    func apply(_ content: ConversionMenuContent) {
+        let status = content.status
         guard lastApplied != status else { return }
         lastApplied = status
 
@@ -185,34 +187,18 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             button.toolTip = title
             button.setAccessibilityLabel(title)
         }
-        titleItem.title = title
+        pauseItem.title = pausedProvider?() == true ? "変換を再開" : "変換を一時停止"
+        pauseItem.isEnabled = canPauseProvider?() ?? false
+        Self.renderStateRows(content, title: titleItem, details: detailItems, remedy: remedyItem)
     }
 
     // MARK: - NSMenuDelegate
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         pauseItem.title = pausedProvider?() == true ? "変換を再開" : "変換を一時停止"
-        let content = menuContentProvider?() ?? ConversionMenuContent(status: lastApplied ?? .stopping)
-        titleItem.title = ConversionStatusText.statusTitle(content.status)
-
-        let details = ConversionStatusText.detailLines(content)
-        for (index, item) in detailItems.enumerated() {
-            if index < details.count {
-                item.title = details[index]
-                item.isHidden = false
-            } else {
-                item.title = ""
-                item.isHidden = true
-            }
-        }
-
-        if let remedy = ConversionStatusText.remedyLine(content) {
-            remedyItem.title = remedy
-            remedyItem.isHidden = false
-        } else {
-            remedyItem.title = ""
-            remedyItem.isHidden = true
-        }
+        pauseItem.isEnabled = canPauseProvider?() ?? false
+        let content = menuContentProvider?() ?? ConversionMenuContent(status: lastApplied ?? .notStarted)
+        Self.renderStateRows(content, title: titleItem, details: detailItems, remedy: remedyItem)
 
         // Read fresh: the CLI, `make`, and a second machine all write the same
         // user default, so the value can change without this process acting.
@@ -221,7 +207,22 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         clearKeymapItem.isHidden = keymapFileName == nil
     }
 
+    /// The same row update is used for both status transitions and menu opening.
+    /// It operates only on menu items, so regressions do not create a status item.
+    static func renderStateRows(_ content: ConversionMenuContent, title: NSMenuItem, details: [NSMenuItem], remedy: NSMenuItem) {
+        title.title = ConversionStatusText.statusTitle(content.status)
+        let lines = ConversionStatusText.detailLines(content)
+        for (index, item) in details.enumerated() {
+            item.title = index < lines.count ? lines[index] : ""
+            item.isHidden = index >= lines.count
+        }
+        let line = ConversionStatusText.remedyLine(content)
+        remedy.title = line ?? ""
+        remedy.isHidden = line == nil
+    }
+
     func menuWillOpen(_ menu: NSMenu) {
+        // Any newly published status replaces every state row through apply.
         menuOpenStateChanged?(true)
     }
 

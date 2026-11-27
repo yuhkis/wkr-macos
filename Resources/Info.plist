@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>ja</string>
 	<key>CFBundleDisplayName</key>
-	<string>WKR macOS Public</string>
+	<string>WKR macOS v2 Public Beta</string>
 	<key>CFBundleExecutable</key>
 	<string>WKRPublic</string>
 	<key>CFBundleIdentifier</key>
@@ -19,7 +19,7 @@
 	<key>CFBundleShortVersionString</key>
 	<string>0.8.0</string>
 	<key>CFBundleVersion</key>
-	<string>47</string>
+	<string>49</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>14.0</string>
 	<key>LSUIElement</key>
@@ -29,10 +29,10 @@
 	<key>NSInputMonitoringUsageDescription</key>
 	<string>わから配列の対象キーだけを変換するため、入力イベントを監視します。入力内容は記録・送信しません。</string>
 	<key>WKRReleaseVersion</key>
-	<string>0.8.0-public.beta.7</string>
+	<string>0.8.0-public.beta.8</string>
 	<key>WKRLayoutVersion</key>
-	<string>2.0.0-beta.2</string>
+	<string>2.0.0-beta.5</string>
 	<key>WKRPracticeVersion</key>
-	<string>0.2.1</string>
+	<string>0.5.1</string>
 </dict>
 </plist>

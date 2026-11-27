@@ -74,7 +74,7 @@ public enum WakaraKeyLegends {
     ///
     /// The tooltip sentences list kana read off the same rules rather than
     /// describing them. A description has to be true of every row, and one is
-    /// not: `X` is ふぁ行, but `XU` `XI` `XO` give てぃ でゅ でぃ.
+    /// not: `X` is ふぁ行, but `XP` `XI` `XO` give てぃ とぅ てゅ.
     static func derive(from rules: [NormalizedRule]) -> [WakaraKeyLegend] {
         var singleKana: [PhysicalKey: String] = [:]
         var continued: Set<PhysicalKey> = []
@@ -130,11 +130,6 @@ public enum WakaraKeyLegends {
                 )
             }
             if continued.contains(key), let prefix = prefixLegends[key] {
-                // `Y` is also the 特殊 column after a consonant key (`SY → しぇ`,
-                // `EY → ヶ`). Those presses are in the same cap's count, so a
-                // tooltip that called them all symbol input would misread it —
-                // most of all with the symbol layer off, when they are most of
-                // what `Y` still does.
                 let column = outputs { $0.input[1] == key }
                 return WakaraKeyLegend(
                     keyCode: keyCode,
@@ -148,12 +143,9 @@ public enum WakaraKeyLegends {
         }
     }
 
-    /// Names for the keys that only open a layer. They produce nothing alone,
-    /// so nothing in the rules can name them; these are the upstream README's
-    /// own glyphs, `□` for the small-kana prefix and `■` for the symbol prefix.
-    static let prefixLegends: [PhysicalKey: (label: String, detail: String)] = [
-        .p: ("■", "記号・特殊文字の前置キー。続くキーで記号や ← などを入力する"),
-    ]
+    /// Current v2 rules have no bare symbol prefix. A future prefix must
+    /// have a reviewed legend rather than inheriting a retired symbol label.
+    static let prefixLegends: [PhysicalKey: (label: String, detail: String)] = [:]
 
     /// The macOS virtual key code of each unshifted key in the core ten columns.
     ///

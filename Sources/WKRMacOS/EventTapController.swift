@@ -25,6 +25,8 @@ final class EventTapController {
     private var permissionsGranted = false
     private var contextIsCurrent = false
     private var tapOperational = false
+    /// A boolean safety boundary, not a key count or history.
+    private(set) var hasHandledKey = false
     private var suppressedKeyUps: Set<CGKeyCode> = []
     private let englishFallbackTrigger: EnglishFallbackTrigger
     /// Physical keys and streamed romaji length for the current pre-edit, so
@@ -80,6 +82,11 @@ final class EventTapController {
         case .eisuReturn: return CGKeyCode(kVK_Return)
         case .eisuTab: return CGKeyCode(kVK_Tab)
         }
+    }
+
+    /// Readiness for status display; this does not widen the conversion gate.
+    var isOperational: Bool {
+        permissionsGranted && tapOperational && eventTap != nil && runLoopSource != nil
     }
 
     var isConverting: Bool {
@@ -261,9 +268,11 @@ final class EventTapController {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             let reason = type == .tapDisabledByUserInput ? "user-input" : "timeout"
             failClosed(reason: "event-tap-disabled-\(reason)")
-            AppLog.logger.error("event-tap-disabled type=\(type.rawValue, privacy: .public) action=terminate")
+            AppLog.logger.error("event-tap-disabled type=\(type.rawValue, privacy: .public) action=fail-closed")
             return Unmanaged.passUnretained(event)
         }
+
+        guard tapOperational else { return Unmanaged.passUnretained(event) }
 
         if type == .leftMouseDown || type == .rightMouseDown || type == .otherMouseDown {
             reset(.mouse)
@@ -287,6 +296,7 @@ final class EventTapController {
             return Unmanaged.passUnretained(event)
         }
 
+        hasHandledKey = true
         let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
         if type == .keyUp {
             return handleKeyUp(event: event, keyCode: keyCode)
@@ -320,11 +330,9 @@ final class EventTapController {
                 )
             }
             if keyCode == CGKeyCode(kVK_JIS_Eisu) {
-                eisuIsHeld = true
-                if !isAutorepeat, englishFallbackTrigger == .eisuBurst {
-                    // Holding the key down is not a burst, so repeats are left
-                    // out of the count.
-                    extendEisuBurst()
+                if !isAutorepeat {
+                    eisuIsHeld = true
+                    if englishFallbackTrigger == .eisuBurst { extendEisuBurst() }
                 }
             } else {
                 // `かな` starts a new pre-edit, so nothing from before it can
