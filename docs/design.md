@@ -261,7 +261,7 @@ InputMethodKitなら `setMarkedText` 相当の経路で自前の未確定文字�
 - `.cgSessionEventTap`、`.headInsertEventTap`、active filterを第一候補とする。
 - keyDown / keyUpの対応を保ち、変換したキーの原イベントを抑止する。
 - 合成イベントへ固定マーカーを付け、再入を防ぐ。
-- `.tapDisabledByTimeout` / `.tapDisabledByUserInput` では変換状態を破棄し、同じtapを自動再有効化しない。実際のkeyDown / keyUpを受け取る前のtimeoutだけ、下記の有限な起動回復へ進む。それ以外はfail closedでプロセスを終了する。
+- `.tapDisabledByTimeout` / `.tapDisabledByUserInput` では変換状態を破棄し、同じtapを自動再有効化しない。timeoutは下記の条件で新しいプロセスでの復旧に進む。利用者操作による無効化では終了する。
 - callbackでは同期I/Oや重い処理をしない。
 - 保留出力をSpace／Return等より先に届ける必要がある場合は、callbackの `CGEventTapProxy` に対して `CGEventTapPostEvent` で合成イベントを挿入する。このAPIの「callbackがreturnする原イベントより先に入る」という順序を利用し、原keyDownと原keyUpはコピーせずそのまま通す。
 - 変換して抑止したkeyDownだけ対応keyUpを抑止する。autorepeatはFSTへ再投入せず、抑止済みキーのrepeatだけを抑止する。
@@ -276,7 +276,7 @@ Public Beta 0.8.0-public.beta.8では、tapの開始をUI・監視通知・安�
 
 - **初回権限案内を維持する。** 権限不足は新しいプロセスの起動理由にしない。同じプロセスで3秒間隔の再確認を行い、既定300秒で自動再確認を終える。案内ウインドウと手動再確認は残す。Privateの起動対策をそのまま持ち込まず、新規導入時の手動許可を優先したPublicの適応である。
 - **tap作成拒否は新しいプロセスで再試行する。** `NSWorkspace`で同じアプリ・同じ利用者指定引数の新インスタンスを開き、前のプロセスを終了する。後継はUI・状態表示・終了signalを先に準備してAppKitの起動処理から戻り、main run loopのtimerで最長5秒だけ前の終了を確認する。main threadをsleepで待たせない。Launch Servicesが後継の起動完了後に前の`openApplication`完了を通知する場合でも、両者が互いを待たないためである。前の生存中はengine lease・許可要求・tapを作らず、終了確認後だけ通常の排他判定へ進む。前プロセス終了待ちの5秒上限後は案内に留まり、利用者の手動再確認を必要とする。新プロセスでの起動再試行が設定した待機上限に達した場合は終了する。別エンジンが動いていれば開始しない。
-- **timeoutの回復条件はキーの有無で決める。** `hasHandledKey`は、合成マーカーを持たないkeyDown / keyUpを受け取った時に一度だけtrueになるbooleanで、キーや時刻を保持しない。falseのtimeoutだけ新プロセスへ進む。trueになった後のtimeout、user-input無効化、権限取消し、出力失敗は終了する。保留や入力履歴をプロセス間へ持ち越さない。
+- **変換中のtimeoutには新しい復旧期限を設定する。** 自身の合成イベント以外のkeyDown / keyUpを受け取ったかどうかを示す `hasHandledKey` で起動時と変換中を判別する。保留入力・押下状態・入力履歴は引き継がない。一時停止中、または変換中のtimeoutから復旧して監視を開始してから60秒未満に再度timeoutになった場合は終了する。経過時間は単調時計で判定する。権限取消しや出力失敗でも終了する。
 - **再試行は有限にする。** 既定300秒、3秒間隔。`EventTapStartupWaitSeconds`または`--event-tap-startup-wait`で0〜3600秒を指定でき、0は自動回復を無効にする。新プロセスの系列は初回失敗時点から計算し、時計の変更でも無制限にならないよう試行回数にも上限を置く。
 - **許可ダイアログを繰り返さない。** 自動で開いた後継プロセスは許可要求を出さない。利用者は案内からシステム設定を開いて許可できる。練習専用起動と単発のCLI操作はtapや再試行を開始しない。
 - **起動状態だけを診断する。** 拒否種別・再試行回数・待機秒数・成功／終了の固定状態だけを通常ログへ出す。再試行用の時点と前プロセスPIDは内部起動引数に限り、入力のキー列・時刻・規則・端末情報を追加しない。

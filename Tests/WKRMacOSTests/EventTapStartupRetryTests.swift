@@ -139,13 +139,31 @@ final class EventTapStartupRetryTests: XCTestCase {
         XCTAssertTrue(StartupRefusal.requestsPermissions(configured: false, relaunch: relaunch, userRequested: true))
     }
 
-    func testOnlyATimeoutBeforeAnyRealKeyAllowsRecovery() {
-        XCTAssertTrue(StartupRefusal.relaunchesAfterTapFailure(reason: "event-tap-disabled-timeout", keyHandled: false))
-        XCTAssertFalse(StartupRefusal.relaunchesAfterTapFailure(reason: "event-tap-disabled-timeout", keyHandled: true))
-        for reason in ["event-tap-disabled-user-input", "permissions-revoked", "event-source", "peer-engine"] {
-            XCTAssertFalse(StartupRefusal.relaunchesAfterTapFailure(reason: reason, keyHandled: false))
-            XCTAssertFalse(StartupRefusal.relaunchesAfterTapFailure(reason: reason, keyHandled: true))
+    func testRuntimeIncidentStartsFreshAndStartupFailuresKeepItsBudget() {
+        let old = EventTapRelaunch(firstFailure: 10, attempt: 8, previousPID: 12)
+        let first = StartupRefusal.runtimeTimeout.successor(previous: old, now: 1000, pid: 23)
+        XCTAssertEqual(first, EventTapRelaunch(firstFailure: 1000, attempt: 2, previousPID: 23, runtimeRecovery: true))
+        XCTAssertEqual(EventTapRelaunch(argument: first.argumentValue), first)
+        let second = StartupRefusal.eventTap.successor(previous: first, now: 1005, pid: 24)
+        XCTAssertEqual(second, EventTapRelaunch(firstFailure: 1000, attempt: 3, previousPID: 24, runtimeRecovery: true))
+    }
+
+    func testOnlyEligibleTimeoutsRecover() {
+        func failure(_ handled: Bool, _ recovering: Bool = false, seconds: Double = 0,
+                     paused: Bool = false, reason: String = StartupRefusal.tapTimeoutReason) -> StartupRefusal? {
+            StartupRefusal.afterTapFailure(reason: reason, keyHandled: handled, paused: paused,
+                                           recovering: recovering, activeSeconds: seconds)
         }
+        XCTAssertEqual(failure(false), .eventTapTimeout)
+        XCTAssertEqual(failure(true), .runtimeTimeout)
+        for handled in [false, true] {
+            XCTAssertNil(failure(handled, true, seconds: 59.9))
+            XCTAssertNil(failure(handled, paused: true))
+            for reason in ["event-tap-disabled-user-input", "permissions-revoked", "event-source", "peer-engine"] {
+                XCTAssertNil(failure(handled, reason: reason))
+            }
+        }
+        XCTAssertEqual(failure(true, true, seconds: 60), .runtimeTimeout)
         XCTAssertEqual(StartupRefusal.permissions.reason, "permissions")
         XCTAssertEqual(StartupRefusal.permissions.waitEvent, "permissions-check")
         XCTAssertEqual(StartupRefusal.eventTap.reason, "event-tap")

@@ -55,4 +55,4 @@
 
 ## 起動時の有限な再試行
 
-変換アプリは `--event-tap-startup-wait SECONDS`（0〜3600、既定300）で待機上限を指定できます。設定キーは `EventTapStartupWaitSeconds` です。未許可の初回起動は案内画面を維持し、一定時間だけ権限を再確認します。監視開始拒否と最初のキー前のtimeoutだけ新しいプロセスで再試行します。内部の `--event-tap-relaunch` は再試行状態だけを渡し、利用者の入力や設定を保存しません。通常の起動手順は [install.md](../docs/install.md) を参照してください。
+変換アプリは `--event-tap-startup-wait SECONDS`（0〜3600、既定300）で待機上限を指定できます。設定キーは `EventTapStartupWaitSeconds` です。未許可の初回起動は案内画面を維持し、一定時間だけ権限を再確認します。監視開始の拒否と入力監視のタイムアウトは、新しいプロセスで有限回だけ再試行します。待機上限を0にすると自動再試行は無効になります。内部の `--event-tap-relaunch` は再試行状態だけを渡し、利用者の入力や設定を保存しません。通常の起動手順は [install.md](../docs/install.md) を参照してください。

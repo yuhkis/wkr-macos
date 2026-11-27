@@ -31,7 +31,10 @@ struct EventTapRelaunch: Equatable {
     let attempt: Int
     let previousPID: pid_t
 
-    init(firstFailure: TimeInterval, attempt: Int, previousPID: pid_t) {
+    let runtimeRecovery: Bool
+
+    init(firstFailure: TimeInterval, attempt: Int, previousPID: pid_t, runtimeRecovery: Bool = false) {
+        self.runtimeRecovery = runtimeRecovery
         self.firstFailure = firstFailure
         self.attempt = attempt
         self.previousPID = previousPID
@@ -39,17 +42,18 @@ struct EventTapRelaunch: Equatable {
 
     init?(argument: String) {
         let fields = argument.split(separator: ",", omittingEmptySubsequences: false)
-        guard fields.count == 3,
+        let runtime = fields.count == 4 && fields.last == "runtime"
+        guard fields.count == 3 || runtime,
               let firstFailure = TimeInterval(fields[0]), firstFailure.isFinite,
               firstFailure >= 0, firstFailure < TimeInterval(Int.max),
               let attempt = Int(fields[1]), (2...EventTapStartupRetry.maximumAttempts).contains(attempt),
               let pid = pid_t(fields[2]), pid > 0
         else { return nil }
-        self.init(firstFailure: firstFailure, attempt: attempt, previousPID: pid)
+        self.init(firstFailure: firstFailure, attempt: attempt, previousPID: pid, runtimeRecovery: runtime)
     }
 
     var argumentValue: String {
-        "\(Int(firstFailure)),\(attempt),\(previousPID)"
+        "\(Int(firstFailure)),\(attempt),\(previousPID)" + (runtimeRecovery ? ",runtime" : "")
     }
 
     static func arguments(replacingIn arguments: [String], with relaunch: EventTapRelaunch) -> [String] {
@@ -70,6 +74,7 @@ enum StartupRefusal: Equatable {
     case permissions
     case eventTap
     case eventTapTimeout
+    case runtimeTimeout
 
     /// Initial permission setup remains visible while this process rechecks.
     /// Only tap failures launch a successor process.
@@ -80,6 +85,7 @@ enum StartupRefusal: Equatable {
         case .permissions: return "permissions"
         case .eventTap: return "event-tap"
         case .eventTapTimeout: return "event-tap-timeout"
+        case .runtimeTimeout: return "runtime-tap-timeout"
         }
     }
 
@@ -88,6 +94,7 @@ enum StartupRefusal: Equatable {
         case .permissions: return "permissions-check"
         case .eventTap: return "event-tap-start"
         case .eventTapTimeout: return "event-tap-timeout"
+        case .runtimeTimeout: return "runtime-tap-timeout"
         }
     }
 
@@ -97,10 +104,19 @@ enum StartupRefusal: Equatable {
 
     static let tapTimeoutReason = "event-tap-disabled-timeout"
 
-    /// A timeout before the first real key event has no pending conversion to
-    /// carry across processes. All other failures retain the normal exit path.
-    static func relaunchesAfterTapFailure(reason: String, keyHandled: Bool) -> Bool {
-        reason == tapTimeoutReason && !keyHandled
+    static func afterTapFailure(reason: String, keyHandled: Bool, paused: Bool,
+                                recovering: Bool, activeSeconds: TimeInterval) -> Self? {
+        guard reason == tapTimeoutReason, !paused else { return nil }
+        if recovering && activeSeconds < 60 { return nil }
+        return keyHandled ? .runtimeTimeout : .eventTapTimeout
+    }
+
+    func successor(previous: EventTapRelaunch?, now: TimeInterval, pid: pid_t) -> EventTapRelaunch {
+        // A new incident after sustained operation has its own retry budget.
+        let chain = self == .runtimeTimeout ? nil : previous
+        return EventTapRelaunch(firstFailure: min(chain?.firstFailure ?? now, now),
+                                attempt: (chain?.attempt ?? 1) + 1, previousPID: pid,
+                                runtimeRecovery: self == .runtimeTimeout || chain?.runtimeRecovery == true)
     }
 }
 

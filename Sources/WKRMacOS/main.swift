@@ -47,6 +47,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var peerObserver: NSObjectProtocol?
     private var setupWindow: SetupWindowController?
     private var practiceWindow: PracticeWindowController?
+    private var tapStartedAt: TimeInterval?
     private var userPaused = false
     private var eventTapRetryTimer: Timer?
     private var permissionRecheckStarted: DispatchTime?
@@ -107,6 +108,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         guard permissions.isGranted else {
             engineLease = nil
+            if configuration.eventTapRelaunch?.runtimeRecovery == true && !requestPermissions {
+                AppLog.logger.error("conversion-not-started reason=permissions-revoked")
+                NSApplication.shared.terminate(nil)
+                return
+            }
             // Startup blockers take precedence; no input-source query is needed.
             publishStatus(secureInput: false, applicationAllowed: true, inputSourceMatches: false, inputSourceName: nil)
             showSetup(reason: "入力監視: \(permissions.listen ? "許可済み" : "未許可") / アクセシビリティ: \(permissions.post ? "許可済み" : "未許可")。設定画面で \(AppVersion.name) を許可してください。変換を開始せず、一定時間だけ状態を再確認します。")
@@ -186,6 +192,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             startupRefused(.eventTap)
             return
         }
+        tapStartedAt = ProcessInfo.processInfo.systemUptime
         // Starting the tap preserves the safety context established above.
         if let relaunch = configuration.eventTapRelaunch {
             let elapsed = max(0, Int(Date().timeIntervalSince1970 - relaunch.firstFailure))
@@ -198,20 +205,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func eventTapFailed(reason: String) {
         precondition(Thread.isMainThread)
-        let keyHandled = eventTapController?.hasHandledKey ?? true
-        guard StartupRefusal.relaunchesAfterTapFailure(reason: reason, keyHandled: keyHandled),
-              !isTerminatingFailClosed else {
+        guard !isTerminatingFailClosed else { return }
+        guard let controller = eventTapController, let started = tapStartedAt,
+              let refusal = StartupRefusal.afterTapFailure(
+                reason: reason, keyHandled: controller.hasHandledKey, paused: userPaused,
+                recovering: configuration.eventTapRelaunch?.runtimeRecovery == true,
+                activeSeconds: ProcessInfo.processInfo.systemUptime - started
+              ) else {
             terminateFailClosed(reason: reason)
             return
         }
         isTerminatingFailClosed = true
-        AppLog.logger.error("conversion-stopped reason=\(reason, privacy: .public) action=relaunch keys-handled=0")
         stopConversionForStartupRetry()
-        startupRefused(.eventTapTimeout)
+        startupRefused(refusal)
     }
 
-    /// Only startup failure uses this cleanup. It leaves setup/practice UI
-    /// available and removes the lease before a fresh process can start.
     private func stopConversionForStartupRetry() {
         safetyTimer?.invalidate()
         safetyTimer = nil
@@ -235,18 +243,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         let now = Date().timeIntervalSince1970
-        let previous = configuration.eventTapRelaunch
-        // The separate attempt cap also bounds recovery after clock changes.
-        let firstFailure = min(previous?.firstFailure ?? now, now)
-        let attempt = previous?.attempt ?? 1
-        let elapsed = max(0, now - firstFailure)
+        let next = refusal.successor(previous: configuration.eventTapRelaunch, now: now, pid: getpid())
+        let attempt = next.attempt - 1
+        let elapsed = now - next.firstFailure
         switch configuration.eventTapStartupRetry.next(afterFailureAt: elapsed, attempt: attempt) {
         case .giveUp:
             AppLog.logger.error("conversion-not-started reason=\(refusal.reason, privacy: .public) attempts=\(attempt, privacy: .public) waited-seconds=\(Int(elapsed), privacy: .public)")
             NSApplication.shared.terminate(nil)
         case let .relaunch(after: delay):
             AppLog.logger.notice("\(refusal.waitEvent, privacy: .public) failed=true action=relaunch attempt=\(attempt, privacy: .public) elapsed-seconds=\(Int(elapsed), privacy: .public) wait-seconds=\(self.configuration.eventTapStartupRetry.waitSeconds, privacy: .public)")
-            let next = EventTapRelaunch(firstFailure: firstFailure, attempt: attempt + 1, previousPID: getpid())
+            if refusal == .eventTapTimeout {
+                AppLog.logger.error("conversion-stopped reason=event-tap-disabled-timeout action=relaunch keys-handled=0")
+            } else if refusal == .runtimeTimeout {
+                AppLog.logger.error("conversion-stopped reason=event-tap-disabled-timeout action=relaunch phase=runtime")
+            }
             let timer = Timer(timeInterval: delay, repeats: false) { [weak self] _ in self?.relaunch(next) }
             RunLoop.main.add(timer, forMode: .common)
             eventTapRetryTimer = timer
@@ -282,6 +292,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func relaunch(_ next: EventTapRelaunch) {
+        if next.runtimeRecovery && !PermissionController.current().isGranted {
+            AppLog.logger.error("conversion-not-started reason=permissions-revoked")
+            NSApplication.shared.terminate(nil)
+            return
+        }
         let openConfiguration = NSWorkspace.OpenConfiguration()
         openConfiguration.createsNewApplicationInstance = true
         openConfiguration.activates = false
