@@ -1,21 +1,15 @@
-# WKR macOS v2 Public Beta 0.8.0-public.beta.8 — Release文案
+# WKR macOS v2 Public Beta 0.8.0-public.beta.8
 
-未公開の配布候補です。配列 **2.0.0-beta.5（171規則）**、同梱練習帳 **0.5.1** に対応します。
+**[Apple Silicon用DMGをダウンロード](https://github.com/yuhkis/wkr-macos/releases/download/v0.8.0-public.beta.8/WKRPublic-0.8.0-public.beta.8-arm64.dmg)**。macOS 14以降、JISキーボード、Apple日本語入力（ローマ字入力・ひらがな）が対象です。Xcodeは不要です。
 
-公開済み0.8.0-public.beta.5（配列2.0.0-beta.1）から、D＝た行、F＝な行、M＝ん、U＝っ、P＝や・拗音列、N＝いぇ・ぇ列へ更新しました。専用の記号・矢印・短縮列を廃止しました。配列表・IMEテーブル・教材は[wkr-layout](https://github.com/yuhkis/wkr-layout)の同じ正本から生成します。[Web練習帳](https://yuhkis.github.io/wkr-layout/)も用意しています。公開前はWebが以前の配列版の場合があるため、画面の版表示を確認してください。
+## 試し方
 
-練習帳は、ABC・英数でQWERTY入力を体験するモードと、WKR・IMEで確定したかなを練習するモードを備えます。同じ教材の単独WakaraPractice.appは入力監視・アクセシビリティを要求せず、オフラインで利用できます。
+1. Releaseに添付されたDMGと `SHA256SUMS` を取得し、[導入手順](https://github.com/yuhkis/wkr-macos/blob/v0.8.0-public.beta.8/docs/distribution.md)に沿ってチェックサムを確認します。
+2. DMGを開き、`WKRPublic.app` を「Applications」にドラッグして起動します。DMGとアプリはプロジェクトの自己署名証明書で署名しており、Appleの公証は受けていません。macOSに止められた場合は、導入手順に沿って各項目の起動を個別に許可してください。
+3. アプリの案内から入力監視とキー送出を許可します。ひらがな入力に切り替えて `E K` を打ち、「き」と出れば変換できています。以前の版からの更新で許可が反映されない場合は、導入手順の旧版からの更新方法を参照してください。
 
-初回の権限不足では案内画面を維持し、同じプロセスで一定時間だけ許可状態を再確認します。許可済みで監視の作成を拒否された場合や、入力監視がタイムアウトした場合は、新しいプロセスで有限の再試行を行います。変換中のタイムアウトでは保留入力を破棄します。一時停止中や復旧後60秒未満での再発時は終了します。入力ソースは自動変更しません。
+## 主な変更
 
-詳細なキー列・入力本文・時刻・研究用計測は保存しません。日別頻度と課題別成績は既定オフ・明示的有効化・ローカル保存です。設定や既存データは自動移行しません。[導入・保存・削除](https://github.com/yuhkis/wkr-macos/blob/main/docs/distribution.md)を参照してください。
-
-配布形式はApple Silicon用DMG、macOS 14以降です。DMGと中のアプリは、本プロジェクト専用の自己署名証明書「WKR macOS Release」（SHA-1 `a0d1dd008c6e8a07de11dca7c2c79b43c926e000`）で署名しています。Apple Developer Programには加入しておらず、Developer ID署名・公証はありません。macOSがDMGやアプリをブロックした場合は公式ReleaseとSHA256を確認し、そのDMG・アプリだけを開くことを許可します。Gatekeeper全体を無効にしません。
-
-公開済みbeta.5まではad-hoc署名のZIPでした。beta.5以前や自分でビルドしたアプリから切り替えるときは、署名が変わるため入力監視・アクセシビリティの許可を一度だけやり直します。古い登録は「−」で削除し、「＋」では追加せず、新しいアプリの案内から「状態を再確認して変換を開始」を選んでください（[導入手順](https://github.com/yuhkis/wkr-macos/blob/main/docs/distribution.md)）。同じ証明書で署名した次の版へ置き換えたときは、許可を引き継げることをmacOS 27.2.1で確認しています。
-
-自動検証と未確認事項は[検証記録](https://github.com/yuhkis/wkr-macos/blob/main/docs/verification.md)を参照してください。以前の候補の実機確認を、このDMGの確認として引き継ぎません。今回の権限付与後の日本語実入力・停止・再開・終了、ダウンロード後の起動許可、物理打鍵、更新・アンインストールは未確認です。初回の対象はApple日本語入力です。Google日本語入力・azooKeyは専用テーブルによる導入経路を別に案内します。
-
-既存のタグ・Release・配布ファイルは保持し、未公開候補beta.6・beta.7の番号は別内容に再利用しません。
-
-権限未許可・入力監視の未開始をメニューに明示し、メニューを開いただけで「変換中」と誤表示しないようにしました。監視開始前の一時停止操作は無効です。
+- 入力監視が変換中にタイムアウトした場合は、保留入力を破棄し、新しいプロセスで変換を再開します。一時停止中や復旧後60秒未満の再発時は終了します。macOS 27.2.1の実機で、タイムアウトから3.448秒後に別プロセスが再開し、テスト入力が再び「き」になることを1回確認しました。今回の物理打鍵は未検証です。[検証記録](https://github.com/yuhkis/wkr-macos/blob/v0.8.0-public.beta.8/docs/verification.md)
+- 配列を2.0.0-beta.5に更新しました。171規則で、D＝た行、F＝な行、M＝ん、U＝っ、P＝や・拗音列、N＝いぇ・ぇ列です。[配列表](https://github.com/yuhkis/wkr-macos/blob/v0.8.0-public.beta.8/docs/layout-reference.md)
+- 練習帳0.5.1を同梱しています。入力本文や打鍵順序を収集する研究用ログは含みません。任意の日別頻度集計と課題別成績は既定オフで、有効にした場合はMac内に保存します。

@@ -2,11 +2,11 @@
 
 3製品のダウンロード版の共通手順は[distribution.md](distribution.md)へ。以下はv2の詳細設定・開発用操作です。
 
-対象はmacOS 14以降・Apple日本語入力（ローマ字入力）・JISキーボードです。現在の配布候補はApple Silicon用です。v2候補0.8.0-public.beta.6（配列2.0.0-beta.1、未公開）の権限付与後の短い変換・停止・再開は、Apple日本語入力と画面共有のキー操作で確認しています。配列2.0.0-beta.5の0.8.0-public.beta.8では、公開前に同じ確認をやり直します。[確認済み範囲](verification.md)を先に確認してください。
+対象はmacOS 14以降・Apple日本語入力（ローマ字入力）・JISキーボードです。公開v2 beta.8のDMGはApple Silicon用です。実機での入力と自動復旧の[確認済み範囲](verification.md)を掲載しています。
 
 ## 1. 入手・ビルド
 
-公開ベータは[公式Release](https://github.com/yuhkis/wkr-macos/releases/tag/v0.8.0-public.beta.5)から入手できます。Apple Developer Programへの加入を前提にせず、次の二つの導入経路を用意します。
+公開ベータは[公式Release](https://github.com/yuhkis/wkr-macos/releases/tag/v0.8.0-public.beta.8)から入手できます。Apple Developer Programへの加入を前提にせず、次の二つの導入経路を用意します。
 
 - アプリDMG: Apple Silicon用の `WKRPublic-<版>-arm64.dmg` を開いてアプリをコピーする（公開済みbeta.5は `WKR-macOS-0.8.0-public.beta.5-arm64-adhoc.zip`）。利用者側のXcodeは必要ありません。専用の自己署名証明書で署名した未公証のアプリなので、初回の個別起動許可が必要です。手順は[distribution.md](distribution.md)。
 - ソースビルド: 下記の手順で自分のMac上にアプリを作る。

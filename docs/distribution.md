@@ -1,6 +1,6 @@
 # ダウンロードしたアプリを使う
 
-3種類のアプリを用意します。いずれもApple Silicon・macOS 14以降が対象で、利用者側のXcodeは不要です。配布するDMGと中のアプリは、本プロジェクト専用の自己署名証明書「WKR macOS Release」で署名しています。Appleの開発元証明（Developer ID）・公証はありません。公開済みのv0.8.0-public.beta.5まではad-hoc署名のZIPでした。
+今回の[公式Release](https://github.com/yuhkis/wkr-macos/releases/tag/v0.8.0-public.beta.8)から **WKRPublic.app（練習帳同梱）** をダウンロードできます。下表には別の配布候補も含みます。いずれもApple Silicon・macOS 14以降が対象で、利用者側のXcodeは不要です。配布するDMGと中のアプリは、本プロジェクト専用の自己署名証明書「WKR macOS Release」で署名しています。Appleの開発元証明（Developer ID）・公証はありません。公開済みのv0.8.0-public.beta.5まではad-hoc署名のZIPでした。
 
 | 製品 | アプリ版 | 対応配列 | アプリ / Bundle ID |
 | --- | --- | --- | --- |
@@ -12,7 +12,7 @@
 
 ## 入手と初回起動
 
-1. [公式Release](https://github.com/yuhkis/wkr-macos/releases)で製品・版を選び、`<アプリ名>-<版>-arm64.dmg` と `SHA256SUMS` を同じフォルダへ取得します。
+1. [v2の公式Release](https://github.com/yuhkis/wkr-macos/releases/tag/v0.8.0-public.beta.8)で、`<アプリ名>-<版>-arm64.dmg` と `SHA256SUMS` を同じフォルダへ取得します。
 2. ターミナルでそのフォルダへ移り、`shasum -a 256 -c SHA256SUMS --ignore-missing` を実行して、DMGの行が `OK` になることを確認します。ハッシュは破損・取り違えの検査であり、開発元の証明ではありません。
 3. DMGを開きます。macOSが「“<DMG名>”は開いていません」と表示して止めたら、入手元とハッシュを確認してから「完了」を押し、システム設定 → プライバシーとセキュリティ →「このまま開く」を選び、確認画面でもう一度「このまま開く」を選びます。管理者のパスワードを求められます。
 4. アプリを隣の「Applications」へドラッグします。旧版があれば先に終了してから置き換えます。DMGにはLICENSEとこの説明（INSTALL.md）も入っています。
@@ -22,7 +22,7 @@ Gatekeeper全体の無効化やquarantine属性の一括削除は行いません
 
 署名した証明書は、ターミナルで `codesign -d -r- /Applications/WKRPublic.app` を実行して確かめられます（アプリ名は製品に合わせます）。表示に `certificate leaf = H"a0d1dd008c6e8a07de11dca7c2c79b43c926e000"` があれば、本プロジェクトの配布用証明書です。この値はリポジトリの `Scripts/release-certificate-leaf.sha1` と同じです。
 
-macOSは入力監視・アクセシビリティの許可を、この証明書とBundle IDに結び付けます。同じ証明書で署名した次の版へ置き換えても、許可をやり直さずに変換を始められることをmacOS 27.2.1で確認しました（[検証記録](verification.md)）。
+macOSは入力監視・アクセシビリティの許可を、この証明書とBundle IDに結び付けます。同じ証明書で署名した次の版へ置き換えても、許可をやり直さずに変換を始められることをmacOS 27.2.1で確認しました（[検証記録](https://github.com/yuhkis/wkr-macos/blob/v0.8.0-public.beta.8/docs/verification.md)）。
 
 ad-hoc署名のbeta.5以前や自分でビルドしたアプリから切り替えるときは、署名が変わるため一度だけ許可し直します。古い登録は設定画面でオンに見えても、新しいアプリには効きません。
 
@@ -68,4 +68,4 @@ macOSの設定ドメインとApplication Supportのフォルダ名は上表のBu
 
 アンインストールは、本人が登録したログイン項目を解除し、アプリを終了してからアプリ本体をゴミ箱へ移します。変換アプリの入力監視・アクセシビリティの登録を削除します。成績は事前に画面から削除でき、設定・頻度も不要なら上表の**対象製品だけ**のApplication Supportと設定ドメインを確認して削除します。旧版やPrivateのデータは別です。配布アプリはログイン項目を自動登録しません。
 
-今回の候補は未公開です。以前の候補で行った実機確認と、今回のDMGの確認は分けて扱います。v2 0.8.0-public.beta.7のDMGでは、ダウンロード後の起動許可と、同じ証明書の次の版への権限の引き継ぎを確認しました。今回の導入・権限付与後の実入力・停止・更新・アンインストール、ダウンロード後の起動許可の未確認事項は[検証記録](verification.md)を参照してください。
+公開v2 beta.8では、専用の入力欄でタイムアウト後の変換再開を確認しました。今回の物理打鍵、ダウンロード後の起動許可、更新・アンインストールの実機確認範囲は[検証記録](https://github.com/yuhkis/wkr-macos/blob/v0.8.0-public.beta.8/docs/verification.md)を参照してください。
