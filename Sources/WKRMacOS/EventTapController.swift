@@ -272,6 +272,8 @@ final class EventTapController {
             return Unmanaged.passUnretained(event)
         }
 
+        guard tapOperational else { return Unmanaged.passUnretained(event) }
+
         if type == .leftMouseDown || type == .rightMouseDown || type == .otherMouseDown {
             reset(.mouse)
             return Unmanaged.passUnretained(event)
@@ -328,11 +330,9 @@ final class EventTapController {
                 )
             }
             if keyCode == CGKeyCode(kVK_JIS_Eisu) {
-                eisuIsHeld = true
-                if !isAutorepeat, englishFallbackTrigger == .eisuBurst {
-                    // Holding the key down is not a burst, so repeats are left
-                    // out of the count.
-                    extendEisuBurst()
+                if !isAutorepeat {
+                    eisuIsHeld = true
+                    if englishFallbackTrigger == .eisuBurst { extendEisuBurst() }
                 }
             } else {
                 // `かな` starts a new pre-edit, so nothing from before it can

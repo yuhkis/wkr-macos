@@ -18,8 +18,12 @@ final class StartupBoundaryTests: XCTestCase {
         XCTAssertFalse(config.keyFrequencyEnabled)
         XCTAssertTrue(StartupRefusal.permissions.keepsPermissionSetup)
         XCTAssertFalse(StartupRefusal.eventTap.keepsPermissionSetup)
-        XCTAssertTrue(StartupRefusal.relaunchesAfterTapFailure(reason: "event-tap-disabled-timeout", keyHandled: false))
-        XCTAssertFalse(StartupRefusal.relaunchesAfterTapFailure(reason: "event-tap-disabled-timeout", keyHandled: true))
-        XCTAssertFalse(StartupRefusal.relaunchesAfterTapFailure(reason: "permissions-revoked", keyHandled: false))
+        for (handled, expected) in [(false, StartupRefusal.eventTapTimeout), (true, .runtimeTimeout)] {
+            XCTAssertEqual(StartupRefusal.afterTapFailure(reason: StartupRefusal.tapTimeoutReason,
+                                                         keyHandled: handled, paused: false,
+                                                         recovering: false, activeSeconds: 0), expected)
+        }
+        XCTAssertNil(StartupRefusal.afterTapFailure(reason: "permissions-revoked", keyHandled: false,
+                                                   paused: false, recovering: false, activeSeconds: 0))
     }
 }
