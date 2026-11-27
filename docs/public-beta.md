@@ -4,14 +4,14 @@
 
 通常の製品名は「WKR macOS v1」「WKR macOS v2」、練習帳は「わから配列 練習帳」です。一般公開の試験版には「Public Beta」を付け、開発用の別製品は「Private」と明示します。通常版・保存版・練習帳へ一律にPublicを付けません。既存アプリのBundle ID・設定・保存先の分離は表示名と独立して保持します。
 
-「Public Beta」は一般公開する試験版を表します。通常の製品名へ一律にPublicを付ける意味ではありません。正規のReleaseタグは `v0.8.0-public.beta.5` です。配布済みファイルとアプリ内の版表示は変更していません。
+「Public Beta」は一般公開する試験版を表します。通常の製品名へ一律にPublicを付ける意味ではありません。今回のReleaseタグは `v0.8.0-public.beta.8` です。配布済みファイルとアプリ内の版表示は変更していません。
 
 `beta` は公開範囲を指定しないベータ版、`public.beta` は一般公開のベータ版を表します。番号が同じでも同一版とは扱わず、公開済みの版に意味の異なる別名タグを追加しません。
 
 ## 採用する構成
 
 - 配列2.0.0-beta.5: `wkr-layout`の171規則JSONが正本。D＝た行・F＝な行。macOSの綴りもそのJSONのdeliveryから生成する。
-- macOS 0.8.0-public.beta.8: 独立した公開履歴を継続する。ビルド番号48。`public.beta` は一般公開の試験版を表し、Privateとは別の系列。未公開のbeta.6・beta.7の番号も別内容に再利用しない。
+- macOS 0.8.0-public.beta.8: 独立した公開履歴を継続する。ビルド番号49。`public.beta` は一般公開の試験版を表し、Privateとは別の系列。未公開のbeta.6・beta.7の番号も別内容に再利用しない。
 - 練習0.5.1: `wkr-layout/practice`が正本。同じHTML / JS / CSS / data.jsをアプリへ同梱し、固定commitとハッシュを記録する。
 - v1アプリ0.7.2: 配列1.1.0の保存規則を維持し、共通の起動安全処理を更新する。以前の未配布候補0.7.1-public.1とは区別する。
 - Public / Privateの変換ロジックは`WKRCore`へ集約する。研究用の変更はこの公開branchへmergeしない。Privateへは公開されたCoreと同じ排他処理を選択して反映する。
